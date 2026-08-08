@@ -58,7 +58,7 @@
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent: 240 5.9% 10%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
@@ -70,6 +70,65 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  ::selection {
+    background: rgba(43, 224, 140, 0.25);
+  }
+}
+
+@layer utilities {
+  /* Faint dotted grid used on dark landing sections (CSS radial-gradient, not an image) */
+  .bg-dotted-grid-dark {
+    background-image: radial-gradient(rgba(30, 42, 37, 0.4) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  .bg-dotted-grid-light {
+    background-image: radial-gradient(rgba(91, 103, 98, 0.16) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Diagonal stripe texture for Vedado matrix cells */
+  .bg-stripes-vedado {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgba(220, 38, 38, 0.08) 0px,
+      rgba(220, 38, 38, 0.08) 4px,
+      transparent 4px,
+      transparent 9px
+    );
+  }
+  .hero-glow {
+    background: radial-gradient(60% 50% at 50% 0%, rgba(43, 224, 140, 0.14), transparent 70%);
+  }
+  .divider-glow {
+    background: linear-gradient(90deg, transparent, rgba(43, 224, 140, 0.5), transparent);
+  }
+  /* Step-card entrance used by the pinned "Como funciona" sequence */
+  .animate-step-in {
+    animation: step-in 0.35s ease-out both;
+  }
+  /* Shimmer sweep on mono % tags (tributos cards) */
+  .shimmer-tag {
+    background-image: linear-gradient(110deg, transparent 30%, rgba(43, 224, 140, 0.18) 50%, transparent 70%);
+    background-size: 220% 100%;
+    background-position: 120% 0;
+    transition: background-position 600ms ease;
+  }
+  .group:hover .shimmer-tag {
+    background-position: -20% 0;
+  }
+}
+
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

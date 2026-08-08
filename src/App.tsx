@@ -1,10 +1,42 @@
-import { Routes, Route } from 'react-router'
-import Home from './pages/Home'
+import { Navigate, Route, Routes } from "react-router"
+import { Toaster } from "@/components/ui/sonner"
+import Layout from "@/components/Layout"
+import AppShell from "@/components/app/AppShell"
+import Home from "@/pages/Home"
+import Login from "@/pages/Login"
+import Cadastro from "@/pages/Cadastro"
+import Dashboard from "@/pages/app/Dashboard"
+import Despesas from "@/pages/app/Despesas"
+import NovaDespesa from "@/pages/app/NovaDespesa"
+import Revisao from "@/pages/app/Revisao"
+import Veiculos from "@/pages/app/Veiculos"
+import Empresas from "@/pages/app/Empresas"
+import Relatorios from "@/pages/app/Relatorios"
+import Regras from "@/pages/app/Regras"
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<Home />} />
+        </Route>
+        <Route path="/login" element={<Login />} />
+        <Route path="/cadastro" element={<Cadastro />} />
+        <Route path="/app" element={<AppShell />}>
+          <Route index element={<Navigate to="/app/dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="despesas" element={<Despesas />} />
+          <Route path="despesas/nova" element={<NovaDespesa />} />
+          <Route path="revisao" element={<Revisao />} />
+          <Route path="veiculos" element={<Veiculos />} />
+          <Route path="empresas" element={<Empresas />} />
+          <Route path="relatorios" element={<Relatorios />} />
+          <Route path="regras" element={<Regras />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <Toaster position="top-right" richColors />
+    </>
   )
 }
