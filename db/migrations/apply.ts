@@ -45,7 +45,11 @@ async function main() {
       } catch (err) {
         const code = (err as { code?: string }).code ?? "";
         // Idempotência: objeto já existe → avisa e segue (nunca dropa dados)
-        if (["ER_TABLE_EXISTS_ERROR", "ER_DUP_FIELDNAME", "ER_DUP_KEYNAME"].includes(code)) {
+        if (
+          ["ER_TABLE_EXISTS_ERROR", "ER_DUP_FIELDNAME", "ER_DUP_KEYNAME", "ER_FK_DUP_NAME"].includes(
+            code,
+          )
+        ) {
           console.log(`  ⚠ [${i + 1}/${statements.length}] já aplicado (${code}), pulando`);
         } else {
           throw err;
