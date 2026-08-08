@@ -4,6 +4,39 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.1.0] — 2026-08-09
+
+### Adicionado
+- **Agente de Política de Reembolso**: além da matriz fiscal, a empresa sobe o
+  documento da própria política de reembolso e um agente passa a avaliar cada
+  despesa → **aprova**, **nega** ou **manda para revisão humana**:
+  - Upload do documento (PDF/imagem/texto) na nova página **Política** (`/app/politica`);
+    parser plugável via `POLICY_PROVIDER` (default `heuristico`) extrai regras
+    estruturadas: tetos por categoria, exigência de veículo cadastrado, exigência
+    de evidência, limiares de aprovação automática / revisão humana / negação
+  - Wizard de importação em 3 passos (upload → revisão das regras extraídas →
+    ativação), com edição manual de todas as regras antes de ativar
+  - Versionamento de políticas: ativar nova versão arquiva a anterior
+    (transação atômica); histórico de versões na página
+  - Agente avaliador determinístico (`api/policy/agent.ts`) com trilha de
+    regras aplicadas (passou/falhou/revisar) e motivos em PT-BR; default
+    conservador = revisão humana
+  - Integração ao fluxo existente: veredito da política aparece no resultado
+    do wizard de nova despesa (OCR), no drawer da despesa e na fila de revisão;
+    `negado` → despesa rejeitada; `revisão humana` → entra na fila RF-05
+  - **Simulador** (dry-run) na página da política para testar cenários sem
+    gravar nada
+  - DB: tabela `politicas_reembolso` + colunas `politica_decisao`,
+    `politica_motivo`, `politica_versao_aplicada` em `despesas` (migração 0001)
+  - Seed: política demo ATIVA (v1) para Transportes Demo Ltda
+  - Testes: +10 testes do agente (20/20 no total)
+
+### Corrigido
+- **Deploy fresh-DB**: migrações SQL agora são versionadas no repositório
+  (removido `db/migrations/*.sql` do `.gitignore`) e aplicadas pelo
+  entrypoint/setup via `db/migrations/apply.ts` — não interativo e idempotente
+  (inclui `ER_FK_DUP_NAME`), substituindo `drizzle-kit migrate`
+
 ## [1.0.0] — 2026-08-09
 
 ### Adicionado
