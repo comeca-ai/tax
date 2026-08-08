@@ -26,7 +26,8 @@ A conta cliente vem com a empresa **Transportes Demo Ltda** (CNAE 49.30-2, Lucro
 
 ```bash
 npm install
-npm run db:push        # sincroniza o schema com o banco
+# aplica as migrações SQL (não interativo, idempotente):
+for f in db/migrations/0*.sql; do npx tsx db/migrations/apply.ts "$(basename "$f")"; done
 npx tsx db/seed.ts     # matriz de regras + alíquotas ICMS + dados demo (idempotente)
 npm run dev            # http://localhost:3000
 ```
@@ -92,7 +93,8 @@ cp .env.example .env
 #   DATABASE_URL=mysql://USUARIO:SENHA@127.0.0.1:3306/taxengine
 #   APP_SECRET=$(openssl rand -base64 48)
 npm install
-npm run db:migrate     # aplica o schema (ou: npm run db:push)
+# aplica as migrações SQL (não interativo, idempotente):
+for f in db/migrations/0*.sql; do npx tsx db/migrations/apply.ts "$(basename "$f")"; done
 npx tsx db/seed.ts     # regras + dados demo
 npm run build
 npm start              # sobe na porta 3000
@@ -206,8 +208,8 @@ Nenhuma outra parte do sistema muda — o wizard já exibe confiança por campo 
 | `npm run dev` | Dev server com HMR (porta 3000) |
 | `npm run build` | Build de produção |
 | `npm start` | Servidor de produção |
-| `npm run db:push` | Sincroniza schema (desenvolvimento) |
-| `npm run db:generate` / `db:migrate` | Migrações SQL (produção) |
+| `npx tsx db/migrations/apply.ts <arquivo.sql>` | Aplica uma migração SQL (não interativo, idempotente) |
+| `npm run db:generate` | Gera nova migração a partir de `db/schema.ts` (desenvolvimento) |
 | `npm run test` | Testes (Vitest) |
 | `npm run check` | Type-check |
 

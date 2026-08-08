@@ -5,7 +5,7 @@ import { ArrowLeft, Building2, Check, TriangleAlert } from "lucide-react"
 import { toast } from "sonner"
 import { trpc } from "@/providers/trpc"
 import { useActiveCompany } from "@/hooks/useActiveCompany"
-import type { RegimeTributario, ResultadoMotor } from "@contracts/types"
+import type { RegimeTributario, ResultadoMotor, ResultadoPolitica } from "@contracts/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { fileParaBase64 } from "@/components/despesas/arquivo"
@@ -76,7 +76,11 @@ export default function NovaDespesa() {
   const [editados, setEditados] = useState<Set<string>>(new Set())
   const [assistido, setAssistido] = useState(false)
   const [erroRf00, setErroRf00] = useState<string | null>(null)
-  const [resultado, setResultado] = useState<{ despesaId: number; resultado: ResultadoMotor } | null>(null)
+  const [resultado, setResultado] = useState<{
+    despesaId: number
+    resultado: ResultadoMotor
+    politica: (ResultadoPolitica & { versao: number | null }) | null
+  } | null>(null)
 
   const revisaoIniciadaRef = useRef(false)
   const stepRef = useRef(step)
@@ -326,6 +330,7 @@ export default function NovaDespesa() {
               <StepResultado
                 despesaId={resultado.despesaId}
                 resultado={resultado.resultado}
+                politica={resultado.politica}
                 categoria={form?.categoria ?? ""}
                 cnaeEmpresa={activeCompany.cnaePrincipal ?? "—"}
                 regimeEmpresa={

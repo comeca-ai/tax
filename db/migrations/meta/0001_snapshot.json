@@ -1,8 +1,8 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "e8062236-8e9f-44ea-b14b-9503d4210e23",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "68d5babd-7b62-4b9b-8fa7-3f505df0e395",
+  "prevId": "e8062236-8e9f-44ea-b14b-9503d4210e23",
   "tables": {
     "cnaes_secundarios": {
       "name": "cnaes_secundarios",
@@ -276,6 +276,27 @@
         "motivo_revisao": {
           "name": "motivo_revisao",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "politica_decisao": {
+          "name": "politica_decisao",
+          "type": "enum('aprovado','negado','revisao_humana')",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "politica_motivo": {
+          "name": "politica_motivo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "politica_versao_aplicada": {
+          "name": "politica_versao_aplicada",
+          "type": "int",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -742,6 +763,146 @@
       "compositePrimaryKeys": {
         "notas_fiscais_id": {
           "name": "notas_fiscais_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "politicas_reembolso": {
+      "name": "politicas_reembolso",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "empresa_id": {
+          "name": "empresa_id",
+          "type": "bigint unsigned",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "arquivo_nome": {
+          "name": "arquivo_nome",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "arquivo_path": {
+          "name": "arquivo_path",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "texto_extraido": {
+          "name": "texto_extraido",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "regras": {
+          "name": "regras",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum('rascunho','ativa','inativa')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'rascunho'"
+        },
+        "versao": {
+          "name": "versao",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "confianca_extracao": {
+          "name": "confianca_extracao",
+          "type": "enum('alta','media','baixa')",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "campos_pendentes": {
+          "name": "campos_pendentes",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_by_id": {
+          "name": "created_by_id",
+          "type": "bigint unsigned",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "politicas_reembolso_empresa_id_empresas_id_fk": {
+          "name": "politicas_reembolso_empresa_id_empresas_id_fk",
+          "tableFrom": "politicas_reembolso",
+          "tableTo": "empresas",
+          "columnsFrom": [
+            "empresa_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "politicas_reembolso_created_by_id_usuarios_id_fk": {
+          "name": "politicas_reembolso_created_by_id_usuarios_id_fk",
+          "tableFrom": "politicas_reembolso",
+          "tableTo": "usuarios",
+          "columnsFrom": [
+            "created_by_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "politicas_reembolso_id": {
+          "name": "politicas_reembolso_id",
           "columns": [
             "id"
           ]

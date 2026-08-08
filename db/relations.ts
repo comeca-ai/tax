@@ -10,11 +10,13 @@ import {
   creditosApurados,
   evidenciasDocumentais,
   logAuditoria,
+  politicasReembolso,
 } from "./schema";
 
 export const usuariosRelations = relations(usuarios, ({ many }) => ({
   empresas: many(empresas),
   logs: many(logAuditoria),
+  politicasCriadas: many(politicasReembolso),
 }));
 
 export const empresasRelations = relations(empresas, ({ one, many }) => ({
@@ -26,6 +28,7 @@ export const empresasRelations = relations(empresas, ({ one, many }) => ({
   veiculos: many(veiculos),
   notasFiscais: many(notasFiscais),
   despesas: many(despesas),
+  politicasReembolso: many(politicasReembolso),
 }));
 
 export const cnaesSecundariosRelations = relations(
@@ -109,3 +112,17 @@ export const logAuditoriaRelations = relations(logAuditoria, ({ one }) => ({
     references: [empresas.id],
   }),
 }));
+
+export const politicasReembolsoRelations = relations(
+  politicasReembolso,
+  ({ one }) => ({
+    empresa: one(empresas, {
+      fields: [politicasReembolso.empresaId],
+      references: [empresas.id],
+    }),
+    criadoPor: one(usuarios, {
+      fields: [politicasReembolso.createdById],
+      references: [usuarios.id],
+    }),
+  }),
+);

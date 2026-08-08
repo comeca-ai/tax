@@ -8,6 +8,8 @@ import {
   date,
   double,
   bigint,
+  int,
+  json,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
@@ -181,6 +183,14 @@ export const despesas = mysqlTable("despesas", {
   status: statusDespesaEnum.notNull().default("pendente"),
   memorial: text("memorial"),
   motivoRevisao: text("motivo_revisao"),
+  // Agente de Política de Reembolso (v1.1.0) — decisão posterior e independente do motor tributário
+  politicaDecisao: mysqlEnum("politica_decisao", [
+    "aprovado",
+    "negado",
+    "revisao_humana",
+  ]),
+  politicaMotivo: text("politica_motivo"),
+  politicaVersaoAplicada: int("politica_versao_aplicada"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -258,4 +268,36 @@ export const logAuditoria = mysqlTable("log_auditoria", {
   detalhes: text("detalhes"),
   regraVersao: varchar("regra_versao", { length: 20 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. Políticas de reembolso (Agente de Política) — v1.1.0
+// Uma política "ativa" por empresa; regras JSON conforme contracts/types.ts
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const politicasReembolso = mysqlTable("politicas_reembolso", {
+  id: serial("id").primaryKey(),
+  empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
+    .notNull()
+    .references(() => empresas.id),
+  arquivoNome: varchar("arquivo_nome", { length: 255 }).notNull(),
+  arquivoPath: varchar("arquivo_path", { length: 500 }),
+  textoExtraido: text("texto_extraido"),
+  // RegrasPolitica: limites por categoria, exigências, tetos de decisão
+  regras: json("regras").notNull(),
+  status: mysqlEnum("status", ["rascunho", "ativa", "inativa"])
+    .notNull()
+    .default("rascunho"),
+  versao: int("versao").notNull().default(1),
+  confiancaExtracao: mysqlEnum("confianca_extracao", [
+    "alta",
+    "media",
+    "baixa",
+  ]),
+  camposPendentes: json("campos_pendentes"),
+  createdById: bigint("created_by_id", { mode: "number", unsigned: true })
+    .notNull()
+    .references(() => usuarios.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
 });

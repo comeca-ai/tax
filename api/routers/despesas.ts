@@ -8,6 +8,7 @@ import {
   despesas,
   evidenciasDocumentais,
   notasFiscais,
+  politicasReembolso,
   regrasElegibilidade,
   veiculos,
 } from "@db/schema";
@@ -16,13 +17,17 @@ import {
   STATUS_DESPESA,
   despesaInput,
   evidenciaInput,
+  regrasPoliticaSchema,
   uploadNotaInput,
+  type ResultadoPolitica,
+  type StatusDespesa,
 } from "@contracts/types";
 import {
   processarDespesa,
   type RegraVigente,
 } from "../engine";
 import { getOcrProvider } from "../ocr";
+import { avaliarDespesa } from "../policy/agent";
 import { assertEmpresaAcesso, registrarLog } from "./_shared";
 
 export const despesasRouter = createRouter({
@@ -188,6 +193,45 @@ export const despesasRouter = createRouter({
         ...resultado.alertas.map((a) => `ALERTA: ${a}`),
       ].join("\n");
 
+      // ── Agente de Política de Reembolso (v1.1.0) ─────────────────────────
+      // Camada POSTERIOR e independente do motor tributário: só roda se a
+      // empresa tiver política ATIVA. Sem política ativa → comportamento v1.0.0.
+      const politicaAtivaRows = await db
+        .select()
+        .from(politicasReembolso)
+        .where(
+          and(
+            eq(politicasReembolso.empresaId, input.empresaId),
+            eq(politicasReembolso.status, "ativa"),
+          ),
+        )
+        .orderBy(desc(politicasReembolso.versao))
+        .limit(1);
+      const politicaAtiva = politicaAtivaRows[0] ?? null;
+
+      let politicaResultado: ResultadoPolitica | null = null;
+      let statusFinal: StatusDespesa = resultado.statusSugerido;
+      if (politicaAtiva) {
+        const regrasPolitica = regrasPoliticaSchema.parse(politicaAtiva.regras ?? {});
+        politicaResultado = avaliarDespesa(
+          { categoria: input.categoria, valorNota: input.valorNota },
+          regrasPolitica,
+          {
+            temVeiculo: veiculo !== null,
+            // A despesa ainda não existe → impossível ter evidência anexada
+            // neste ponto; evidências são anexadas depois (addEvidencia).
+            temEvidencia: false,
+          },
+        );
+        if (politicaResultado.decisao === "negado") {
+          statusFinal = "rejeitada";
+        } else if (politicaResultado.decisao === "revisao_humana") {
+          // Revisão humana prevalece mesmo se o motor tributário deu alta
+          statusFinal = "em_revisao";
+        }
+        // "aprovado" → mantém o fluxo do motor tributário
+      }
+
       const insertDespesa = await db.insert(despesas).values({
         empresaId: input.empresaId,
         notaFiscalId: input.notaFiscalId,
@@ -202,8 +246,13 @@ export const despesasRouter = createRouter({
         valorFiscal: resultado.valorFiscal,
         valorReembolsavel: resultado.valorReembolsavel,
         confianca: resultado.confianca,
-        status: resultado.statusSugerido,
+        status: statusFinal,
         memorial,
+        politicaDecisao: politicaResultado?.decisao ?? null,
+        politicaMotivo: politicaResultado
+          ? politicaResultado.motivos.join("\n")
+          : null,
+        politicaVersaoAplicada: politicaAtiva?.versao ?? null,
       });
       const despesaId = Number(insertDespesa[0].insertId);
 
@@ -235,11 +284,35 @@ export const despesasRouter = createRouter({
         acao: "despesa.create",
         entidade: "despesa",
         entidadeId: despesaId,
-        detalhes: `Categoria ${input.categoria}; confiança ${resultado.confianca}; status ${resultado.statusSugerido}; valor fiscal R$ ${resultado.valorFiscal}; ${resultado.alertas.length} alerta(s)`,
+        detalhes: `Categoria ${input.categoria}; confiança ${resultado.confianca}; status ${statusFinal}; valor fiscal R$ ${resultado.valorFiscal}; ${resultado.alertas.length} alerta(s)`,
         regraVersao: resultado.memorialTributos[0]?.regraVersao ?? "1.1",
       });
 
-      return { despesaId, resultado };
+      // Trilha do agente de política: actorId null = agente automático
+      if (politicaAtiva && politicaResultado) {
+        await registrarLog(db, {
+          usuarioId: null,
+          empresaId: input.empresaId,
+          acao: "politica_avaliacao",
+          entidade: "despesa",
+          entidadeId: despesaId,
+          detalhes: JSON.stringify({
+            politicaId: politicaAtiva.id,
+            decisao: politicaResultado.decisao,
+            motivos: politicaResultado.motivos,
+            regrasAplicadas: politicaResultado.regrasAplicadas,
+          }),
+          regraVersao: `politica-v${politicaAtiva.versao}`,
+        });
+      }
+
+      return {
+        despesaId,
+        resultado,
+        politica: politicaResultado
+          ? { ...politicaResultado, versao: politicaAtiva?.versao ?? null }
+          : null,
+      };
     }),
 
   /** Lista despesas da empresa com filtros. */

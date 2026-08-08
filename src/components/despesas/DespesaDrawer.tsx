@@ -31,6 +31,7 @@ import {
 import { formatBRL } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import MemorialCard, { type MemorialLinha } from "./MemorialCard"
+import VereditoPolitica from "@/components/politica/VereditoPolitica"
 import StatusChip from "./StatusChip"
 import { fileParaBase64 } from "./arquivo"
 import {
@@ -305,8 +306,19 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
                 </div>
               </Secao>
 
-              {/* 4 · Evidências */}
-              <Secao index={3} title="Evidências">
+              {/* 4 · Política de reembolso (v1.1.0) */}
+              {despesa.politicaDecisao && (
+                <Secao index={3} title="Política de reembolso">
+                  <VereditoPolitica
+                    decisao={despesa.politicaDecisao}
+                    motivos={(despesa.politicaMotivo ?? "").split("\n").filter(Boolean)}
+                    versao={despesa.politicaVersaoAplicada}
+                  />
+                </Secao>
+              )}
+
+              {/* 5 · Evidências */}
+              <Secao index={4} title="Evidências">
                 {precisaEvidencia && (
                   <div className="flex items-start gap-2.5 rounded-xl border border-conf-media-dot/20 bg-conf-media-bg px-4 py-3">
                     <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-conf-media-text" />
@@ -410,8 +422,8 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
                 </div>
               </Secao>
 
-              {/* 5 · Auditoria */}
-              <Secao index={4} title="Auditoria">
+              {/* 6 · Auditoria */}
+              <Secao index={5} title="Auditoria">
                 <ol className="relative flex flex-col gap-4 border-l border-line pl-5">
                   {timeline.map((item, i) => (
                     <motion.li

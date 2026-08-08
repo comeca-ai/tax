@@ -42,8 +42,11 @@ echo "▶ Instalando dependências..."
 npm install --prefer-offline --no-audit
 
 # 4. Banco
-echo "▶ Sincronizando schema do banco (drizzle push)..."
-npm run db:push
+echo "▶ Aplicando migrações SQL (não interativo, idempotente)..."
+for f in db/migrations/0*.sql; do
+  [ -e "$f" ] || continue
+  npx tsx db/migrations/apply.ts "$(basename "$f")"
+done
 
 echo "▶ Seed (matriz de elegibilidade, alíquotas ICMS, dados demo)..."
 npx tsx db/seed.ts

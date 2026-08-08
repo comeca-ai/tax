@@ -9,6 +9,7 @@ import Cadastro from "@/pages/Cadastro"
 import Dashboard from "@/pages/app/Dashboard"
 import Despesas from "@/pages/app/Despesas"
 import NovaDespesa from "@/pages/app/NovaDespesa"
+import Politica from "@/pages/app/Politica"
 import Revisao from "@/pages/app/Revisao"
 import Veiculos from "@/pages/app/Veiculos"
 import Empresas from "@/pages/app/Empresas"
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="despesas" element={<Despesas />} />
             <Route path="despesas/nova" element={<NovaDespesa />} />
+            <Route path="politica" element={<Politica />} />
             <Route path="revisao" element={<Revisao />} />
             <Route path="veiculos" element={<Veiculos />} />
             <Route path="empresas" element={<Empresas />} />

@@ -15,8 +15,11 @@ until node -e "const m=require('mysql2/promise');m.createConnection(process.env.
 done
 echo "✓ Banco disponível"
 
-echo "▶ Aplicando migrações (drizzle-kit migrate)..."
-npm run db:migrate
+echo "▶ Aplicando migrações SQL (db/migrations/apply.ts — não interativo, idempotente)..."
+for f in db/migrations/0*.sql; do
+  [ -e "$f" ] || continue
+  npx tsx db/migrations/apply.ts "$(basename "$f")"
+done
 
 echo "▶ Seed (idempotente — matriz de regras + dados demo)..."
 npx tsx db/seed.ts || echo "⚠ Seed pulado (já aplicado ou erro não fatal)"

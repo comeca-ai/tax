@@ -3,12 +3,14 @@ import { getDb } from "../api/queries/connection";
 import {
   cnaesSecundarios,
   empresas,
+  politicasReembolso,
   regrasElegibilidade,
   usuarios,
   veiculos,
 } from "./schema";
 import { hashSenha } from "../api/auth/password";
 import { VERSAO_REGRA } from "../api/engine/params";
+import type { RegrasPolitica } from "@contracts/types";
 
 /**
  * Seed — Tax Engine (reembolsa.ia.br):
@@ -261,6 +263,65 @@ async function seed() {
       descricao: "Caminhão 3/4 diesel (demo)",
     });
     console.log("  veiculo demo: ABC1D23 (8,5 km/L, R$ 0,85/km)");
+  }
+
+  // ── 4. Política de reembolso demo ATIVA (v1.1.0) ──────────────────────────
+  const politicaExistente = await db
+    .select({ id: politicasReembolso.id })
+    .from(politicasReembolso)
+    .where(eq(politicasReembolso.empresaId, empresaId))
+    .limit(1);
+  if (!politicaExistente[0]) {
+    const textoPolitica = [
+      "POLÍTICA DE REEMBOLSO DE DESPESAS — TRANSPORTES DEMO LTDA",
+      "Vigência: 01/01/2025",
+      "",
+      "1. ALIMENTAÇÃO: reembolso de até R$ 120,00 por dia, mediante nota fiscal ou recibo.",
+      "   Evidência obrigatória para alimentação acima de R$ 120,00.",
+      "2. HOSPEDAGEM: reembolso de até R$ 450,00 por diária. Nota fiscal/recibo obrigatório.",
+      "3. TRANSPORTE POR APLICATIVO (Uber/99): até R$ 80,00 por corrida.",
+      "4. TÁXI: até R$ 80,00 por corrida, com recibo.",
+      "5. COMBUSTÍVEL: reembolso de até R$ 600,00 por abastecimento, somente para",
+      "   veículo cadastrado na empresa. Tarifa de R$ 0,85 por km rodado para veículo próprio.",
+      "6. PEDÁGIO: reembolso integral mediante comprovante.",
+      "7. APROVAÇÃO AUTOMÁTICA: despesas até R$ 200,00 são aprovadas automaticamente.",
+      "8. REVISÃO HUMANA: despesas acima de R$ 2.000,00 exigem revisão humana do financeiro.",
+      "9. NEGAÇÃO: despesas acima de R$ 5.000,00 não são reembolsadas.",
+    ].join("\n");
+    const regrasDemo: RegrasPolitica = {
+      limitesPorCategoria: {
+        alimentacao: 120,
+        hospedagem: 450,
+        uber: 80,
+        taxi: 80,
+        combustivel: 600,
+        pedagio: null,
+      },
+      exigeVeiculoCadastrado: ["combustivel"],
+      exigeEvidencia: ["hospedagem", "alimentacao"],
+      aprovacaoAutomaticaAte: 200,
+      revisaoHumanaAcimaDe: 2000,
+      negacaoAcimaDe: 5000,
+      observacoes: [
+        "Tarifa de R$ 0,85 por km rodado para veículo próprio cadastrado.",
+        "Evidência obrigatória para alimentação acima de R$ 120,00.",
+      ],
+    };
+    await db.insert(politicasReembolso).values({
+      empresaId,
+      arquivoNome: "politica-reembolso-demo.txt",
+      arquivoPath: null,
+      textoExtraido: textoPolitica,
+      regras: regrasDemo,
+      status: "ativa",
+      versao: 1,
+      confiancaExtracao: "alta",
+      camposPendentes: [],
+      createdById: clienteId,
+    });
+    console.log("  politica demo: ATIVA (v1) para Transportes Demo Ltda");
+  } else {
+    console.log("  politica demo: já existe, pulando");
   }
 
   console.log("Done.");

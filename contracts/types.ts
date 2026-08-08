@@ -226,3 +226,106 @@ export type UsuarioSessao = {
   nome: string;
   perfil: Perfil;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agente de Política de Reembolso (v1.1.0)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const DECISOES_POLITICA = ["aprovado", "negado", "revisao_humana"] as const;
+export type DecisaoPolitica = (typeof DECISOES_POLITICA)[number];
+
+export const STATUS_POLITICA = ["rascunho", "ativa", "inativa"] as const;
+export type StatusPolitica = (typeof STATUS_POLITICA)[number];
+
+export const CONFIANCAS_EXTRACAO = ["alta", "media", "baixa"] as const;
+export type ConfiancaExtracao = (typeof CONFIANCAS_EXTRACAO)[number];
+
+/** Labels PT-BR para UI. */
+export const DECISAO_POLITICA_LABELS: Record<DecisaoPolitica, string> = {
+  aprovado: "Aprovado pela política",
+  negado: "Negado pela política",
+  revisao_humana: "Revisão humana (política)",
+};
+
+export const STATUS_POLITICA_LABELS: Record<StatusPolitica, string> = {
+  rascunho: "Rascunho",
+  ativa: "Ativa",
+  inativa: "Inativa",
+};
+
+export const CONFIANCA_EXTRACAO_LABELS: Record<ConfiancaExtracao, string> = {
+  alta: "Alta",
+  media: "Média",
+  baixa: "Baixa",
+};
+
+/**
+ * JSON de regras da política — contrato estável, versionado junto à política
+ * (campo `regras` de politicas_reembolso). Valores monetários em R$.
+ */
+export const regrasPoliticaSchema = z.object({
+  /** Teto por categoria (R$); null/ausente = sem limite específico */
+  limitesPorCategoria: z
+    .partialRecord(z.enum(CATEGORIAS_DESPESA), z.number().min(0).nullable())
+    .default({}),
+  /** Categorias que exigem veículo cadastrado na empresa */
+  exigeVeiculoCadastrado: z.array(z.enum(CATEGORIAS_DESPESA)).default([]),
+  /** Categorias que exigem evidência documental anexada */
+  exigeEvidencia: z.array(z.enum(CATEGORIAS_DESPESA)).default([]),
+  /** Aprovação automática até este valor (R$); null = sem teto configurado */
+  aprovacaoAutomaticaAte: z.number().min(0).nullable().default(null),
+  /** Acima deste valor (R$) vai para revisão humana; null = sem regra */
+  revisaoHumanaAcimaDe: z.number().min(0).nullable().default(null),
+  /** Acima deste valor (R$) a despesa é negada; null = sem teto de negação */
+  negacaoAcimaDe: z.number().min(0).nullable().default(null),
+  /** Observações em texto livre extraídas do documento da política */
+  observacoes: z.array(z.string()).default([]),
+});
+export type RegrasPolitica = z.infer<typeof regrasPoliticaSchema>;
+
+/** Resultado da extração do documento de política (parser plugável). */
+export type PolicyExtracao = {
+  textoExtraido: string | null;
+  regras: RegrasPolitica;
+  confiancaExtracao: ConfiancaExtracao;
+  /** Campos que precisam de revisão/preenchimento manual assistido */
+  camposPendentes: string[];
+  provedor: string;
+  avisos: string[];
+};
+
+/** Uma regra avaliada pelo agente, com resultado individual. */
+export type RegraAplicada = {
+  regra: string;
+  resultado: "passou" | "falhou" | "revisar";
+  detalhe: string;
+};
+
+/** Resultado do agente avaliador para uma despesa. */
+export type ResultadoPolitica = {
+  decisao: DecisaoPolitica;
+  motivos: string[];
+  regrasAplicadas: RegraAplicada[];
+};
+
+// ── Inputs tRPC (politica.*) ────────────────────────────────────────────────
+
+export const politicaUploadInput = z.object({
+  empresaId: z.number().int().positive(),
+  arquivoNome: z.string().min(1).max(255),
+  arquivoMime: z.string().max(100),
+  arquivoBase64: z.string().min(1),
+});
+
+export const politicaUpdateRegrasInput = z.object({
+  id: z.number().int().positive(),
+  regras: regrasPoliticaSchema,
+});
+
+export const politicaTestarInput = z.object({
+  empresaId: z.number().int().positive(),
+  categoria: z.enum(CATEGORIAS_DESPESA),
+  valorNota: z.number().min(0),
+  temVeiculo: z.boolean().default(false),
+  temEvidencia: z.boolean().default(false),
+});

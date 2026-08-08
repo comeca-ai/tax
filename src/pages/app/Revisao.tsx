@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router"
 import { AnimatePresence, motion } from "framer-motion"
-import { Clock, ClipboardCheck, Gauge, Paperclip, ShieldCheck } from "lucide-react"
+import { Bot, Clock, ClipboardCheck, Gauge, Paperclip, ShieldCheck } from "lucide-react"
 import { trpc } from "@/providers/trpc"
 import { useAuth } from "@/hooks/useAuth"
 import { useActiveCompany } from "@/hooks/useActiveCompany"
@@ -17,6 +17,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   CATEGORIA_ICONE,
   CATEGORIA_ROTULO,
@@ -381,6 +386,19 @@ export default function Revisao() {
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
+                      {despesa.politicaDecisao === "revisao_humana" && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex cursor-help items-center gap-1 rounded-full bg-conf-media-bg px-2 py-0.5 font-mono text-[10px] font-semibold tracking-[0.02em] text-conf-media-text">
+                              <Bot className="h-2.5 w-2.5" />
+                              Agente de política
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[320px] whitespace-pre-line font-mono text-[11px] leading-relaxed">
+                            {despesa.politicaMotivo ?? "Enviada à revisão pela política de reembolso."}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                       {motivosDaFila(item).map((motivo) => (
                         <span
                           key={motivo}

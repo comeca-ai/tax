@@ -8,14 +8,23 @@ import {
   RotateCcw,
 } from "lucide-react"
 import { Link } from "react-router"
-import type { CategoriaDespesa, NivelConfianca, ResultadoMotor } from "@contracts/types"
+import type {
+  CategoriaDespesa,
+  NivelConfianca,
+  ResultadoMotor,
+  ResultadoPolitica,
+} from "@contracts/types"
 import ConfidenceBadge from "@/components/app/ConfidenceBadge"
+import VereditoPolitica from "@/components/politica/VereditoPolitica"
+import { cn } from "@/lib/utils"
 import { CATEGORIA_META, formatNumero } from "../meta"
 import MemorialCard from "../MemorialCard"
 
 interface StepResultadoProps {
   despesaId: number
   resultado: ResultadoMotor
+  /** Veredito do Agente de Política (v1.1.0) — null quando não há política ativa. */
+  politica: (ResultadoPolitica & { versao: number | null }) | null
   categoria: CategoriaDespesa | ""
   cnaeEmpresa: string
   regimeEmpresa: string
@@ -54,6 +63,7 @@ const VEREDITOS: Record<
 export default function StepResultado({
   despesaId,
   resultado,
+  politica,
   categoria,
   cnaeEmpresa,
   regimeEmpresa,
@@ -94,6 +104,35 @@ export default function StepResultado({
           </Link>
         )}
       </div>
+
+      {/* Agente de política (v1.1.0) — veredito logo abaixo do veredito tributário */}
+      {politica && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.08 }}
+          className="flex flex-col gap-2"
+        >
+          <VereditoPolitica
+            decisao={politica.decisao}
+            motivos={politica.motivos}
+            regrasAplicadas={politica.regrasAplicadas}
+            versao={politica.versao}
+          />
+          {politica.decisao !== "aprovado" && (
+            <p
+              className={cn(
+                "text-center text-[13px] font-semibold",
+                politica.decisao === "negado" ? "text-conf-vedado-text" : "text-conf-media-text",
+              )}
+            >
+              {politica.decisao === "negado"
+                ? "Despesa negada pela política"
+                : "Enviada para revisão humana pela política"}
+            </p>
+          )}
+        </motion.div>
+      )}
 
       {/* Raciocínio da classificação */}
       <motion.div
