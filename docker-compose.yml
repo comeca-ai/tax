@@ -1,0 +1,38 @@
+# reembolsa.ia — Tax Engine | Stack completa self-hosted
+# Uso: docker compose up -d --build
+# App: http://localhost:3000 (ou http://SEU_IP:3000)
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_troque_isto}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-taxengine}
+      MYSQL_USER: ${MYSQL_USER:-tax}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-tax_troque_isto}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      APP_ID: ${APP_ID:-selfhosted}
+      APP_SECRET: ${APP_SECRET:?defina APP_SECRET no .env (string longa e aleatória)}
+      DATABASE_URL: mysql://${MYSQL_USER:-tax}:${MYSQL_PASSWORD:-tax_troque_isto}@db:3306/${MYSQL_DATABASE:-taxengine}
+      # OCR real (opcional): descomente e preencha
+      # OCR_PROVIDER: vision
+      # OCR_API_KEY: sk-...
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:
