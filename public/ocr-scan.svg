@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" fill="none">
+  <defs>
+    <linearGradient id="scanline" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2BE08C" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#2BE08C" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#2BE08C" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- receipt -->
+  <rect x="220" y="96" width="200" height="288" rx="10" stroke="#5B6762" stroke-width="2"/>
+  <rect x="244" y="122" width="92" height="7" rx="3.5" fill="#5B6762"/>
+  <text x="244" y="152" font-family="monospace" font-size="11" fill="#5B6762" letter-spacing="0.5">CNPJ 04.812.214/0001-07</text>
+  <rect x="244" y="166" width="128" height="6" rx="3" fill="#5B6762" opacity="0.5"/>
+  <rect x="244" y="182" width="110" height="6" rx="3" fill="#5B6762" opacity="0.5"/>
+  <text x="244" y="212" font-family="monospace" font-size="11" fill="#5B6762" letter-spacing="0.5">CFOP 5.656</text>
+  <text x="244" y="232" font-family="monospace" font-size="11" fill="#5B6762" letter-spacing="0.5">NCM 2710.12</text>
+  <rect x="244" y="248" width="120" height="6" rx="3" fill="#5B6762" opacity="0.5"/>
+  <rect x="244" y="264" width="100" height="6" rx="3" fill="#5B6762" opacity="0.5"/>
+  <line x1="244" y1="292" x2="396" y2="292" stroke="#5B6762" stroke-width="2" stroke-dasharray="4 5" opacity="0.7"/>
+  <text x="244" y="318" font-family="monospace" font-size="12" fill="#0EA968" letter-spacing="0.5">TOTAL R$ 487,30</text>
+  <rect x="244" y="334" width="140" height="6" rx="3" fill="#5B6762" opacity="0.4"/>
+  <rect x="244" y="350" width="116" height="6" rx="3" fill="#5B6762" opacity="0.4"/>
+  <!-- dashed OCR bounding boxes -->
+  <rect x="238" y="138" width="166" height="20" rx="4" stroke="#2BE08C" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.8"/>
+  <rect x="238" y="198" width="100" height="40" rx="4" stroke="#2BE08C" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.55"/>
+  <rect x="238" y="300" width="150" height="24" rx="4" stroke="#2BE08C" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.8"/>
+  <!-- scan line -->
+  <rect x="150" y="236" width="340" height="56" fill="url(#scanline)"/>
+  <line x1="150" y1="264" x2="490" y2="264" stroke="#2BE08C" stroke-width="2" opacity="0.7"/>
+  <!-- corner brackets -->
+  <path d="M156 96 V72 C156 63 163 56 172 56 H196" stroke="#2BE08C" stroke-width="4" stroke-linecap="round"/>
+  <path d="M444 56 H468 C477 56 484 63 484 72 V96" stroke="#2BE08C" stroke-width="4" stroke-linecap="round"/>
+  <path d="M484 384 V408 C484 417 477 424 468 424 H444" stroke="#2BE08C" stroke-width="4" stroke-linecap="round"/>
+  <path d="M196 424 H172 C163 424 156 417 156 408 V384" stroke="#2BE08C" stroke-width="4" stroke-linecap="round"/>
+</svg>
