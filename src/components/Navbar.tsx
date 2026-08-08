@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router"
 import { AnimatePresence, motion } from "framer-motion"
-import { Menu, X } from "lucide-react"
+import { LogOut, Menu, X } from "lucide-react"
+import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
+
+function iniciais(nome: string): string {
+  const partes = nome.trim().split(/\s+/)
+  return ((partes[0]?.[0] ?? "") + (partes.length > 1 ? (partes[partes.length - 1]?.[0] ?? "") : "")).toUpperCase()
+}
 
 const LINKS = [
   { href: "#como-funciona", label: "Como funciona" },
@@ -16,6 +22,7 @@ const LINKS = [
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
+  const { user, isLoading, isAuthenticated, logout } = useAuth()
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40)
@@ -59,20 +66,50 @@ export default function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-3 lg:flex">
-          {/* AUTH-SLOT: rewired to useAuth() in Phase 5 */}
-          <Link
-            to="/login"
-            className="inline-flex h-10 items-center rounded-[10px] border border-line-dark px-4 text-sm font-semibold text-text-dark-100 transition-colors hover:border-brand-400/50 hover:text-brand-400"
-          >
-            Entrar
-          </Link>
-          <Link
-            id="navbar-cta"
-            to="/cadastro"
-            className="inline-flex h-10 items-center rounded-[10px] bg-brand-500 px-4 text-sm font-semibold text-white transition hover:-translate-y-px hover:bg-brand-500/90"
-          >
-            Criar conta
-          </Link>
+          {isLoading ? (
+            <span className="h-10 w-40 animate-pulse rounded-[10px] bg-ink-800" aria-hidden />
+          ) : isAuthenticated && user ? (
+            <>
+              <span className="flex items-center gap-2.5 rounded-full border border-line-dark py-1.5 pl-1.5 pr-3.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-900 font-display text-[11px] font-semibold text-brand-400">
+                  {iniciais(user.nome)}
+                </span>
+                <span className="max-w-[140px] truncate text-sm font-medium text-text-dark-100">
+                  {user.nome}
+                </span>
+              </span>
+              <Link
+                id="navbar-cta"
+                to="/app/dashboard"
+                className="inline-flex h-10 items-center rounded-[10px] bg-brand-500 px-4 text-sm font-semibold text-white transition hover:-translate-y-px hover:bg-brand-500/90"
+              >
+                Ir para o app
+              </Link>
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className="inline-flex h-10 items-center gap-1.5 rounded-[10px] border border-line-dark px-3 text-sm font-semibold text-text-dark-400 transition-colors hover:border-brand-400/50 hover:text-brand-400"
+              >
+                <LogOut className="h-4 w-4" /> Sair
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="inline-flex h-10 items-center rounded-[10px] border border-line-dark px-4 text-sm font-semibold text-text-dark-100 transition-colors hover:border-brand-400/50 hover:text-brand-400"
+              >
+                Entrar
+              </Link>
+              <Link
+                id="navbar-cta"
+                to="/cadastro"
+                className="inline-flex h-10 items-center rounded-[10px] bg-brand-500 px-4 text-sm font-semibold text-white transition hover:-translate-y-px hover:bg-brand-500/90"
+              >
+                Criar conta
+              </Link>
+            </>
+          )}
         </div>
 
         <button
@@ -115,21 +152,52 @@ export default function Navbar() {
               transition={{ delay: 0.06 * LINKS.length, duration: 0.3, ease: "easeOut" }}
               className="mt-auto flex flex-col gap-3 pt-8"
             >
-              {/* AUTH-SLOT: rewired to useAuth() in Phase 5 */}
-              <Link
-                to="/login"
-                onClick={() => setOpen(false)}
-                className="inline-flex h-12 items-center justify-center rounded-[10px] border border-line-dark text-sm font-semibold text-text-dark-100"
-              >
-                Entrar
-              </Link>
-              <Link
-                to="/cadastro"
-                onClick={() => setOpen(false)}
-                className="inline-flex h-12 items-center justify-center rounded-[10px] bg-brand-500 text-sm font-semibold text-white"
-              >
-                Criar conta
-              </Link>
+              {isLoading ? (
+                <span className="h-12 animate-pulse rounded-[10px] bg-ink-800" aria-hidden />
+              ) : isAuthenticated && user ? (
+                <>
+                  <span className="flex items-center gap-3 rounded-[10px] border border-line-dark px-4 py-3">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-900 font-display text-[12px] font-semibold text-brand-400">
+                      {iniciais(user.nome)}
+                    </span>
+                    <span className="truncate text-sm font-medium text-text-dark-100">{user.nome}</span>
+                  </span>
+                  <Link
+                    to="/app/dashboard"
+                    onClick={() => setOpen(false)}
+                    className="inline-flex h-12 items-center justify-center rounded-[10px] bg-brand-500 text-sm font-semibold text-white"
+                  >
+                    Ir para o app
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false)
+                      void logout()
+                    }}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-[10px] border border-line-dark text-sm font-semibold text-text-dark-100"
+                  >
+                    <LogOut className="h-4 w-4" /> Sair
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    onClick={() => setOpen(false)}
+                    className="inline-flex h-12 items-center justify-center rounded-[10px] border border-line-dark text-sm font-semibold text-text-dark-100"
+                  >
+                    Entrar
+                  </Link>
+                  <Link
+                    to="/cadastro"
+                    onClick={() => setOpen(false)}
+                    className="inline-flex h-12 items-center justify-center rounded-[10px] bg-brand-500 text-sm font-semibold text-white"
+                  >
+                    Criar conta
+                  </Link>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}

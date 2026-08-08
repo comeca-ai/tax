@@ -24,7 +24,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useAuth } from "@/hooks/useAuth"
+import { useActiveCompany } from "@/hooks/useActiveCompany"
+import type { RegimeTributario } from "@contracts/types"
 import { cn } from "@/lib/utils"
+
+const REGIME_ROTULO: Record<RegimeTributario, string> = {
+  lucro_real: "Lucro Real",
+  lucro_presumido: "Lucro Presumido",
+  simples_nacional: "Simples Nacional",
+}
+
+function iniciais(nome: string): string {
+  const partes = nome.trim().split(/\s+/)
+  return (
+    (partes[0]?.[0] ?? "") + (partes.length > 1 ? (partes[partes.length - 1]?.[0] ?? "") : "")
+  ).toUpperCase()
+}
 
 const NAV_ITEMS = [
   { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard, end: false },
@@ -36,15 +52,6 @@ const NAV_ITEMS = [
   { to: "/app/relatorios", label: "Relatórios", icon: FileChartColumn, end: false },
   { to: "/app/regras", label: "Regras & Matriz", icon: Scale, end: false },
 ]
-
-// Placeholder tenant data — replaced by real API data in the backend phase.
-const COMPANIES = [
-  { id: "1", name: "TransRocha Logística LTDA", cnpj: "04.812.214/0001-07", regime: "Lucro Real" },
-  { id: "2", name: "Constrular Engenharia", cnpj: "12.345.678/0001-90", regime: "Lucro Presumido" },
-]
-
-/** RF-00: true while the active company lacks CNAE / regime / UF (static until backend). */
-const CADASTRO_INCOMPLETO = true
 
 const PAGE_TITLES: Record<string, string> = {
   "/app/dashboard": "Dashboard",
@@ -58,6 +65,8 @@ const PAGE_TITLES: Record<string, string> = {
 }
 
 function Sidebar() {
+  const { user, logout } = useAuth()
+
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex w-[264px] flex-col border-r border-line-dark bg-ink-900">
       <div className="flex h-16 items-center gap-2.5 border-b border-line-dark px-5">
@@ -97,20 +106,24 @@ function Sidebar() {
         ))}
       </nav>
       <div className="border-t border-line-dark p-3">
-        {/* AUTH-SLOT: rewired to useAuth() in Phase 5 */}
         <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-900 font-display text-[13px] font-semibold text-brand-400">
-            MR
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-900 font-display text-[13px] font-semibold text-brand-400">
+            {user ? iniciais(user.nome) : "…"}
           </span>
-          <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-[13px] font-medium text-text-dark-100">Marina Rocha</span>
-            <span className="w-fit rounded-full border border-line-dark px-1.5 font-mono text-[10px] uppercase tracking-[0.04em] text-text-dark-400">
-              admin
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="truncate text-[13px] font-medium text-text-dark-100">
+              {user?.nome ?? "Carregando…"}
             </span>
+            {user && (
+              <span className="w-fit rounded-full border border-line-dark px-1.5 font-mono text-[10px] uppercase tracking-[0.04em] text-text-dark-400">
+                {user.perfil}
+              </span>
+            )}
           </div>
           <button
             type="button"
             aria-label="Sair"
+            onClick={() => void logout()}
             className="text-text-dark-400 transition-colors hover:text-text-dark-100"
           >
             <LogOut className="h-4 w-4" />
@@ -123,7 +136,8 @@ function Sidebar() {
 
 function Topbar() {
   const location = useLocation()
-  const active = COMPANIES[0]
+  const { user } = useAuth()
+  const { activeCompany, companies, setActiveCompanyId, isLoading } = useActiveCompany()
   const pageTitle = PAGE_TITLES[location.pathname] ?? "Dashboard"
 
   return (
@@ -135,16 +149,20 @@ function Topbar() {
             className="flex h-11 items-center gap-3 rounded-[10px] border border-line bg-surface px-3 text-left transition-colors hover:bg-paper"
           >
             <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-500/10 font-display text-[12px] font-semibold text-brand-500">
-              TR
+              {activeCompany ? iniciais(activeCompany.razaoSocial) : <Building2 className="h-3.5 w-3.5" />}
             </span>
             <span className="flex flex-col">
-              <span className="max-w-[190px] truncate text-[13px] font-semibold text-text-900">{active.name}</span>
-              <span className="flex items-center gap-1.5">
-                <span className="font-mono text-[11px] tabular text-text-500">{active.cnpj}</span>
-                <span className="rounded-full bg-paper px-1.5 font-mono text-[10px] uppercase tracking-[0.03em] text-text-500 ring-1 ring-line">
-                  {active.regime}
-                </span>
+              <span className="max-w-[190px] truncate text-[13px] font-semibold text-text-900">
+                {isLoading ? "Carregando…" : (activeCompany?.razaoSocial ?? "Nenhuma empresa")}
               </span>
+              {activeCompany && (
+                <span className="flex items-center gap-1.5">
+                  <span className="font-mono text-[11px] tabular text-text-500">{activeCompany.cnpj}</span>
+                  <span className="rounded-full bg-paper px-1.5 font-mono text-[10px] uppercase tracking-[0.03em] text-text-500 ring-1 ring-line">
+                    {REGIME_ROTULO[activeCompany.regimeTributario as RegimeTributario] ?? activeCompany.regimeTributario}
+                  </span>
+                </span>
+              )}
             </span>
             <ChevronsUpDown className="h-4 w-4 text-text-500" />
           </button>
@@ -153,20 +171,29 @@ function Topbar() {
           <DropdownMenuLabel className="text-[11px] uppercase tracking-[0.06em] text-text-500">
             Suas empresas
           </DropdownMenuLabel>
-          {COMPANIES.map((company) => (
-            <DropdownMenuItem key={company.id} className="flex items-center gap-2 py-2">
+          {companies.map((company) => (
+            <DropdownMenuItem
+              key={company.id}
+              onSelect={() => setActiveCompanyId(company.id)}
+              className="flex items-center gap-2 py-2"
+            >
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[13px] font-medium">{company.name}</span>
+                <span className="truncate text-[13px] font-medium">{company.razaoSocial}</span>
                 <span className="font-mono text-[11px] tabular text-text-500">
-                  {company.cnpj} · {company.regime}
+                  {company.cnpj} · {REGIME_ROTULO[company.regimeTributario as RegimeTributario] ?? company.regimeTributario}
                 </span>
               </span>
-              {company.id === active.id && <Check className="h-4 w-4 text-brand-500" />}
+              {company.id === activeCompany?.id && <Check className="h-4 w-4 text-brand-500" />}
             </DropdownMenuItem>
           ))}
+          {!isLoading && companies.length === 0 && (
+            <DropdownMenuItem disabled className="text-[13px] text-text-500">
+              Nenhuma empresa cadastrada
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Link to="/app/empresas" className="gap-2 text-brand-500">
+            <Link to="/app/empresas?nova=1" className="gap-2 text-brand-500">
               <CirclePlus className="h-4 w-4" /> Nova empresa
             </Link>
           </DropdownMenuItem>
@@ -203,9 +230,8 @@ function Topbar() {
           <Bell className="h-[18px] w-[18px]" />
           <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-amber-500" />
         </button>
-        {/* AUTH-SLOT: rewired to useAuth() in Phase 5 */}
         <span className="ml-1 flex h-9 w-9 items-center justify-center rounded-full bg-brand-900 font-display text-[12px] font-semibold text-brand-400">
-          MR
+          {user ? iniciais(user.nome) : "…"}
         </span>
       </div>
     </header>
@@ -214,12 +240,15 @@ function Topbar() {
 
 /** App shell for all /app/* routes: dark sidebar, light topbar, RF-00 banner, disclaimer strip. */
 export default function AppShell() {
+  const { activeCompany, isLoading } = useActiveCompany()
+  const cadastroIncompleto = !isLoading && activeCompany !== null && activeCompany.cadastroCompleto === false
+
   return (
     <div className="min-h-[100dvh] bg-paper">
       <Sidebar />
       <div className="pl-[264px]">
         <Topbar />
-        {CADASTRO_INCOMPLETO && (
+        {cadastroIncompleto && (
           <div className="flex items-center gap-3 border-b border-conf-media-dot/20 bg-conf-media-bg px-6 py-2.5">
             <TriangleAlert className="h-4 w-4 shrink-0 text-conf-media-text" />
             <p className="flex-1 text-[13px] font-medium text-conf-media-text">

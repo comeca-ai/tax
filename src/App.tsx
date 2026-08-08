@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router"
 import { Toaster } from "@/components/ui/sonner"
 import Layout from "@/components/Layout"
 import AppShell from "@/components/app/AppShell"
+import RequireAuth from "@/components/app/RequireAuth"
 import Home from "@/pages/Home"
 import Login from "@/pages/Login"
 import Cadastro from "@/pages/Cadastro"
@@ -23,16 +24,18 @@ export default function App() {
         </Route>
         <Route path="/login" element={<Login />} />
         <Route path="/cadastro" element={<Cadastro />} />
-        <Route path="/app" element={<AppShell />}>
-          <Route index element={<Navigate to="/app/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="despesas" element={<Despesas />} />
-          <Route path="despesas/nova" element={<NovaDespesa />} />
-          <Route path="revisao" element={<Revisao />} />
-          <Route path="veiculos" element={<Veiculos />} />
-          <Route path="empresas" element={<Empresas />} />
-          <Route path="relatorios" element={<Relatorios />} />
-          <Route path="regras" element={<Regras />} />
+        <Route element={<RequireAuth />}>
+          <Route path="/app" element={<AppShell />}>
+            <Route index element={<Navigate to="/app/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="despesas" element={<Despesas />} />
+            <Route path="despesas/nova" element={<NovaDespesa />} />
+            <Route path="revisao" element={<Revisao />} />
+            <Route path="veiculos" element={<Veiculos />} />
+            <Route path="empresas" element={<Empresas />} />
+            <Route path="relatorios" element={<Relatorios />} />
+            <Route path="regras" element={<Regras />} />
+          </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
