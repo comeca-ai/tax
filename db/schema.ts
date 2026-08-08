@@ -143,7 +143,7 @@ export const notasFiscais = mysqlTable("notas_fiscais", {
   ncm: varchar("ncm", { length: 10 }),
   cst: varchar("cst", { length: 10 }),
   valor: double("valor"),
-  dataFatoGerador: date("data_fato_gerador"),
+  dataFatoGerador: date("data_fato_gerador", { mode: "string" }),
   // Upload na plataforma: arquivo original guardado inline (MVP, sem storage externo)
   arquivoNome: varchar("arquivo_nome", { length: 255 }),
   arquivoMime: varchar("arquivo_mime", { length: 100 }),
@@ -199,8 +199,8 @@ export const regrasElegibilidade = mysqlTable("regras_elegibilidade", {
   // Parâmetros de cálculo (alíquota/fator); null = usa fórmula padrão
   aliquota: double("aliquota"),
   baseLegal: text("base_legal"),
-  vigenciaInicio: date("vigencia_inicio").notNull(),
-  vigenciaFim: date("vigencia_fim"),
+  vigenciaInicio: date("vigencia_inicio", { mode: "string" }).notNull(),
+  vigenciaFim: date("vigencia_fim", { mode: "string" }),
   versao: varchar("versao", { length: 20 }).notNull().default("1.1"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

@@ -31,7 +31,18 @@ function primeiro(texto: string, regexes: RegExp[]): string | null {
 
 function parseNumero(valor: string | null): number | null {
   if (!valor) return null;
-  const n = Number(valor.replace(/\./g, "").replace(",", "."));
+  const v = valor.trim();
+  let n: number;
+  if (v.includes(",")) {
+    // Formato BR: 1.234,56
+    n = Number(v.replace(/\./g, "").replace(",", "."));
+  } else if (/^\d+\.\d{1,2}$/.test(v)) {
+    // Decimal com ponto (XML NF-e: 1000.00)
+    n = Number(v);
+  } else {
+    // Milhares com ponto ou inteiro
+    n = Number(v.replace(/\./g, ""));
+  }
   return Number.isFinite(n) ? n : null;
 }
 
