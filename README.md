@@ -35,6 +35,75 @@ Produção: `npm run build && npm start`.
 
 ---
 
+## 1.1 Deploy self-hosted (Docker — recomendado para VPS)
+
+A stack completa (app + MySQL 8) sobe com **um comando**:
+
+```bash
+git clone https://github.com/comeca-ai/tax.git && cd tax
+
+# 1. Configure os segredos
+cp .env.docker.example .env
+# edite .env: APP_SECRET (gere com: openssl rand -base64 48) e senhas do MySQL
+
+# 2. Suba tudo
+docker compose up -d --build
+
+# 3. Acesse
+# http://SEU_IP:3000  (ou http://localhost:3000)
+```
+
+O container do app **aguarda o MySQL, aplica as migrações e roda o seed automaticamente** na primeira subida (ver `docker-entrypoint.sh`). Os dados ficam no volume `db_data` (persistem entre restarts/rebuilds).
+
+Comandos úteis:
+
+```bash
+docker compose logs -f app     # acompanhar logs
+docker compose down            # parar (dados persistem)
+docker compose down -v         # parar e APAGAR o banco (cuidado)
+docker compose up -d --build   # atualizar após git pull
+```
+
+**HTTPS/domínio (opcional):** coloque um reverse proxy na frente — exemplo nginx:
+
+```nginx
+server {
+  listen 80;
+  server_name tax.seudominio.com.br;
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    client_max_body_size 50m;   # upload de notas
+  }
+}
+```
+
+Depois emita o certificado: `sudo certbot --nginx -d tax.seudominio.com.br`.
+
+### Sem Docker (VPS bare-metal)
+
+Pré-requisitos: **Node 20+** e **MySQL 8** rodando.
+
+```bash
+git clone https://github.com/comeca-ai/tax.git && cd tax
+cp .env.example .env
+# edite .env:
+#   DATABASE_URL=mysql://USUARIO:SENHA@127.0.0.1:3306/taxengine
+#   APP_SECRET=$(openssl rand -base64 48)
+npm install
+npm run db:migrate     # aplica o schema (ou: npm run db:push)
+npx tsx db/seed.ts     # regras + dados demo
+npm run build
+npm start              # sobe na porta 3000
+```
+
+Para manter no ar: `pm2 start dist/boot.js --name tax-engine && pm2 save` (instale com `npm i -g pm2`).
+
+> 💡 A autenticação é própria (email/senha), então viaja 100% com o código. O único requisito externo é um MySQL acessível via `DATABASE_URL`.
+
+---
+
 ## 2. Stack
 
 | Camada | Tecnologia |
