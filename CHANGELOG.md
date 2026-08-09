@@ -4,6 +4,24 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.4.0] — 2026-08-09
+
+### Adicionado
+- **Página pública "A Tese" (`/tese`)** — defesa das decisões de produto como
+  argumento comercial e de conformidade:
+  - A tese em números (9,25% PIS/COFINS · ICMS ad rem · 34% IRPJ+CSLL)
+  - As 4 glosas que a Receita faz → as 4 defesas do produto (evidência RF-04,
+    matriz CNAE + segregação §7.4, plausibilidade de veículo RF-09, memorial +
+    versionamento RF-07 + log imutável)
+  - "O que o reembolsa.ia nunca faz" (4 garantias)
+  - Seção "Para o seu contador" (metodologia + referências legais) com
+    disclaimer de aconselhamento tributário
+  - Link no Navbar e no Footer
+- **Explicações contextuais no app** (reduz atrito, justifica o "porquê"):
+  - Banner dismissível em Veículos (plausibilidade do crédito de combustível)
+  - Linha de defesa na caixa de evidência obrigatória (drawer da despesa)
+  - Nota sobre segregação uso misto nos campos de km do wizard
+
 ## [1.3.0] — 2026-08-09
 
 ### Adicionado
