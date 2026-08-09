@@ -33,12 +33,20 @@ export const authRouter = createRouter({
         });
       }
 
+      // primeiro usuário da plataforma vira admin (v1.2.0); os demais entram
+      // como cliente (ou via convite, com o perfil definido pelo admin).
+      const total = await db
+        .select({ id: usuarios.id })
+        .from(usuarios)
+        .limit(1);
+      const perfil = total.length === 0 ? ("admin" as const) : ("cliente" as const);
+
       const senhaHash = await hashSenha(input.senha);
       const result = await db.insert(usuarios).values({
         email,
         nome: input.nome.trim(),
         senhaHash,
-        perfil: "cliente",
+        perfil,
       });
       const id = Number(result[0].insertId);
 
@@ -50,7 +58,7 @@ export const authRouter = createRouter({
         entidadeId: id,
       });
 
-      return { id, email, nome: input.nome.trim(), perfil: "cliente" as const };
+      return { id, email, nome: input.nome.trim(), perfil };
     }),
 
   /** Login email/senha → cookie de sessão HttpOnly. */

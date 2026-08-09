@@ -226,6 +226,18 @@ Nenhuma outra parte do sistema muda — o wizard já exibe confiança por campo 
 
 Contrato completo dos tipos em `contracts/types.ts`. Detalhes de implementação do motor em `api/engine/` (com testes em `api/engine/engine.test.ts`).
 
+### Convites de usuários (v1.2.0)
+
+- O **primeiro usuário** cadastrado na plataforma vira **admin** automaticamente; os demais cadastros diretos entram como `cliente`.
+- O admin convida os demais usuários na tela **Equipe** (router `convites`: `criar`, `listar`, `revogar`, `reenviar`, `porToken`, `aceitar`), escolhendo o perfil (`admin`, `cliente` ou `revisor`). O convite é um link com token único que expira em 7 dias.
+- **Sem SMTP configurado** (`SMTP_HOST` ausente) o app não envia e-mail: o link de aceite é exibido para o admin copiar e compartilhar manualmente (ex.: WhatsApp). Com SMTP configurado, o convite chega por e-mail.
+
+### WhatsApp (fundação)
+
+- **O que já funciona**: links `wa.me` para o admin compartilhar convites pelo WhatsApp direto da tela de Equipe.
+- O backend já expõe o webhook `/api/webhooks/whatsapp`: o `GET` atende à verificação da Meta (`hub.mode`, `hub.verify_token`, `hub.challenge`) e o `POST` recebe eventos e registra as mensagens no log do servidor.
+- **Para o bot completo** (ainda não implementado): criar um app no [Meta for Developers](https://developers.facebook.com/), ativar a **WhatsApp Cloud API**, definir `WHATSAPP_VERIFY_TOKEN` no `.env` e apontar a URL do webhook (`https://<seu-dominio>/api/webhooks/whatsapp`) no painel da Meta. A automação planejada — o usuário envia **foto do recibo → pipeline OCR → despesa criada** — vem na sequência do roadmap.
+
 ## 11. Limitações conhecidas (v1)
 
 - Alíquota ICMS ad rem é um valor de referência único (R$ 1,0061/L diesel) — parametrizável por UF via seed futuro.

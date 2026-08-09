@@ -17,6 +17,47 @@ app.use("/api/trpc/*", async (c) => {
     createContext,
   });
 });
+// ── Webhook WhatsApp (fundação — v1.2.0) ────────────────────────────────────
+// Base para o futuro bot: o usuário envia foto do recibo pelo WhatsApp e o
+// pipeline (OCR → motor de regras → despesa) cria o lançamento automaticamente.
+// Hoje este endpoint apenas atende a verificação da Meta e registra mensagens
+// recebidas no log — ver README, seção "WhatsApp (fundação)".
+app.get("/api/webhooks/whatsapp", (c) => {
+  const mode = c.req.query("hub.mode");
+  const token = c.req.query("hub.verify_token");
+  const challenge = c.req.query("hub.challenge");
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+  if (verifyToken && mode === "subscribe" && token === verifyToken) {
+    return c.text(challenge ?? "", 200);
+  }
+  return c.text("Forbidden", 403);
+});
+
+app.post("/api/webhooks/whatsapp", async (c) => {
+  if (!process.env.WHATSAPP_VERIFY_TOKEN) {
+    return c.json({ error: "WhatsApp não configurado neste ambiente." }, 503);
+  }
+  try {
+    const body = await c.req.json();
+    // Resume mensagens recebidas no log (futuro: foto de recibo → OCR → despesa).
+    const entries = body?.entry ?? [];
+    for (const entry of entries) {
+      for (const change of entry?.changes ?? []) {
+        const mensagens = change?.value?.messages ?? [];
+        for (const msg of mensagens) {
+          console.log(
+            `[whatsapp] mensagem recebida — from: ${msg?.from ?? "?"}, tipo: ${msg?.type ?? "?"}`,
+          );
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[whatsapp] Falha ao processar webhook:", err);
+  }
+  // Sempre 200 para a Meta não reenviar o evento indefinidamente.
+  return c.json({ received: true }, 200);
+});
+
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;
