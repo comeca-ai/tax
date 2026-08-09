@@ -46,6 +46,8 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       # Webhook WhatsApp (opcional — fundação do bot, v1.2.0)
       WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      # Consulta CNPJ na Receita via ReceitaWS (opcional — v1.3.0)
+      RECEITAWS_TOKEN: ${RECEITAWS_TOKEN:-}
       # OCR real (opcional): descomente e preencha
       # OCR_PROVIDER: vision
       # OCR_API_KEY: sk-...

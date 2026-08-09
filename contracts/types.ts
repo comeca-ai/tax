@@ -140,6 +140,12 @@ export const relatorioFiltroInput = z.object({
   confianca: z.enum(NIVEIS_CONFIANCA).optional(),
 });
 
+// ── Consulta de CNPJ na Receita (ReceitaWS) — v1.3.0 ───────────────────────
+
+export const cnpjConsultaInput = z.object({
+  cnpj: z.string().min(14).max(18),
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DTOs de saída
 // ─────────────────────────────────────────────────────────────────────────────
@@ -377,3 +383,19 @@ export const conviteAceitarInput = z.object({
   nome: z.string().min(2).max(255),
   senha: z.string().min(8).max(128),
 });
+
+// ── Consulta de CNPJ na Receita (ReceitaWS) — v1.3.0 ───────────────────────
+
+export type CnaeReceita = { codigo: string; descricao: string };
+
+/** Dados da Receita Federal (via ReceitaWS) para prefill do cadastro — v1.3.0 */
+export type DadosReceitaCnpj = {
+  cnpj: string; // formatado XX.XXX.XXX/XXXX-XX
+  razaoSocial: string;
+  nomeFantasia: string | null;
+  situacao: string; // "ATIVA", "BAIXADA", ...
+  cnaePrincipal: CnaeReceita | null; // código curto "64.22-1"
+  cnaesSecundarios: CnaeReceita[]; // códigos curtos, sem duplicar o principal
+  uf: string | null;
+  municipio: string | null;
+};

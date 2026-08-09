@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { X } from "lucide-react"
 import { buscarCnaes, cnaePorCodigo } from "@/lib/cnaes"
+import type { Cnae } from "@/lib/cnaes"
 import { cn } from "@/lib/utils"
 
 interface CnaeComboboxProps {
@@ -10,22 +11,40 @@ interface CnaeComboboxProps {
   selecionados: string[]
   onChange: (codigos: string[]) => void
   placeholder: string
+  /**
+   * CNAEs fora da lista curada (ex.: vindos da Receita Federal, v1.3.0).
+   * Entram na busca/seleção e resolvem código+descrição dos chips.
+   */
+  extras?: Cnae[]
 }
 
 /**
  * Combobox pesquisável de CNAE (tabela CONCLA/IBGE, subset em src/lib/cnaes).
  * Navegável por teclado (↑/↓/Enter/Esc). Código mono + descrição.
  */
-export default function CnaeCombobox({ multi, selecionados, onChange, placeholder }: CnaeComboboxProps) {
+export default function CnaeCombobox({ multi, selecionados, onChange, placeholder, extras }: CnaeComboboxProps) {
   const [aberto, setAberto] = useState(false)
   const [termo, setTermo] = useState("")
   const [destaque, setDestaque] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const opcoes = useMemo(
-    () => buscarCnaes(termo).filter((c) => !selecionados.includes(c.codigo)),
-    [termo, selecionados],
+  /** Resolve código+descrição olhando a lista curada e depois os extras. */
+  const porCodigo = useMemo(
+    () => (codigo: string) =>
+      cnaePorCodigo(codigo) ?? extras?.find((e) => e.codigo === codigo),
+    [extras],
   )
+
+  const opcoes = useMemo(() => {
+    const curadas = buscarCnaes(termo)
+    const t = termo.trim().toLowerCase()
+    const extrasFiltrados = (extras ?? []).filter(
+      (e) =>
+        !cnaePorCodigo(e.codigo) &&
+        (!t || e.codigo.toLowerCase().includes(t) || e.descricao.toLowerCase().includes(t)),
+    )
+    return [...extrasFiltrados, ...curadas].filter((c) => !selecionados.includes(c.codigo))
+  }, [termo, selecionados, extras])
 
   const escolher = (codigo: string) => {
     if (multi) {
@@ -40,14 +59,14 @@ export default function CnaeCombobox({ multi, selecionados, onChange, placeholde
     }
   }
 
-  const valorUnico = !multi && selecionados[0] ? cnaePorCodigo(selecionados[0]) : undefined
+  const valorUnico = !multi && selecionados[0] ? porCodigo(selecionados[0]) : undefined
 
   return (
     <div className="relative">
       {selecionados.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
           {selecionados.map((codigo) => {
-            const cnae = cnaePorCodigo(codigo)
+            const cnae = porCodigo(codigo)
             return (
               <span
                 key={codigo}

@@ -1,9 +1,15 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { cnaesSecundarios, empresas } from "@db/schema";
-import { empresaInput } from "@contracts/types";
+import { cnpjConsultaInput, empresaInput } from "@contracts/types";
+import {
+  cnpjValido,
+  consultarCnpjReceitaWs,
+  somenteDigitos,
+} from "../cnpj/receitaws";
 import { assertEmpresaAcesso, registrarLog } from "./_shared";
 
 /** RF-00: cadastro completo exige CNAE principal, regime tributário e UF. */
@@ -42,6 +48,39 @@ export const empresasRouter = createRouter({
         cnaesSecundarios: cnaes.map((c) => c.cnae),
         cadastroCompleto: cadastroCompleto(empresa),
       };
+    }),
+
+  /**
+   * Consulta de CNPJ na Receita Federal via ReceitaWS (v1.3.0) — prefill do
+   * cadastro de empresa. Requer RECEITAWS_TOKEN no ambiente.
+   */
+  consultarCnpj: protectedProcedure
+    .input(cnpjConsultaInput)
+    .mutation(async ({ input, ctx }) => {
+      if (!process.env.RECEITAWS_TOKEN) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Consulta automática de CNPJ não configurada neste ambiente (RECEITAWS_TOKEN ausente).",
+        });
+      }
+
+      const digitos = somenteDigitos(input.cnpj);
+      if (digitos.length !== 14 || !cnpjValido(digitos)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "CNPJ inválido." });
+      }
+
+      const dados = await consultarCnpjReceitaWs(digitos);
+
+      const db = getDb();
+      await registrarLog(db, {
+        usuarioId: ctx.usuario.id,
+        acao: "empresa.consultar_cnpj",
+        entidade: "cnpj",
+        detalhes: `CNPJ ${dados.cnpj} — ${dados.razaoSocial} (${dados.situacao})`,
+      });
+
+      return dados;
     }),
 
   /** Cadastro de empresa (RF-00). */

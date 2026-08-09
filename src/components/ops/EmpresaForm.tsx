@@ -3,14 +3,15 @@ import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { motion } from "framer-motion"
-import { Check, Loader2, Lock } from "lucide-react"
+import { Check, Loader2, Lock, Search, TriangleAlert } from "lucide-react"
 import { Link } from "react-router"
 import { toast } from "sonner"
-import { trpc } from "@/providers/trpc"
 import { REGIMES_TRIBUTARIOS, UFS_BRASIL } from "@contracts/types"
-import type { NivelConfianca, RegimeTributario, Uf } from "@contracts/types"
+import type { CnaeReceita, NivelConfianca, RegimeTributario, Uf } from "@contracts/types"
 import { cnaePorCodigo } from "@/lib/cnaes"
+import type { Cnae } from "@/lib/cnaes"
 import { cnpjValido, mascaraCnpj } from "@/lib/cnpj"
+import { useConsultaCnpj } from "@/lib/useConsultaCnpj"
 import { cn } from "@/lib/utils"
 import CnaeCombobox from "@/components/ops/CnaeCombobox"
 import {
@@ -118,6 +119,12 @@ export default function EmpresaForm({
 }: EmpresaFormProps) {
   const [pendenteRegime, setPendenteRegime] = useState<RegimeTributario | null>(null)
 
+  // ── Consulta de CNPJ na Receita (v1.3.0) ───────────────────────────────
+  const { consultar, carregando: consultandoReceita, erro: erroReceita } = useConsultaCnpj()
+  const [situacaoReceita, setSituacaoReceita] = useState<string | null>(null)
+  /** CNAEs retornados pela Receita que não constam na lista curada (código + descrição da API). */
+  const [cnaesExtras, setCnaesExtras] = useState<Cnae[]>([])
+
   const form = useForm<EmpresaFormValores>({
     resolver: zodResolver(empresaFormSchema),
     defaultValues: {
@@ -144,6 +151,8 @@ export default function EmpresaForm({
       uf: undefined as unknown as Uf,
       ...valoresIniciais,
     })
+    setSituacaoReceita(null)
+    setCnaesExtras([])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chave])
 
@@ -153,6 +162,38 @@ export default function EmpresaForm({
 
   const cnaePrincipal = watch("cnaePrincipal")
   const regimeAtual = watch("regimeTributario")
+  const cnpjAtual = watch("cnpj")
+
+  /** v1.3.0: busca o CNPJ na Receita e preenche o formulário (tudo continua editável). */
+  const buscarReceita = async () => {
+    const cnpj = cnpjAtual ?? ""
+    if (!cnpjValido(cnpj)) return
+    const dados = await consultar(cnpj)
+    if (!dados) return
+
+    // CNAEs que não estão na lista curada: guarda código+descrição da API para exibição
+    const recebidos = [dados.cnaePrincipal, ...dados.cnaesSecundarios].filter(
+      (c): c is CnaeReceita => c !== null,
+    )
+    const novos = recebidos.filter((c) => !cnaePorCodigo(c.codigo))
+    if (novos.length > 0) {
+      setCnaesExtras((prev) => [
+        ...prev.filter((p) => !novos.some((n) => n.codigo === p.codigo)),
+        ...novos,
+      ])
+    }
+
+    setValue("razaoSocial", dados.razaoSocial, { shouldDirty: true })
+    if (dados.cnaePrincipal) {
+      setValue("cnaePrincipal", dados.cnaePrincipal.codigo, { shouldDirty: true })
+    }
+    setValue("cnaesSecundarios", dados.cnaesSecundarios.map((c) => c.codigo), { shouldDirty: true })
+    if (dados.uf && (UFS_BRASIL as readonly string[]).includes(dados.uf)) {
+      setValue("uf", dados.uf as Uf, { shouldDirty: true })
+    }
+    setSituacaoReceita(dados.situacao && dados.situacao !== "ATIVA" ? dados.situacao : null)
+    toast.success("Dados da Receita Federal preenchidos — confira e ajuste se precisar.")
+  }
 
   const linhaMatriz = useMemo(() => {
     if (!cnaePrincipal || !matriz) return null
@@ -172,7 +213,9 @@ export default function EmpresaForm({
       .join(" · ")
   }, [cnaePrincipal, matriz])
 
-  const cnaeInfo = cnaePrincipal ? cnaePorCodigo(cnaePrincipal) : undefined
+  const cnaeInfo = cnaePrincipal
+    ? cnaePorCodigo(cnaePrincipal) ?? cnaesExtras.find((c) => c.codigo === cnaePrincipal)
+    : undefined
 
   const escolherRegime = (valor: RegimeTributario) => {
     if (valor === regimeAtual) return
@@ -211,20 +254,49 @@ export default function EmpresaForm({
             control={control}
             name="cnpj"
             render={({ field }) => (
-              <div className="relative">
-                <input
-                  value={field.value}
-                  onChange={(e) => field.onChange(mascaraCnpj(e.target.value))}
-                  placeholder="00.000.000/0000-00"
-                  inputMode="numeric"
-                  className={cn(inputCls, "font-mono tabular")}
-                />
-                {modo === "editar" && (
-                  <Lock className="pointer-events-none absolute right-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-500/60" />
-                )}
+              <div className="flex items-start gap-2">
+                <div className="relative flex-1">
+                  <input
+                    value={field.value}
+                    onChange={(e) => field.onChange(mascaraCnpj(e.target.value))}
+                    placeholder="00.000.000/0000-00"
+                    inputMode="numeric"
+                    className={cn(inputCls, "font-mono tabular")}
+                  />
+                  {modo === "editar" && (
+                    <Lock className="pointer-events-none absolute right-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-500/60" />
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void buscarReceita()}
+                  disabled={consultandoReceita || !cnpjValido(cnpjAtual ?? "")}
+                  title="Preenche razão social, CNAEs e UF com os dados da Receita Federal"
+                  className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-3 text-[12.5px] font-medium text-text-900 transition hover:border-brand-500/50 hover:text-brand-500 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line disabled:hover:text-text-900"
+                >
+                  {consultandoReceita ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Search className="h-3.5 w-3.5" />
+                  )}
+                  Buscar na Receita
+                </button>
               </div>
             )}
           />
+          {erroReceita && (
+            <span role="alert" className="text-[12px] font-medium text-red-500">
+              {erroReceita}
+            </span>
+          )}
+          {situacaoReceita && (
+            <div className="flex items-start gap-2 rounded-[10px] border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+              <span className="text-[12px] font-medium leading-snug text-amber-700">
+                Atenção: situação cadastral {situacaoReceita} na Receita Federal.
+              </span>
+            </div>
+          )}
         </Campo>
       </div>
 
@@ -238,6 +310,7 @@ export default function EmpresaForm({
               selecionados={field.value ? [field.value] : []}
               onChange={(c) => field.onChange(c[0] ?? "")}
               placeholder="Busque por código ou atividade (ex.: 49.30-2, transporte)"
+              extras={cnaesExtras}
             />
           )}
         />
@@ -265,6 +338,7 @@ export default function EmpresaForm({
               selecionados={field.value}
               onChange={field.onChange}
               placeholder="Adicionar CNAE secundário…"
+              extras={cnaesExtras}
             />
           )}
         />

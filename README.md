@@ -206,6 +206,7 @@ Nenhuma outra parte do sistema muda — o wizard já exibe confiança por campo 
 | `DATABASE_URL` | sim (auto na plataforma) | Conexão MySQL (gerada no `.env` pelo provisionamento) |
 | `OCR_PROVIDER` | não (default `heuristic`) | `heuristic` \| `vision` |
 | `OCR_API_KEY` | só p/ `vision` | Chave da IA de visão |
+| `RECEITAWS_TOKEN` | não | Token da ReceitaWS — habilita o prefill de empresa por CNPJ (v1.3.0) |
 
 ## 8. Scripts npm
 
@@ -237,6 +238,12 @@ Contrato completo dos tipos em `contracts/types.ts`. Detalhes de implementação
 - O **primeiro usuário** cadastrado na plataforma vira **admin** automaticamente; os demais cadastros diretos entram como `cliente`.
 - O admin convida os demais usuários na tela **Equipe** (router `convites`: `criar`, `listar`, `revogar`, `reenviar`, `porToken`, `aceitar`), escolhendo o perfil (`admin`, `cliente` ou `revisor`). O convite é um link com token único que expira em 7 dias.
 - **Sem SMTP configurado** (`SMTP_HOST` ausente) o app não envia e-mail: o link de aceite é exibido para o admin copiar e compartilhar manualmente (ex.: WhatsApp). Com SMTP configurado, o convite chega por e-mail.
+
+### Consulta de CNPJ na Receita (v1.3.0)
+
+- O botão **"Buscar na Receita"** (cadastro e tela de Empresas) preenche automaticamente razão social, CNAE principal/secundários e UF a partir da Receita Federal, via [ReceitaWS](https://www.receitaws.com.br/) — tudo continua editável após o prefill.
+- **Opcional**: sem `RECEITAWS_TOKEN` no `.env`, a consulta fica indisponível e o formulário segue 100% manual.
+- Plano gratuito da ReceitaWS: **3 consultas/min** — ao estourar o limite, o app pede para aguardar ~1 minuto.
 
 ### WhatsApp (fundação)
 
