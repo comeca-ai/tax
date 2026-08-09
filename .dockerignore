@@ -3,3 +3,7 @@ dist
 .git
 *.swp
 *.log
+.env
+.env.local
+uploads
+docker-compose.override.yml

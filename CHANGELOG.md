@@ -4,6 +4,24 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.2.2] — 2026-08-09
+
+### Corrigido
+- **Página sem CSS após deploy (self-host)**: `index.html` agora é servido com
+  `Cache-Control: no-cache` e os assets com hash (`/assets/*`) com
+  `max-age=31536000, immutable` — antes, browser/proxy cacheavam o HTML antigo
+  que apontava para assets inexistentes (site todo desestilizado, variando por
+  navegador conforme o cache local; também quebrava o layout mobile)
+- **Dockerfile**: `npm ci --include=dev` nos dois estágios — com
+  `NODE_ENV=production` o npm pulava devDependencies e o entrypoint não
+  encontrava `tsx`/`drizzle-kit` (nem o `vite` no build)
+- **package-lock.json**: 263 URLs `resolved` normalizadas de mirrors
+  (`npm.mirrors.msh.team`, `registry.npmmirror.com`) para `registry.npmjs.org`
+  — o lock gerado no ambiente de build apontava para registry privado e o
+  `npm ci` falhava silenciosamente no VPS (exit 0 com `vite: not found`)
+- **.dockerignore**: excluídos `.env`, `uploads/` e `docker-compose.override.yml`
+  do contexto de build (segredos fora da imagem)
+
 ## [1.2.1] — 2026-08-09
 
 ### Corrigido

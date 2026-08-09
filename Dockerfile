@@ -2,7 +2,8 @@
 FROM node:20-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit
+# --include=dev: vite/typescript (devDeps) são necessários para o build
+RUN npm ci --no-audit --include=dev
 COPY . .
 RUN npm run build
 
@@ -14,7 +15,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit
+# --include=dev: com NODE_ENV=production o npm ci pularia devDeps,
+# mas tsx e drizzle-kit são usados no entrypoint (migrar + seedar)
+RUN npm ci --no-audit --include=dev
 
 COPY --from=build /app/dist ./dist
 COPY api ./api
