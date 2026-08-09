@@ -4,6 +4,32 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.2.0] — 2026-08-09
+
+### Adicionado
+- **Primeiro usuário = admin + convites por e-mail**:
+  - O primeiro cadastro da plataforma (banco vazio) vira `admin` automaticamente;
+    cadastros seguintes entram como `cliente`
+  - Página **Equipe** (`/app/equipe`, somente admin): convidar por e-mail com
+    perfil (admin/cliente/revisor), listar convites (pendente/aceito/revogado/
+    expirado), reenviar, revogar
+  - Convite = link com token único válido por 7 dias; página pública de aceite
+    `/convite/:token` (define nome + senha, sai logado)
+  - Envio de e-mail plugável via SMTP (`SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/
+    `SMTP_PASS`/`SMTP_FROM`, nodemailer) — **sem SMTP configurado o app mostra
+    o link para copiar ou compartilhar no WhatsApp** (nunca bloqueia o convite)
+  - DB: tabela `convites` (migração 0002)
+- **Envio Rápido** (`/app/rapido`): fluxo de 3 toques para o colaborador —
+  foto do recibo (câmera no mobile) → confirma os campos do OCR → veredito
+  (motor tributário + agente de política). Reutiliza o wizard existente
+- **Onboarding** no Dashboard: checklist de 4 passos (empresa, veículo,
+  política ativa, primeira despesa) com progresso e dismiss persistente
+- **WhatsApp (fundação)**:
+  - Compartilhamento de convites via `wa.me` (funciona sem conta Meta)
+  - Webhook `/api/webhooks/whatsapp` com verificação Meta (`WHATSAPP_VERIFY_TOKEN`)
+    — base para o futuro bot (foto de recibo → OCR → despesa); passo a passo no README
+- Testes: +6 (26/26 no total); smoke test do fluxo de convite ponta a ponta
+
 ## [1.1.0] — 2026-08-09
 
 ### Adicionado
