@@ -4,6 +4,16 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.2.3] — 2026-08-09
+
+### Corrigido
+- **docker-compose.yml**: serviço `app` renomeado para `tax-app` em rede
+  dedicada `tax-net` — evita colisão de alias de rede quando o stack divide
+  uma rede de proxy reverso (Caddy/Traefik) com outro projeto que também tem
+  serviço `app` (o alias resolvia para os dois containers em round-robin e os
+  domínios serviam o site um do outro). README ganhou a orientação de
+  `reverse_proxy tax-app:3000` no Caddyfile
+
 ## [1.2.2] — 2026-08-09
 
 ### Corrigido

@@ -1,6 +1,12 @@
 # reembolsa.ia — Tax Engine | Stack completa self-hosted
 # Uso: docker compose up -d --build
 # App: http://localhost:3000 (ou http://SEU_IP:3000)
+#
+# NOTA: o serviço se chama `tax-app` (não `app`) de propósito — em servidores
+# com proxy reverso (Caddy/Traefik) e rede compartilhada entre projetos, um
+# serviço chamado `app` colide com o `app` de OUTRO projeto e o alias de rede
+# passa a resolver para os dois containers em round-robin (site errado no ar).
+# Se ligar este stack a uma rede externa de proxy, use o alias `tax-app`.
 services:
   db:
     image: mysql:8.0
@@ -17,8 +23,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    networks:
+      - tax-net
 
-  app:
+  tax-app:
     build: .
     restart: unless-stopped
     ports:
@@ -44,6 +52,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - tax-net
+
+networks:
+  tax-net:
+    name: tax-net
 
 volumes:
   db_data:

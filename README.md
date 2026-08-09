@@ -59,7 +59,7 @@ O container do app **aguarda o MySQL, aplica as migrações e roda o seed automa
 Comandos úteis:
 
 ```bash
-docker compose logs -f app     # acompanhar logs
+docker compose logs -f tax-app  # acompanhar logs
 docker compose down            # parar (dados persistem)
 docker compose down -v         # parar e APAGAR o banco (cuidado)
 docker compose up -d --build   # atualizar após git pull
@@ -81,6 +81,12 @@ server {
 ```
 
 Depois emita o certificado: `sudo certbot --nginx -d tax.seudominio.com.br`.
+
+**Caddy com rede compartilhada entre projetos:** o serviço do app chama-se
+`tax-app` (rede `tax-net`) — use esse nome no upstream do Caddyfile
+(`reverse_proxy tax-app:3000`). **Nunca** conecte dois projetos com serviço
+chamado `app` à mesma rede de proxy: o alias `app` resolve para os dois
+containers em round-robin e os domínios trocam de site entre si.
 
 ### Sem Docker (VPS bare-metal)
 
