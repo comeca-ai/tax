@@ -11,12 +11,14 @@ import {
   evidenciasDocumentais,
   logAuditoria,
   politicasReembolso,
+  convites,
 } from "./schema";
 
 export const usuariosRelations = relations(usuarios, ({ many }) => ({
   empresas: many(empresas),
   logs: many(logAuditoria),
   politicasCriadas: many(politicasReembolso),
+  convitesCriados: many(convites),
 }));
 
 export const empresasRelations = relations(empresas, ({ one, many }) => ({
@@ -126,3 +128,11 @@ export const politicasReembolsoRelations = relations(
     }),
   }),
 );
+
+
+export const convitesRelations = relations(convites, ({ one }) => ({
+  criadoPor: one(usuarios, {
+    fields: [convites.createdById],
+    references: [usuarios.id],
+  }),
+}));

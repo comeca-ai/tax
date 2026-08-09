@@ -329,3 +329,51 @@ export const politicaTestarInput = z.object({
   temVeiculo: z.boolean().default(false),
   temEvidencia: z.boolean().default(false),
 });
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Convites de usuários (v1.2.0) — primeiro usuário da plataforma = admin,
+// admin convida os demais por e-mail (link com token).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const STATUS_CONVITE = ["pendente", "aceito", "revogado"] as const;
+export type StatusConvite = (typeof STATUS_CONVITE)[number];
+
+export const STATUS_CONVITE_LABELS: Record<StatusConvite, string> = {
+  pendente: "Pendente",
+  aceito: "Aceito",
+  revogado: "Revogado",
+};
+
+export const PERFIL_LABELS: Record<Perfil, string> = {
+  admin: "Administrador",
+  cliente: "Cliente (empresa)",
+  revisor: "Revisor",
+};
+
+/** Convite retornado pela API (nunca expõe token de outros nem hash). */
+export type Convite = {
+  id: number;
+  email: string;
+  perfil: Perfil;
+  status: StatusConvite;
+  expiresAt: Date;
+  createdAt: Date;
+  /** Link absoluto de aceite — presente só na criação/reenvio e se SMTP não configurado */
+  linkAceite?: string;
+  /** true quando o convite foi enviado por e-mail (SMTP configurado) */
+  enviadoPorEmail?: boolean;
+};
+
+// ── Inputs tRPC (convites.*) ────────────────────────────────────────────────
+
+export const conviteCriarInput = z.object({
+  email: z.string().email().max(255),
+  perfil: z.enum(PERFIS),
+});
+
+export const conviteAceitarInput = z.object({
+  token: z.string().min(16).max(128),
+  nome: z.string().min(2).max(255),
+  senha: z.string().min(8).max(128),
+});

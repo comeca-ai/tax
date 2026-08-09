@@ -301,3 +301,29 @@ export const politicasReembolso = mysqlTable("politicas_reembolso", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
 });
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. Convites de usuários (v1.2.0)
+// Admin convida por e-mail; aceite via link com token único (7 dias).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const convites = mysqlTable(
+  "convites",
+  {
+    id: serial("id").primaryKey(),
+    email: varchar("email", { length: 255 }).notNull(),
+    perfil: perfilEnum.notNull().default("cliente"),
+    token: varchar("token", { length: 128 }).notNull(),
+    status: mysqlEnum("status", ["pendente", "aceito", "revogado"])
+      .notNull()
+      .default("pendente"),
+    createdById: bigint("created_by_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => usuarios.id),
+    expiresAt: timestamp("expires_at").notNull(),
+    acceptedAt: timestamp("accepted_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("convites_token_unique").on(t.token)],
+);
