@@ -3,10 +3,12 @@ import {
   LayoutDashboard,
   Receipt,
   CirclePlus,
+  Zap,
   ScrollText,
   ClipboardCheck,
   CarFront,
   Building2,
+  Users,
   FileChartColumn,
   Scale,
   LogOut,
@@ -47,10 +49,12 @@ const NAV_ITEMS = [
   { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard, end: false },
   { to: "/app/despesas", label: "Despesas", icon: Receipt, end: true },
   { to: "/app/despesas/nova", label: "Nova Despesa", icon: CirclePlus, end: false },
+  { to: "/app/rapido", label: "Envio Rápido", icon: Zap, end: false },
   { to: "/app/politica", label: "Política", icon: ScrollText, end: false },
   { to: "/app/revisao", label: "Fila de Revisão", icon: ClipboardCheck, end: false, badge: 3 },
   { to: "/app/veiculos", label: "Veículos", icon: CarFront, end: false },
   { to: "/app/empresas", label: "Empresas", icon: Building2, end: false },
+  { to: "/app/equipe", label: "Equipe", icon: Users, end: false, adminOnly: true },
   { to: "/app/relatorios", label: "Relatórios", icon: FileChartColumn, end: false },
   { to: "/app/regras", label: "Regras & Matriz", icon: Scale, end: false },
 ]
@@ -59,6 +63,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/app/dashboard": "Dashboard",
   "/app/despesas": "Despesas",
   "/app/despesas/nova": "Nova Despesa",
+  "/app/rapido": "Envio Rápido",
+  "/app/equipe": "Equipe",
   "/app/politica": "Política",
   "/app/revisao": "Fila de Revisão",
   "/app/veiculos": "Veículos",
@@ -69,6 +75,7 @@ const PAGE_TITLES: Record<string, string> = {
 
 function Sidebar() {
   const { user, logout } = useAuth()
+  const itens = NAV_ITEMS.filter((item) => !item.adminOnly || user?.perfil === "admin")
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex w-[264px] flex-col border-r border-line-dark bg-ink-900">
@@ -79,7 +86,7 @@ function Sidebar() {
         </span>
       </div>
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
-        {NAV_ITEMS.map((item) => (
+        {itens.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

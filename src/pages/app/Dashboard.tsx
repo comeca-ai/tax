@@ -34,6 +34,7 @@ import { trpc } from "@/providers/trpc"
 import { useActiveCompany } from "@/hooks/useActiveCompany"
 import MoneyValue from "@/components/app/MoneyValue"
 import ConfidenceBadge from "@/components/app/ConfidenceBadge"
+import OnboardingChecklist from "@/components/app/OnboardingChecklist"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -423,23 +424,26 @@ export default function Dashboard() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: "easeOut" }}
-        className="flex flex-col items-center justify-center gap-4 rounded-xl border border-line bg-surface px-8 py-16 text-center"
+        className="flex flex-col gap-6"
       >
-        <img src="/empty-despesas.svg" alt="" className="h-auto w-56" />
-        <div className="flex flex-col gap-1">
-          <h1 className="font-display text-lg font-medium tracking-[-0.01em] text-text-900">
-            Nenhuma empresa cadastrada
-          </h1>
-          <p className="max-w-sm text-sm text-text-500">
-            Cadastre uma empresa para começar a identificar créditos tributários sobre as despesas.
-          </p>
+        <OnboardingChecklist />
+        <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-line bg-surface px-8 py-16 text-center">
+          <img src="/empty-despesas.svg" alt="" className="h-auto w-56" />
+          <div className="flex flex-col gap-1">
+            <h1 className="font-display text-lg font-medium tracking-[-0.01em] text-text-900">
+              Nenhuma empresa cadastrada
+            </h1>
+            <p className="max-w-sm text-sm text-text-500">
+              Cadastre uma empresa para começar a identificar créditos tributários sobre as despesas.
+            </p>
+          </div>
+          <Link
+            to="/app/empresas?nova=1"
+            className="mt-1 inline-flex h-10 items-center gap-2 rounded-[10px] bg-brand-500 px-4 text-sm font-semibold text-white transition hover:-translate-y-px hover:bg-brand-500/90"
+          >
+            <CirclePlus className="h-4 w-4" /> Cadastrar empresa
+          </Link>
         </div>
-        <Link
-          to="/app/empresas?nova=1"
-          className="mt-1 inline-flex h-10 items-center gap-2 rounded-[10px] bg-brand-500 px-4 text-sm font-semibold text-white transition hover:-translate-y-px hover:bg-brand-500/90"
-        >
-          <CirclePlus className="h-4 w-4" /> Cadastrar empresa
-        </Link>
       </motion.div>
     )
   }
@@ -455,6 +459,9 @@ export default function Dashboard() {
       transition={{ duration: 0.25, ease: "easeOut" }}
       className="flex flex-col gap-6"
     >
+      {/* ── Onboarding (v1.2.0) ───────────────────────────────────────────── */}
+      <OnboardingChecklist />
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
