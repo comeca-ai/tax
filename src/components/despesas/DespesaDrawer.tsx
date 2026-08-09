@@ -322,9 +322,15 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
                 {precisaEvidencia && (
                   <div className="flex items-start gap-2.5 rounded-xl border border-conf-media-dot/20 bg-conf-media-bg px-4 py-3">
                     <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-conf-media-text" />
-                    <p className="text-[13px] font-medium text-conf-media-text">
-                      Esta despesa precisa de documento de suporte para sair da revisão.
-                    </p>
+                    <div className="flex flex-col gap-1">
+                      <p className="text-[13px] font-medium text-conf-media-text">
+                        Esta despesa precisa de documento de suporte para sair da revisão.
+                      </p>
+                      <p className="text-[12px] leading-relaxed text-conf-media-text/90">
+                        Sem documento anexado, nenhum crédito é confirmado — é essa exigência que
+                        defende a apuração numa fiscalização.
+                      </p>
+                    </div>
                   </div>
                 )}
 

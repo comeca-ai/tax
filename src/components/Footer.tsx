@@ -33,6 +33,12 @@ export default function Footer() {
               {link.label}
             </a>
           ))}
+          <Link
+            to="/tese"
+            className="w-fit text-sm text-text-dark-400 underline-offset-4 transition-colors hover:text-text-dark-100 hover:underline"
+          >
+            A Tese
+          </Link>
         </nav>
         <nav aria-label="Conta" className="flex flex-col gap-3">
           <span className="text-[12px] font-medium uppercase tracking-[0.04em] text-text-dark-400">Conta</span>

@@ -7,7 +7,9 @@ import {
   CirclePlus,
   EllipsisVertical,
   History,
+  ShieldCheck,
   TriangleAlert,
+  X,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -57,6 +59,61 @@ import type { VeiculoFormValores } from "@/components/ops/VeiculoFormDialog"
 import { formatarData, formatarNumero } from "@/components/ops/rotulos"
 import { formatBRL } from "@/lib/format"
 import { cn } from "@/lib/utils"
+
+const DEFESA_DISMISS_KEY = "defesa-veiculos-dismissed"
+
+/** Banner contextual: por que o cadastro do veículo defende o crédito de combustível. */
+function DefesaVeiculosBanner() {
+  const [visivel, setVisivel] = useState(() => {
+    try {
+      return localStorage.getItem(DEFESA_DISMISS_KEY) !== "1"
+    } catch {
+      return true
+    }
+  })
+
+  const dispensar = () => {
+    try {
+      localStorage.setItem(DEFESA_DISMISS_KEY, "1")
+    } catch {
+      /* storage indisponível — apenas oculta nesta sessão */
+    }
+    setVisivel(false)
+  }
+
+  return (
+    <AnimatePresence initial={false}>
+      {visivel && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, height: 0, marginBottom: 0, overflow: "hidden", transition: { duration: 0.25 } }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
+          className="flex items-start gap-3.5 rounded-xl border border-line bg-surface p-4 shadow-card"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-brand-500/10 text-brand-500">
+            <ShieldCheck className="h-5 w-5" />
+          </span>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <h2 className="text-[14px] font-semibold text-text-900">Por que cadastrar o veículo?</h2>
+            <p className="text-[13px] leading-relaxed text-text-500">
+              É a prova de plausibilidade do crédito de combustível: o motor cruza km rodados ×
+              litros, com tolerância de 15%. Se a Receita perguntar, o valor do diesel se sustenta.
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label="Dispensar aviso"
+            onClick={dispensar}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-text-500 transition hover:bg-paper hover:text-text-900"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
 
 type Veiculo = NonNullable<ReturnType<typeof trpc.veiculos.list.useQuery>["data"]>[number]
 type DespesaRow = NonNullable<ReturnType<typeof trpc.despesas.list.useQuery>["data"]>[number]
@@ -320,6 +377,8 @@ export default function Veiculos() {
           <CirclePlus className="h-4 w-4" /> Cadastrar veículo
         </button>
       </header>
+
+      <DefesaVeiculosBanner />
 
       {carregando && (
         <>

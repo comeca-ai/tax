@@ -63,6 +63,12 @@ export default function Navbar() {
               {link.label}
             </a>
           ))}
+          <Link
+            to="/tese"
+            className="text-sm font-medium text-text-dark-400 transition-colors hover:text-text-dark-100"
+          >
+            A Tese
+          </Link>
         </nav>
 
         <div className="hidden items-center gap-3 lg:flex">
@@ -145,11 +151,24 @@ export default function Navbar() {
                   {link.label}
                 </motion.a>
               ))}
+              <motion.div
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.06 * LINKS.length, duration: 0.3, ease: "easeOut" }}
+              >
+                <Link
+                  to="/tese"
+                  onClick={() => setOpen(false)}
+                  className="block border-b border-line-dark py-4 font-display text-2xl font-medium text-text-dark-100"
+                >
+                  A Tese
+                </Link>
+              </motion.div>
             </nav>
             <motion.div
               initial={{ x: -20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.06 * LINKS.length, duration: 0.3, ease: "easeOut" }}
+              transition={{ delay: 0.06 * (LINKS.length + 1), duration: 0.3, ease: "easeOut" }}
               className="mt-auto flex flex-col gap-3 pt-8"
             >
               {isLoading ? (

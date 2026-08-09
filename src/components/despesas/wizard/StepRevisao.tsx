@@ -365,6 +365,11 @@ export default function StepRevisao({
               </CampoOcr>
             </div>
 
+            <p className="font-mono text-[11px] leading-relaxed tracking-[0.02em] text-text-500">
+              Só creditamos a parte comercial: valor fiscal ≠ valor do reembolso. Conservador aqui =
+              crédito que se sustenta.
+            </p>
+
             {pctComercial !== null && (
               <motion.div
                 key={`${kmComercial}-${kmTotal}`}

@@ -4,6 +4,7 @@ import Layout from "@/components/Layout"
 import AppShell from "@/components/app/AppShell"
 import RequireAuth from "@/components/app/RequireAuth"
 import Home from "@/pages/Home"
+import Tese from "@/pages/Tese"
 import Login from "@/pages/Login"
 import Cadastro from "@/pages/Cadastro"
 import Convite from "@/pages/Convite"
@@ -25,6 +26,7 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Home />} />
+          <Route path="/tese" element={<Tese />} />
         </Route>
         <Route path="/login" element={<Login />} />
         <Route path="/cadastro" element={<Cadastro />} />
