@@ -4,6 +4,26 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.3.0] — 2026-08-09
+
+### Adicionado
+- **Consulta de CNPJ na Receita Federal (ReceitaWS)** com preenchimento
+  automático do cadastro de empresa:
+  - Botão **"Buscar na Receita"** ao lado do campo CNPJ — na página de Empresas
+    (criar/editar) e no wizard de cadastro (signup, funciona sem login)
+  - Preenche razão social, CNAE principal, CNAEs secundários e UF — tudo
+    continua editável após o prefill
+  - CNAE completo da Receita (`64.22-1-00`) normalizado para o formato curto
+    do app (`64.22-1`); CNAEs fora da lista curada entram no combobox com
+    código + descrição vindos da API
+  - Aviso âmbar persistente quando a situação cadastral não é ATIVA
+  - Endpoint server-side `empresas.consultarCnpj` (público) com timeout 10s,
+    validação de checksum do CNPJ e mensagens PT-BR para 429 (plano gratuito:
+    3 consultas/min), CNPJ inválido e não encontrado
+  - Token via `RECEITAWS_TOKEN` no `.env` (opcional — sem ela o botão avisa
+    que a consulta não está configurada); repassada pelo docker-compose
+  - Testes: +12 (38/38 no total); smoke test ao vivo do endpoint
+
 ## [1.2.3] — 2026-08-09
 
 ### Corrigido
