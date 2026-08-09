@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createRouter, protectedProcedure } from "../middleware";
+import { createRouter, protectedProcedure, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { cnaesSecundarios, empresas } from "@db/schema";
 import { cnpjConsultaInput, empresaInput } from "@contracts/types";
@@ -52,9 +52,12 @@ export const empresasRouter = createRouter({
 
   /**
    * Consulta de CNPJ na Receita Federal via ReceitaWS (v1.3.0) — prefill do
-   * cadastro de empresa. Requer RECEITAWS_TOKEN no ambiente.
+   * cadastro de empresa. PÚBLICA: também usada no wizard de cadastro (signup),
+   * antes do usuário ter conta. Dados de CNPJ são públicos por natureza; o
+   * custo de abuso é limitado à cota do plano gratuito (3 req/min).
+   * Requer RECEITAWS_TOKEN no ambiente.
    */
-  consultarCnpj: protectedProcedure
+  consultarCnpj: publicQuery
     .input(cnpjConsultaInput)
     .mutation(async ({ input, ctx }) => {
       if (!process.env.RECEITAWS_TOKEN) {
@@ -74,7 +77,7 @@ export const empresasRouter = createRouter({
 
       const db = getDb();
       await registrarLog(db, {
-        usuarioId: ctx.usuario.id,
+        usuarioId: ctx.usuario?.id ?? null,
         acao: "empresa.consultar_cnpj",
         entidade: "cnpj",
         detalhes: `CNPJ ${dados.cnpj} — ${dados.razaoSocial} (${dados.situacao})`,
