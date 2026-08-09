@@ -4,6 +4,14 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.4.1] — 2026-08-09
+
+### Adicionado
+- **One-pager "A Tese" em PDF para download** — versão A4 de página única da
+  página `/tese` (mesma copy e identidade visual), servida em
+  `public/one-pager-tese.pdf`; botão "Baixar one-pager em PDF" no hero da
+  página A Tese (download direto, sem cadastro)
+
 ## [1.4.0] — 2026-08-09
 
 ### Adicionado

@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { Link } from "react-router"
 import { motion } from "framer-motion"
-import { ArrowRight, Scale, XCircle } from "lucide-react"
+import { ArrowRight, FileDown, Scale, XCircle } from "lucide-react"
 
 const EASE = [0.16, 1, 0.3, 1] as [number, number, number, number]
 
@@ -102,6 +102,17 @@ export default function Tese() {
             existe para o crédito se sustentar se a Receita perguntar. Esta página explica o porquê,
             em linguagem simples.
           </motion.p>
+          <motion.a
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.55, duration: 0.5 }}
+            href="/one-pager-tese.pdf"
+            download="reembolsa-ia-one-pager-tese.pdf"
+            className="mt-7 inline-flex h-11 items-center gap-2 rounded-[10px] border border-brand-400/30 bg-brand-400/10 px-5 text-sm font-semibold text-brand-400 transition hover:border-brand-400/50 hover:bg-brand-400/15"
+          >
+            <FileDown className="h-4 w-4" />
+            Baixar one-pager em PDF
+          </motion.a>
         </div>
       </section>
 
