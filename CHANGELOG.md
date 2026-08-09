@@ -4,6 +4,15 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.2.1] — 2026-08-09
+
+### Corrigido
+- **docker-compose.yml** agora repassa ao container as variáveis opcionais da
+  v1.2.0: `APP_URL` (sem ela, os links de convite saíam como
+  `http://localhost:3000` no container), `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/
+  `SMTP_PASS`/`SMTP_FROM` (convites por e-mail) e `WHATSAPP_VERIFY_TOKEN`
+  (webhook WhatsApp). Todas com default seguro — basta preencher no `.env`
+
 ## [1.2.0] — 2026-08-09
 
 ### Adicionado

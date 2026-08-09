@@ -27,6 +27,17 @@ services:
       APP_ID: ${APP_ID:-selfhosted}
       APP_SECRET: ${APP_SECRET:?defina APP_SECRET no .env (string longa e aleatória)}
       DATABASE_URL: mysql://${MYSQL_USER:-tax}:${MYSQL_PASSWORD:-tax_troque_isto}@db:3306/${MYSQL_DATABASE:-taxengine}
+      # URL pública do app — usada no link de aceite do convite (v1.2.0).
+      # Ex.: https://tax.suaempresa.com.br (sem barra final). Default: localhost:3000
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      # Convites por e-mail (opcional — sem SMTP_HOST o app mostra o link para copiar)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      # Webhook WhatsApp (opcional — fundação do bot, v1.2.0)
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
       # OCR real (opcional): descomente e preencha
       # OCR_PROVIDER: vision
       # OCR_API_KEY: sk-...
