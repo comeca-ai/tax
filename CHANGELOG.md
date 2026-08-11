@@ -4,6 +4,30 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.4.3] — 2026-08-11
+
+### Corrigido
+- **Upload da política não extraía os valores do PDF** (reportado por usuário
+  em produção): o parser heurístico tratava todo PDF como binário. Agora
+  extrai a camada de texto do PDF (pdf-parse) e interpreta tabelas de tetos
+  que quebram células em várias linhas (janela de até 3 linhas que para antes
+  da próxima categoria — sem contaminação):
+  - Tetos por categoria extraídos do documento real (ex.: Almoço R$ 55 →
+    `alimentacao`; Hospedagem R$ 450 → `hospedagem`)
+  - Tarifa por km (R$ 1,30/km) vai para observações — **nunca** vira teto de
+    `combustivel`
+  - Variações regionais e subtipos (jantar, refeição com cliente) viram
+    observações para revisão, sem sobrescrever o teto principal
+  - Exigências (nota fiscal discriminada, veículo próprio) associadas à
+    categoria correta via janela retroativa
+  - Keywords de alimentação ampliadas (almoço, jantar, pernoite)
+- PDF escaneado (só imagem) continua caindo no preenchimento assistido, com
+  aviso claro
+
+### Adicionado
+- 8 testes do parser com o PDF real da política como fixture
+  (`api/policy/parser.test.ts` + `__fixtures__/`) — suíte sobe para 46 testes
+
 ## [1.4.2] — 2026-08-11
 
 ### Corrigido

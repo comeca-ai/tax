@@ -1,3 +1,7 @@
+// Import direto da lib: o index.js do pdf-parse v1 tem um bloco de debug que
+// tenta ler ./test/data quando module.parent é undefined (vitest/bundle ESM)
+// @ts-expect-error — pdf-parse v1 não tem tipos para o subpath da lib
+import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import {
   regrasPoliticaSchema,
   type CategoriaDespesa,
@@ -6,7 +10,7 @@ import {
 } from "@contracts/types";
 
 /**
- * Parser plugável da política de reembolso (v1.1.0).
+ * Parser plugável da política de reembolso (v1.1.0; PDF em v1.4.3).
  * Mesmo padrão do OCR (api/ocr): contrato estável PolicyExtracao, provider
  * selecionado via env POLICY_PROVIDER (default "heuristico").
  *
@@ -52,30 +56,39 @@ function valoresEm(trecho: string): number[] {
 
 /** Palavras-chave por categoria (PT-BR, com/sem acento). */
 const KEYWORDS_CATEGORIA: Record<CategoriaDespesa, RegExp> = {
-  alimentacao: /alimenta[çc][ãa]o|comida|refei[çc][ãa]o|restaurante|lanche/i,
-  hospedagem: /hospedagem|hotel|di[áa]ria|pousada/i,
+  alimentacao:
+    /alimenta[çc][ãa]o|comida|refei[çc][ãa]o|restaurante|lanche|almo[çc]o|jantar/i,
+  hospedagem: /hospedagem|hotel|di[áa]ria|pousada|pernoite/i,
   uber: /uber|99\s?(app|pop)?|aplicativo de transporte|app de transporte/i,
   taxi: /t[áa]xi/i,
   combustivel: /combust[íi]vel|abastecimento|gasolina|diesel|etanol/i,
   pedagio: /ped[áa]gio/i,
 };
 
-/** Primeiro valor "R$" na MESMA LINHA da keyword (depois dela; senão antes). */
-function limitePorCategoria(texto: string, re: RegExp): number | null {
-  const m = re.exec(texto);
-  if (!m) return null;
-  const fimLinha = texto.indexOf("\n", m.index);
-  const inicioLinha = texto.lastIndexOf("\n", m.index);
-  const depois = texto.slice(
-    m.index + m[0].length,
-    fimLinha === -1 ? undefined : fimLinha,
-  );
-  const antes = texto.slice(inicioLinha === -1 ? 0 : inicioLinha + 1, m.index);
-  return valoresEm(depois)[0] ?? valoresEm(antes)[0] ?? null;
-}
+/**
+ * Linhas de quilometragem/tarifa por km NÃO são tetos de categoria —
+ * "R$ 1,30/km" é tarifa, não limite. (v1.4.3: evitava contaminar
+ * combustível com a tarifa por km da tabela de limites.)
+ */
+const RE_LINHA_KM =
+  /quilometragem|por\s+km|\/\s*km|km\s+rodado|ve[íi]culo\s+pr[óo]prio|ressarcid[oa]\s+por\s+quil[ôo]metro/i;
 
-/** Texto decodificado ou null quando binário (PDF/imagem sem camada de texto). */
-function decodificarTexto(input: ArquivoPolitica): string | null {
+/** Texto decodificado ou null quando binário (imagem/PDF escaneado). */
+async function decodificarTexto(input: ArquivoPolitica): Promise<string | null> {
+  // PDF com camada de texto → extrai o texto de verdade (pdf-parse/pdf.js).
+  // PDF escaneado (só imagem) retorna texto vazio → null → assistido.
+  const ehPdf =
+    input.mimeType.includes("pdf") || /\.pdf$/i.test(input.arquivoNome);
+  if (ehPdf) {
+    try {
+      const dados = await pdfParse(Buffer.from(input.base64, "base64"));
+      const texto = (dados.text ?? "").replace(/\r/g, "").trim();
+      return texto.length > 0 ? texto : null;
+    } catch {
+      return null; // PDF corrompido/criptografado → preenchimento assistido
+    }
+  }
+
   let texto = "";
   try {
     texto = Buffer.from(input.base64, "base64").toString("utf8");
@@ -88,7 +101,7 @@ function decodificarTexto(input: ArquivoPolitica): string | null {
     input.mimeType.includes("html") ||
     /\.(xml|html?|txt|md|csv)$/i.test(input.arquivoNome);
   if (!isMarkup && /[^\x09\x0A\x0D\x20-\x7EÀ-ÿ]{20}/.test(texto)) {
-    return null; // binário: PDF escaneado/imagem
+    return null; // binário: imagem etc.
   }
   // XML/HTML: extrai apenas o texto (remove tags e entidades básicas)
   if (/<[a-zA-Z][^>]*>/.test(texto)) {
@@ -103,17 +116,37 @@ function decodificarTexto(input: ArquivoPolitica): string | null {
   return texto;
 }
 
-/** Linhas do texto que mencionam uma categoria + uma keyword de exigência. */
+/** Linhas não-vazias do texto (PDF de tabela quebra células em várias linhas). */
+function linhasDe(texto: string): string[] {
+  return texto
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+}
+
+/** Primeira categoria cuja keyword aparece na linha (ordem de KEYWORDS_CATEGORIA). */
+function categoriaNaLinha(linha: string): CategoriaDespesa | null {
+  for (const [categoria, re] of Object.entries(KEYWORDS_CATEGORIA) as [
+    CategoriaDespesa,
+    RegExp,
+  ][]) {
+    if (re.test(linha)) return categoria;
+  }
+  return null;
+}
+
+/**
+ * Linhas que mencionam exigência → categoria mais próxima numa janela para
+ * TRÁS de até 2 linhas (em tabelas, a regra vem depois do rótulo da categoria).
+ */
 function categoriasComExigencia(texto: string, reExigencia: RegExp): CategoriaDespesa[] {
-  const trechos = texto.split(/[\n;]+/);
+  const linhas = linhasDe(texto);
   const achadas = new Set<CategoriaDespesa>();
-  for (const trecho of trechos) {
-    if (!reExigencia.test(trecho)) continue;
-    for (const [categoria, reCat] of Object.entries(KEYWORDS_CATEGORIA) as [
-      CategoriaDespesa,
-      RegExp,
-    ][]) {
-      if (reCat.test(trecho)) achadas.add(categoria);
+  for (let i = 0; i < linhas.length; i++) {
+    if (!reExigencia.test(linhas[i])) continue;
+    for (let j = i; j >= Math.max(0, i - 2); j--) {
+      const cat = categoriaNaLinha(linhas[j]);
+      if (cat) achadas.add(cat);
     }
   }
   return [...achadas];
@@ -139,10 +172,10 @@ export class HeuristicPolicyParser implements PolicyParser {
 
   async extract(input: ArquivoPolitica): Promise<PolicyExtracao> {
     const avisos: string[] = [];
-    const texto = decodificarTexto(input);
+    const texto = await decodificarTexto(input);
 
     if (texto === null) {
-      // Binário (PDF/imagem): sem extração local → preenchimento assistido
+      // Binário (imagem/PDF escaneado): sem extração local → preenchimento assistido
       return {
         textoExtraido: null,
         regras: regrasPoliticaSchema.parse({}),
@@ -157,7 +190,7 @@ export class HeuristicPolicyParser implements PolicyParser {
         ],
         provedor: this.nome,
         avisos: [
-          "Arquivo binário (PDF/imagem) sem texto extraível: preencha as regras manualmente na revisão assistida. Conector LLM disponível via POLICY_PROVIDER=llm.",
+          "Arquivo sem texto extraível (imagem ou PDF escaneado): preencha as regras manualmente na revisão assistida. Conector LLM disponível via POLICY_PROVIDER=llm.",
         ],
       };
     }
@@ -167,17 +200,45 @@ export class HeuristicPolicyParser implements PolicyParser {
     const observacoes: string[] = [];
     let regrasExtraidas = 0;
 
-    // 1. Limites por categoria (valor "R$" próximo à keyword da categoria)
+    // 1. Limites por categoria — tabelas de PDF quebram células em várias
+    //    linhas: a keyword da categoria abre uma janela de até 3 linhas que
+    //    para ANTES da próxima categoria/linha de km (evita contaminação).
+    //    O 1º "R$" da janela é o teto principal; variações (regional, refeição
+    //    c/ cliente etc.) viram observação — nunca sobrescrevem o teto.
+    const linhas = linhasDe(texto);
     const limites: Partial<Record<CategoriaDespesa, number | null>> = {};
-    for (const [categoria, re] of Object.entries(KEYWORDS_CATEGORIA) as [
-      CategoriaDespesa,
-      RegExp,
-    ][]) {
-      const limite = limitePorCategoria(texto, re);
-      if (limite !== null) {
-        limites[categoria] = limite;
-        regrasExtraidas += 1;
+    for (let i = 0; i < linhas.length; i++) {
+      const cat = categoriaNaLinha(linhas[i]);
+      if (!cat || RE_LINHA_KM.test(linhas[i])) continue;
+
+      const janela: string[] = [linhas[i]];
+      for (let j = i + 1; j < Math.min(i + 3, linhas.length); j++) {
+        if (categoriaNaLinha(linhas[j]) || RE_LINHA_KM.test(linhas[j])) break;
+        janela.push(linhas[j]);
       }
+      const valores = valoresEm(janela.join(" "));
+      if (valores.length === 0) continue;
+
+      if (limites[cat] === undefined) {
+        limites[cat] = valores[0];
+        regrasExtraidas += 1;
+        if (valores.length > 1) {
+          observacoes.push(
+            `Teto com variação (${cat}): "${janela.join(" ")}" — usado o 1º valor (R$ ${valores[0]}); confira as demais faixas.`,
+          );
+        }
+      } else {
+        observacoes.push(
+          `Variação de teto (${cat}): "${janela.join(" ")}" — teto principal já definido; avalie se precisa ajustar.`,
+        );
+      }
+    }
+    // Teto "solto" (linha com "até R$" e contexto, sem categoria mapeada)
+    for (const linha of linhas) {
+      if (!/at[ée]\s+R\$/i.test(linha)) continue;
+      if (categoriaNaLinha(linha) || RE_LINHA_KM.test(linha)) continue;
+      if (linha.split(/\s+/).length < 6) continue; // fragmento de célula
+      observacoes.push(`Teto mencionado sem categoria mapeada: "${linha}"`);
     }
     regrasInput.limitesPorCategoria = limites;
     if (Object.keys(limites).length === 0) camposPendentes.push("limitesPorCategoria");
@@ -193,7 +254,7 @@ export class HeuristicPolicyParser implements PolicyParser {
     // 3. Exigência de evidência ("obrigatório/nota/recibo/evidência/comprovante")
     const exigeEvidencia = categoriasComExigencia(
       texto,
-      /obrigat[óo]ri|nota\s+fiscal|recibo|evid[êe]ncia|comprovante/i,
+      /obrigat[óo]ri|nota\s+fiscal|recibo|evid[êe]ncia|comprovante|cupom\s+fiscal/i,
     );
     regrasInput.exigeEvidencia = exigeEvidencia;
     if (exigeEvidencia.length > 0) regrasExtraidas += 1;
@@ -209,7 +270,7 @@ export class HeuristicPolicyParser implements PolicyParser {
     );
     const negacaoAcimaDe = tetoPorContexto(
       texto,
-      /nega[çc]|negad|n[ãa]o\s+(s[ãa]o\s+)?reembols|rejeitad/i,
+      /nega[ç]|negad|n[ãa]o\s+(s[ãa]o\s+)?reembols|rejeitad/i,
     );
     regrasInput.aprovacaoAutomaticaAte = aprovacaoAutomaticaAte;
     regrasInput.revisaoHumanaAcimaDe = revisaoHumanaAcimaDe;
@@ -222,12 +283,29 @@ export class HeuristicPolicyParser implements PolicyParser {
       (revisaoHumanaAcimaDe !== null ? 1 : 0) +
       (negacaoAcimaDe !== null ? 1 : 0);
 
-    // 5. Observações em texto livre (tarifa/km e demais regras não estruturadas)
+    // 5. Observações em texto livre — tarifa/km: bloco de linhas ao redor da
+    //    primeira menção a quilometragem (a tabela quebra "R$ 1,30 / km" em
+    //    várias linhas), mais frases avulsas que citam tarifa com valor.
+    const kmIdx = linhas.findIndex((l) => RE_LINHA_KM.test(l));
+    if (kmIdx >= 0) {
+      const bloco = linhas.slice(Math.max(0, kmIdx - 1), kmIdx + 6).join(" ");
+      if (valoresEm(bloco).length > 0) {
+        observacoes.push(
+          `Tarifa/km mencionada: "${bloco.slice(0, 220)}${bloco.length > 220 ? "…" : ""}"`,
+        );
+      }
+    }
     const trechosKm = texto
       .split(/[.\n;]+/)
-      .filter((t) => /tarifa|por\s+km|km\s+rodado/i.test(t) && valoresEm(t).length > 0);
+      .filter(
+        (t) =>
+          /tarifa|por\s+km|km\s+rodado/i.test(t) && valoresEm(t).length > 0,
+      );
     for (const t of trechosKm.slice(0, 5)) {
-      observacoes.push(`Tarifa/km mencionada: "${t.trim()}"`);
+      const trecho = t.trim();
+      if (!observacoes.some((o) => o.includes(trecho))) {
+        observacoes.push(`Tarifa/km mencionada: "${trecho}"`);
+      }
     }
     regrasInput.observacoes = observacoes;
 
