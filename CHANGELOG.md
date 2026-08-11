@@ -4,6 +4,21 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.4.2] — 2026-08-11
+
+### Corrigido
+- **Upload de nota/cupom falhava e expunha SQL ao usuário** (reportado por
+  usuário em produção): fotos/PDFs acima de ~64 KB estouravam a coluna
+  `arquivo_base64` (MySQL `TEXT`); migrada para `MEDIUMTEXT` (até 16 MB) em
+  `notas_fiscais` e `evidencias_documentais`, limite de 10 MB validado na
+  entrada com mensagem clara, e falhas de persistência agora retornam
+  mensagem amigável em PT-BR sem vazar query/parâmetros
+- **App inutilizável no celular**: a sidebar fixa de 264 px cobria o conteúdo
+  em telas pequenas. Agora vira drawer (hambúrguer) com backdrop, fecha ao
+  navegar e trava o scroll de fundo; topbar, banner RF-00, conteúdo e rodapé
+  com paddings responsivos; seletor de empresa trunca sem estourar a largura
+  — overflow horizontal zerado, validado em viewport de 390 px
+
 ## [1.4.1] — 2026-08-09
 
 ### Adicionado

@@ -3,6 +3,7 @@ import {
   mysqlEnum,
   serial,
   varchar,
+  mediumtext,
   text,
   timestamp,
   date,
@@ -149,7 +150,7 @@ export const notasFiscais = mysqlTable("notas_fiscais", {
   // Upload na plataforma: arquivo original guardado inline (MVP, sem storage externo)
   arquivoNome: varchar("arquivo_nome", { length: 255 }),
   arquivoMime: varchar("arquivo_mime", { length: 100 }),
-  arquivoBase64: text("arquivo_base64"),
+  arquivoBase64: mediumtext("arquivo_base64"),
   origem: mysqlEnum("origem", ["ocr", "manual"]).notNull().default("manual"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -245,7 +246,7 @@ export const evidenciasDocumentais = mysqlTable("evidencias_documentais", {
   tipo: varchar("tipo", { length: 100 }).notNull(),
   arquivoNome: varchar("arquivo_nome", { length: 255 }).notNull(),
   arquivoMime: varchar("arquivo_mime", { length: 100 }),
-  arquivoBase64: text("arquivo_base64"),
+  arquivoBase64: mediumtext("arquivo_base64"),
   observacao: text("observacao"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

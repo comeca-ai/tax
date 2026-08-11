@@ -48,20 +48,31 @@ export const despesasRouter = createRouter({
         arquivoBase64: input.arquivoBase64,
       });
 
-      const result = await db.insert(notasFiscais).values({
-        empresaId: input.empresaId,
-        cnpjEmitente: extracao.cnpjEmitente,
-        cfop: extracao.cfop,
-        ncm: extracao.ncm,
-        cst: extracao.cst,
-        valor: extracao.valor,
-        dataFatoGerador: extracao.dataFatoGerador,
-        arquivoNome: input.arquivoNome,
-        arquivoMime: input.arquivoMime,
-        arquivoBase64: input.arquivoBase64,
-        origem: "ocr",
-      });
-      const notaFiscalId = Number(result[0].insertId);
+      let notaFiscalId: number;
+      try {
+        const result = await db.insert(notasFiscais).values({
+          empresaId: input.empresaId,
+          cnpjEmitente: extracao.cnpjEmitente,
+          cfop: extracao.cfop,
+          ncm: extracao.ncm,
+          cst: extracao.cst,
+          valor: extracao.valor,
+          dataFatoGerador: extracao.dataFatoGerador,
+          arquivoNome: input.arquivoNome,
+          arquivoMime: input.arquivoMime,
+          arquivoBase64: input.arquivoBase64,
+          origem: "ocr",
+        });
+        notaFiscalId = Number(result[0].insertId);
+      } catch (err) {
+        // Nunca vazar SQL/params para o cliente — mensagem amigável PT-BR
+        console.error("[uploadNota] falha ao persistir nota fiscal:", err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            "Não conseguimos salvar a nota fiscal. Verifique se o arquivo tem até 10 MB e tente novamente — se o erro persistir, fale com o suporte.",
+        });
+      }
 
       await registrarLog(db, {
         usuarioId: ctx.usuario.id,
@@ -429,15 +440,26 @@ export const despesasRouter = createRouter({
       }
       await assertEmpresaAcesso(ctx, despesa.empresaId);
 
-      const result = await db.insert(evidenciasDocumentais).values({
-        despesaId: input.despesaId,
-        tipo: input.tipo,
-        arquivoNome: input.arquivoNome,
-        arquivoMime: input.arquivoMime ?? null,
-        arquivoBase64: input.arquivoBase64 ?? null,
-        observacao: input.observacao ?? null,
-      });
-      const id = Number(result[0].insertId);
+      let id: number;
+      try {
+        const result = await db.insert(evidenciasDocumentais).values({
+          despesaId: input.despesaId,
+          tipo: input.tipo,
+          arquivoNome: input.arquivoNome,
+          arquivoMime: input.arquivoMime ?? null,
+          arquivoBase64: input.arquivoBase64 ?? null,
+          observacao: input.observacao ?? null,
+        });
+        id = Number(result[0].insertId);
+      } catch (err) {
+        // Nunca vazar SQL/params para o cliente — mensagem amigável PT-BR
+        console.error("[addEvidencia] falha ao persistir evidência:", err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            "Não conseguimos anexar a evidência. Verifique se o arquivo tem até 10 MB e tente novamente — se o erro persistir, fale com o suporte.",
+        });
+      }
 
       await registrarLog(db, {
         usuarioId: ctx.usuario.id,

@@ -90,11 +90,16 @@ export const veiculoInput = z.object({
   descricao: z.string().max(255).optional(),
 });
 
+// Limite de 10 MB por arquivo → base64 ≈ 13,4 MB de caracteres (margem p/ overhead)
+export const ARQUIVO_BASE64_MAX = 14_000_000;
+const ARQUIVO_BASE64_MSG =
+  "Arquivo acima do limite de 10 MB. Comprima a imagem ou envie em outro formato (JPG, PNG, PDF ou XML).";
+
 export const uploadNotaInput = z.object({
   empresaId: z.number().int().positive(),
   arquivoNome: z.string().min(1).max(255),
   arquivoMime: z.string().max(100),
-  arquivoBase64: z.string().min(1),
+  arquivoBase64: z.string().min(1).max(ARQUIVO_BASE64_MAX, ARQUIVO_BASE64_MSG),
 });
 
 export const despesaInput = z.object({
@@ -128,7 +133,7 @@ export const evidenciaInput = z.object({
   tipo: z.string().min(2).max(100),
   arquivoNome: z.string().min(1).max(255),
   arquivoMime: z.string().max(100).optional(),
-  arquivoBase64: z.string().optional(),
+  arquivoBase64: z.string().max(ARQUIVO_BASE64_MAX, ARQUIVO_BASE64_MSG).optional(),
   observacao: z.string().max(2000).optional(),
 });
 
