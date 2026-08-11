@@ -4,6 +4,20 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.4.5] — 2026-08-11
+
+### Adicionado
+- **`docs/DEPLOY.md`** — runbook público de deploy: modelo de atualização por
+  tag (fetch → checkout → `up -d --build` → health → rollback), diferença
+  entre atualização de código e de higiene, checklist de máquina nova e
+  regras de ouro (migrações automáticas, override referencia `tax-app`,
+  segredos só no `.env`)
+
+### Corrigido
+- **`.gitignore`**: adicionados `docker-compose.override.yml`, `proxy/` e
+  `uploads/` — artefatos por máquina e topologia de infra não podem vazar
+  para o repositório (público)
+
 ## [1.4.4] — 2026-08-11
 
 ### Corrigido

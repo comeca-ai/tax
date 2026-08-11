@@ -19,3 +19,11 @@ coverage/
 .nyc_output/
 # Logs
 *.log
+
+# Infra local de cada máquina — NÃO vai para o repo (público):
+# override do compose é por servidor (portas, redes, variáveis locais);
+# proxy/ e afins guardam topologia de infra (Caddy, rotas, IPs).
+# Runbook de deploy: docs/DEPLOY.md
+docker-compose.override.yml
+proxy/
+uploads/
