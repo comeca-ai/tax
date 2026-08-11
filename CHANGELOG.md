@@ -4,6 +4,14 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.4.4] — 2026-08-11
+
+### Corrigido
+- **Lockfile com 3 URLs de mirror privado** (`node-ensure`, `pdf-parse`,
+  `debug` — vazaram do ambiente de build no bump do pdf-parse em 1.4.3):
+  normalizadas para `registry.npmjs.org`; `.npmrc` versionado fixando o
+  registry público para impedir reincidência em qualquer ambiente
+
 ## [1.4.3] — 2026-08-11
 
 ### Corrigido
