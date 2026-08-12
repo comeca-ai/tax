@@ -328,3 +328,86 @@ export const convites = mysqlTable(
   },
   (t) => [uniqueIndex("convites_token_unique").on(t.token)],
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 13. Colaboradores (v1.5.0) — pessoas da empresa que pedem reembolso.
+// O admin cadastra (hoje manual; upload em lote na v1.9.0). O vínculo com
+// `usuarios` é opcional: o colaborador pode existir só no WhatsApp, sem login.
+// `superiorId` define o degrau de escalada da zona cinzenta (v1.6.0).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const statusAtivacaoEnum = mysqlEnum("status_ativacao", [
+  "pendente", // cadastrado pelo admin, ainda não falou com o agente
+  "confirmado", // passou pelo onboarding conversacional
+  "divergencia", // contestou os dados no onboarding — admin precisa revisar
+]);
+
+export const colaboradores = mysqlTable(
+  "colaboradores",
+  {
+    id: serial("id").primaryKey(),
+    empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => empresas.id),
+    usuarioId: bigint("usuario_id", { mode: "number", unsigned: true }).references(
+      () => usuarios.id,
+    ),
+    nome: varchar("nome", { length: 255 }).notNull(),
+    email: varchar("email", { length: 255 }),
+    telefone: varchar("telefone", { length: 20 }),
+    matricula: varchar("matricula", { length: 50 }),
+    centroCusto: varchar("centro_custo", { length: 100 }),
+    statusAtivacao: statusAtivacaoEnum.notNull().default("pendente"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+  },
+  (t) => [uniqueIndex("colaboradores_empresa_telefone_unique").on(t.empresaId, t.telefone)],
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 14. Sessões de conversa do agente WhatsApp (v1.5.0)
+// Uma sessão por telefone; `estado` é o passo da máquina de onboarding
+// (ver api/agente/maquina.ts) e `contexto` carrega os dados coletados.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const sessoesConversa = mysqlTable(
+  "sessoes_conversa",
+  {
+    id: serial("id").primaryKey(),
+    telefone: varchar("telefone", { length: 20 }).notNull(),
+    colaboradorId: bigint("colaborador_id", {
+      mode: "number",
+      unsigned: true,
+    }).references(() => colaboradores.id),
+    estado: varchar("estado", { length: 40 }).notNull().default("inicio"),
+    contexto: json("contexto"),
+    ultimaInteracaoAt: timestamp("ultima_interacao_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+  },
+  (t) => [uniqueIndex("sessoes_conversa_telefone_unique").on(t.telefone)],
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 15. Declarações de perfil de despesa (v1.5.0)
+// O que o colaborador disse que costuma pedir — define o checklist contextual
+// dele (ex.: declarou combustivel → precisa de veículo).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const declaracoesPerfil = mysqlTable(
+  "declaracoes_perfil",
+  {
+    id: serial("id").primaryKey(),
+    colaboradorId: bigint("colaborador_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => colaboradores.id),
+    categoria: categoriaDespesaEnum.notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("declaracoes_perfil_colab_categoria_unique").on(
+      t.colaboradorId,
+      t.categoria,
+    ),
+  ],
+);

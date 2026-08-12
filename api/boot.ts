@@ -5,6 +5,8 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
 import { createContext } from "./context";
 import { env } from "./lib/env";
+import { getWhatsappProvider, parseEvolutionPayload } from "./whatsapp";
+import { processarMensagemRecebida } from "./agente";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -55,6 +57,29 @@ app.post("/api/webhooks/whatsapp", async (c) => {
     console.error("[whatsapp] Falha ao processar webhook:", err);
   }
   // Sempre 200 para a Meta não reenviar o evento indefinidamente.
+  return c.json({ received: true }, 200);
+});
+
+// ── Webhook Evolution (v1.5.0 — D-010/D-011) ────────────────────────────────
+// O Evolution roda em stack separado na VPS e empurra cada mensagem recebida
+// para cá. Autenticação opcional: se WHATSAPP_WEBHOOK_SECRET estiver definido,
+// o Evolution deve enviar o mesmo valor no header `x-webhook-secret`.
+// Sempre 200 — o provider não deve reenviar o evento em loop.
+app.post("/api/whatsapp/webhook", async (c) => {
+  const segredo = process.env.WHATSAPP_WEBHOOK_SECRET;
+  if (segredo && c.req.header("x-webhook-secret") !== segredo) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+  try {
+    const body = await c.req.json();
+    const msg = parseEvolutionPayload(body);
+    if (msg) {
+      // Sem provider configurado o agente roda em modo log (dev/homolog).
+      await processarMensagemRecebida(msg, getWhatsappProvider());
+    }
+  } catch (err) {
+    console.error("[whatsapp] Falha ao processar webhook Evolution:", err);
+  }
   return c.json({ received: true }, 200);
 });
 

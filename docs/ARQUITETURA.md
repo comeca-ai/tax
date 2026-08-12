@@ -171,11 +171,14 @@ o dossiê defensável meses depois ("essa despesa foi aprovada pela regra X da v
 
 ```
 services:
-  app:        # ✅ existe — web + tRPC + migrações no boot
-  agent:      # ❌ novo — mesmo repo/imagem, comando "agent", env WHATSAPP_PROVIDER, SMTP_*
-  evolution:  # ❌ novo (largada) — Evolution API self-hosted; instalação a cargo do usuário
+  app:        # ✅ existe — web + tRPC + migrações no boot; agente roda como módulo do app
 ```
-- Mesma imagem para app e agent → lockfile e migrações compartilhados, sem drift.
+- **Evolution (D-011): stack separado**, fora do compose do app (padrão n8n/Chatwoot/
+  Coolify na VPS), instalado pelo usuário. Integração 100% HTTP:
+  `EVOLUTION_API_URL` + `EVOLUTION_API_KEY` + `EVOLUTION_INSTANCE` no `.env`, e o
+  webhook do Evolution apontando para `/api/whatsapp/webhook`. Se o Evolution cair,
+  site e back office seguem operando; na migração para a Meta oficial, apaga-se o
+  stack e trocam-se as variáveis.
 - **Sem Railway/serviço externo**: tudo na VPS — banco, app e agente no mesmo host
   elimina latência, ponto de falha e custo extra; mantém o padrão de deploy atual
   (git tag → docker compose up).

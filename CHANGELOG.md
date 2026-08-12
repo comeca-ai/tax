@@ -4,6 +4,48 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.5.0] — 2026-08-12
+
+Fundação do agente de reembolso (onda 1 do redesenho — ver `docs/PRODUTO.md`
+§7 e `docs/DECISOES.md`). O funcionário agora faz o onboarding inteiro pelo
+WhatsApp: confirma os dados, declara o que costuma pedir e cadastra o veículo
+só se precisar dele (D-001/D-005).
+
+### Adicionado
+- **Agente de onboarding conversacional** (`api/agente/`): máquina de estados
+  pura e testável (saudação → confirmação de dados → 3 perguntas de perfil →
+  veículo contextual → pronto), tolerante a respostas ambíguas, placas e
+  números em formatos variados; divergência de dados vira exceção para o
+  admin (`status_ativacao = divergencia` + log de auditoria)
+- **Adapter de transporte WhatsApp** (`api/whatsapp/`): interface
+  `WhatsappProvider` + provider **Evolution API** (envio via
+  `POST /message/sendText/{instance}`, parsing de `messages.upsert` ignorando
+  fromMe/grupos/broadcast) + seleção por `WHATSAPP_PROVIDER` (D-010). Sem
+  variáveis configuradas o agente roda em modo log e o app segue 100% (D-011)
+- **Webhook Evolution** `POST /api/whatsapp/webhook` com autenticação
+  opcional por `WHATSAPP_WEBHOOK_SECRET` (header `x-webhook-secret`)
+- **Colaboradores** (novo): tabela + router `colaboradores.criar/listar/
+  atualizarStatus` — o admin cadastra quem pede reembolso (nome, telefone,
+  e-mail, matrícula, centro de custo); colaborador não precisa de login
+- **Sessões de conversa** (novo): tabela `sessoes_conversa` (estado +
+  contexto JSON por telefone) e `declaracoes_perfil` (o que cada colaborador
+  declarou pedir) — migração `0004_agente_onboarding.sql`
+- **Veículo pelo WhatsApp**: ao declarar combustível, o agente coleta placa,
+  modelo e consumo e cria o veículo na empresa — ninguém mais cadastra veículo
+  sem precisar dele
+- **22 testes novos** (68 no total): parsing de payload Evolution (texto,
+  caption, fromMe, grupos, malformado), envio com URL/apikey corretos, e a
+  máquina de estados completa (fluxo feliz com e sem veículo, divergência,
+  respostas inválidas, estado pronto)
+- Documentação: D-011 (Evolution como stack separado) em `docs/DECISOES.md`,
+  seção de transporte em `docs/ARQUITETURA.md`, README atualizado
+
+### Técnico
+- Variáveis novas no `.env.example`: `WHATSAPP_PROVIDER`, `EVOLUTION_API_URL`,
+  `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, `WHATSAPP_WEBHOOK_SECRET`
+- Webhook legado da Meta (`/api/webhooks/whatsapp`) preservado para a
+  migração futura (D-010)
+
 ## [1.4.6] — 2026-08-12
 
 ### Adicionado

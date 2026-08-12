@@ -245,11 +245,13 @@ Contrato completo dos tipos em `contracts/types.ts`. Detalhes de implementação
 - **Opcional**: sem `RECEITAWS_TOKEN` no `.env`, a consulta fica indisponível e o formulário segue 100% manual.
 - Plano gratuito da ReceitaWS: **3 consultas/min** — ao estourar o limite, o app pede para aguardar ~1 minuto.
 
-### WhatsApp (fundação)
+### WhatsApp — agente de onboarding (v1.5.0)
 
-- **O que já funciona**: links `wa.me` para o admin compartilhar convites pelo WhatsApp direto da tela de Equipe.
-- O backend já expõe o webhook `/api/webhooks/whatsapp`: o `GET` atende à verificação da Meta (`hub.mode`, `hub.verify_token`, `hub.challenge`) e o `POST` recebe eventos e registra as mensagens no log do servidor.
-- **Para o bot completo** (ainda não implementado): criar um app no [Meta for Developers](https://developers.facebook.com/), ativar a **WhatsApp Cloud API**, definir `WHATSAPP_VERIFY_TOKEN` no `.env` e apontar a URL do webhook (`https://<seu-dominio>/api/webhooks/whatsapp`) no painel da Meta. A automação planejada — o usuário envia **foto do recibo → pipeline OCR → despesa criada** — vem na sequência do roadmap.
+- **Transporte**: Evolution API (self-hosted, stack separado — decisões D-010/D-011 em `docs/DECISOES.md`), atrás do adapter `WHATSAPP_PROVIDER`. A Cloud API oficial da Meta é o provider futuro: trocar é mudar variáveis de ambiente, não o produto.
+- **O que já funciona**: o funcionário manda mensagem para o número do agente e passa pelo **onboarding conversacional** — confirma os dados cadastrados pelo admin, declara o que costuma pedir (combustível/viagem/alimentação) e, só se declarou combustível, cadastra o veículo (placa, modelo, consumo). Sem cadastro prévio do telefone pelo admin, o agente orienta a falar com o responsável (portão único).
+- **Configuração**: definir `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE` no `.env` e apontar o webhook da instância Evolution para `https://<seu-dominio>/api/whatsapp/webhook`. Se `WHATSAPP_WEBHOOK_SECRET` estiver definido, o Evolution deve enviar o mesmo valor no header `x-webhook-secret`. Sem essas variáveis, o agente roda em **modo log** (respostas no console) e o resto do app segue normal.
+- **Cadastro de colaboradores**: API `colaboradores.criar/listar` (admin) — nome, telefone, e-mail, matrícula, centro de custo. Upload em lote chega na v1.9.0 (ver `docs/ARQUITETURA.md` §8).
+- **Legado Meta**: o webhook `/api/webhooks/whatsapp` (verificação `hub.challenge` da Cloud API) continua ativo para a migração futura.
 
 ## 11. Limitações conhecidas (v1)
 

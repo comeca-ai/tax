@@ -29,6 +29,13 @@
       "when": 1786463408789,
       "tag": "0003_mediumtext_arquivos",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1786509645192,
+      "tag": "0004_agente_onboarding",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,26 @@
 
 ---
 
+## D-011 · Evolution roda como stack separado, fora do compose do app — 12/08/2026
+
+**Contexto:** Evolution instalada pelo usuário na VPS. Dentro ou fora do
+docker-compose do `tax-app`?
+
+**Decisão (do usuário):** fora — stack independente (mesmo padrão de n8n/Chatwoot/
+Coolify), até a migração para a API oficial da Meta.
+
+**Motivos:** zero conflito de deploy/restart entre os stacks; se o Evolution cair
+(protocolo), site e back office seguem 100%; na migração para a Meta, apaga-se o
+stack e trocam-se 3 variáveis de ambiente; compose fica fora do repo público, junto
+dos demais stacks de infra.
+
+**Consequência técnica:** a integração é puramente HTTP — `EVOLUTION_API_URL` +
+`EVOLUTION_API_KEY` + `EVOLUTION_INSTANCE` no `.env` do app, e webhook do Evolution
+apontando para `/api/whatsapp/webhook`. Nenhum acoplamento de rede/processos além
+disso. Adapter `WHATSAPP_PROVIDER=evolution|meta` (D-010) já assume essa forma.
+
+---
+
 ## D-010 · Evolution API como transporte WhatsApp da largada — 12/08/2026
 
 **Contexto:** v1.5.0 (onboarding conversacional) e v1.6.0 (motor de decisão) precisam
