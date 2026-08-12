@@ -5,7 +5,7 @@ import { HeuristicPolicyParser } from "./parser";
 
 /**
  * Parser heurístico da política (v1.4.3).
- * Fixture: PDF real de política de reembolso (SP) com camada de texto —
+ * Fixture: documento fictício de política de reembolso (SP) com camada de texto —
  * antes desta versão o parser tratava PDF como binário e não extraía nada.
  */
 const FIXTURE_PDF = path.join(

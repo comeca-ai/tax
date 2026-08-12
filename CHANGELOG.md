@@ -4,6 +4,31 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.4.6] — 2026-08-12
+
+### Adicionado
+- **`docs/PRODUTO.md`** — redesenho de produto: agente de reembolso (não plataforma
+  modular), 5 princípios (campo=defesa, fim do achismo, gestão por exceção, política
+  viva, interesse do funcionário como motor), atores e UX por ator, fluxos end-to-end
+  (setup em lote, convite e-mail→wa.me, onboarding conversacional, ciclo da despesa,
+  zona cinzenta, dossiê 1-botão), 9 regras de negócio, gap analysis e roadmap em ondas
+- **`docs/ARQUITETURA.md`** — um cérebro (`brain/`), duas superfícies (web + agent
+  WhatsApp magro), contrato central do decisor (sempre com regra citada), máquina de
+  estados da conversa, modelo de dados novo (hierarquia, sessões, exceções, versões
+  de política), deploy em 3 containers na VPS e releases v1.5.0–v1.9.0
+- **`docs/DECISOES.md`** — registro ADR com 10 decisões (D-001 a D-010), incluindo:
+  agente-first, onboarding progressivo self-service, gestão por exceção com escalada
+  de um degrau, política viva sem caixa-preta, dossiê de recuperação sem entrar na
+  parte fiscal, Evolution API como transporte WhatsApp da largada atrás de adapter
+  `WHATSAPP_PROVIDER` (migração futura à API oficial sem mudar o produto), e tudo
+  self-hosted na VPS (sem Railway)
+- **`docs/LINHA-DO-TEMPO.md`** — passado/presente/futuro do projeto em um arquivo,
+  com checklist de pendências operacionais
+
+### Corrigido
+- Comentário do teste do parser de política: fixture descrito corretamente como
+  "documento fictício" (era "PDF real")
+
 ## [1.4.5] — 2026-08-11
 
 ### Adicionado
