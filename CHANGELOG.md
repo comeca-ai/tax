@@ -4,6 +4,21 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.6.2] — 2026-08-13
+
+Cadastro de empresa: sem veículo no wizard, com aceites legais.
+
+### Adicionado
+- **Caixinhas obrigatórias no cadastro da empresa**: consentimento LGPD
+  (tratamento de dados conforme Lei nº 13.709/2018) e declaração de poderes
+  para representar a empresa perante os órgãos legais e fiscais. Aceites
+  registrados na trilha de auditoria (`empresa.create`)
+
+### Removido
+- Botão "Cadastrar veículo agora" na tela final do wizard — veículos ficam
+  somente na área administrativa (Configurar → Veículos) ou via WhatsApp
+  pelo próprio colaborador
+
 ## [1.6.1] — 2026-08-13
 
 Hotfix: "Esqueci a senha" era um mock (só exibia toast). Agora é um fluxo

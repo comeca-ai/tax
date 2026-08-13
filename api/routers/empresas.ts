@@ -113,7 +113,7 @@ export const empresasRouter = createRouter({
         acao: "empresa.create",
         entidade: "empresa",
         entidadeId: id,
-        detalhes: `CNAE ${input.cnaePrincipal}, regime ${input.regimeTributario}, UF ${input.uf}`,
+        detalhes: `CNAE ${input.cnaePrincipal}, regime ${input.regimeTributario}, UF ${input.uf}, LGPD ${input.aceiteLgpd ? "aceito" : "n/a"}, poderes ${input.declaracaoPoderes ? "declarados" : "n/a"}`,
       });
 
       return { id, cadastroCompleto: true };

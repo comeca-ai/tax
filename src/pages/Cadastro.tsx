@@ -64,6 +64,12 @@ const empresaSchema = z.object({
   cnaesSecundarios: z.array(z.string()),
   regimeTributario: z.enum(REGIMES_TRIBUTARIOS, "Selecione o regime tributário"),
   uf: z.enum(UFS_BRASIL, "Selecione a UF"),
+  aceiteLgpd: z
+    .boolean()
+    .refine((v) => v, "É necessário consentir com o tratamento de dados (LGPD)"),
+  declaracaoPoderes: z
+    .boolean()
+    .refine((v) => v, "É necessário declarar poderes para representar a empresa"),
 })
 type EmpresaForm = z.infer<typeof empresaSchema>
 
@@ -488,6 +494,8 @@ export default function Cadastro() {
       cnaesSecundarios: [],
       regimeTributario: undefined as unknown as RegimeTributario,
       uf: undefined as unknown as Uf,
+      aceiteLgpd: false,
+      declaracaoPoderes: false,
     },
   })
 
@@ -931,6 +939,36 @@ export default function Cadastro() {
                     </p>
                   </div>
 
+                  <div className="flex flex-col gap-3 rounded-[12px] border border-line bg-surface p-4">
+                    <label className="flex cursor-pointer items-start gap-3">
+                      <input
+                        type="checkbox"
+                        {...empresaForm.register("aceiteLgpd")}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-[#0EA968]"
+                      />
+                      <span className="text-[12.5px] leading-relaxed text-text-900">
+                        <span className="font-semibold">Consentimento LGPD.</span> Autorizo o
+                        tratamento dos dados pessoais e empresariais informados nesta plataforma
+                        para as finalidades de gestão de reembolsos e apuração de créditos,
+                        conforme a Política de Privacidade (Lei nº 13.709/2018 — LGPD).
+                      </span>
+                    </label>
+                    <ErroCampo mensagem={empresaForm.formState.errors.aceiteLgpd?.message} />
+                    <label className="flex cursor-pointer items-start gap-3">
+                      <input
+                        type="checkbox"
+                        {...empresaForm.register("declaracaoPoderes")}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-[#0EA968]"
+                      />
+                      <span className="text-[12.5px] leading-relaxed text-text-900">
+                        <span className="font-semibold">Declaração de poderes.</span> Declaro que
+                        possuo poderes para representar a empresa perante os órgãos legais e
+                        fiscais, respondendo pelas informações prestadas neste cadastro.
+                      </span>
+                    </label>
+                    <ErroCampo mensagem={empresaForm.formState.errors.declaracaoPoderes?.message} />
+                  </div>
+
                   {erroGeral && (
                     <p role="alert" className="rounded-[10px] bg-conf-vedado-bg px-3.5 py-3 text-[13px] font-medium text-conf-vedado-text">
                       {erroGeral}
@@ -1082,13 +1120,10 @@ export default function Cadastro() {
                 >
                   Ir para o dashboard <ArrowRight className="h-4 w-4" />
                 </motion.button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/app/veiculos")}
-                  className="mt-2.5 inline-flex h-11 w-full items-center justify-center rounded-[10px] border border-line text-sm font-semibold text-text-900 transition-colors hover:bg-paper"
-                >
-                  Cadastrar veículo agora
-                </button>
+                <p className="mt-3 text-[12px] text-text-500">
+                  Veículos são cadastrados depois, na área administrativa
+                  (Configurar → Veículos) ou pelo próprio colaborador no WhatsApp.
+                </p>
               </motion.div>
             )}
           </AnimatePresence>

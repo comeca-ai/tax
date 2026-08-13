@@ -80,6 +80,9 @@ export const empresaInput = z.object({
   cnaesSecundarios: z.array(z.string().max(10)).max(20).default([]),
   regimeTributario: z.enum(REGIMES_TRIBUTARIOS),
   uf: z.enum(UFS_BRASIL),
+  /** Aceites do wizard de cadastro (v1.6.2) — registrados na auditoria. */
+  aceiteLgpd: z.boolean().optional(),
+  declaracaoPoderes: z.boolean().optional(),
 });
 
 export const veiculoInput = z.object({
