@@ -4,6 +4,28 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.6.4] — 2026-08-14
+
+Release documental — separação dos motores (D-014), validada com caso real
+(cupom de hortifruti R$ 90,14 vs. política START UP SP: reprovado por
+consumidor não identificado + valor acima do teto + natureza ≠ categoria).
+
+### Adicionado (documentação)
+- **D-014**: o agente de reembolso só **extrai e verifica** — contra a política
+  (regra explícita) e contra **padrões anômalos** (valor fora do teto, consumidor
+  não identificado, natureza incompatível, horário incoerente, duplicidade).
+  **Negado é negado; ninguém preenche nada** — nem formulário web, nem campo no
+  WhatsApp. O **motor fiscal entra depois, separado, com regras próprias**:
+  reembolso decide se a despesa é devida ao colaborador; fiscal decide o que é
+  aproveitável tributariamente — decisões e trilhas independentes
+
+### Mudado (documentação)
+- PRODUTO.md §4.3 reescrito (ciclo sem perguntas de preenchimento); regras
+  normativas 9-11 (motores separados; ninguém preenche nada)
+- ARQUITETURA.md: `brain/decisor` → `brain/decisor-reembolso` + `motor/fiscal`
+  como módulos separados; estado `COLETANDO_DEFESA` removido da máquina;
+  OCR ilegível no reembolso vira revisão manual, não pergunta
+
 ## [1.6.3] — 2026-08-13
 
 Release documental — correção de doutrina do motor de decisão (D-013).

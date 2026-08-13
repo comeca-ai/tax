@@ -120,13 +120,15 @@ A camada de transporte é isolada atrás de `WHATSAPP_PROVIDER=evolution|meta`:
 quando fizer sentido (escala), migramos para a Cloud API oficial **sem mudar o
 produto** — sessões, máquina de estados e decisor permanecem idênticos.
 
-### 4.3 Ciclo de uma despesa
+### 4.3 Ciclo de uma despesa (D-014: extrai e verifica; ninguém preenche nada)
 
 1. Funcionário manda a foto (cupom/nota) no WhatsApp.
-2. Agente processa (OCR/visão) e pergunta **só o que defende aquele caso**:
-   - Almoço: "foi com cliente? comprovante de pagamento?"
-   - Combustível: veículo já cadastrado + km (origem/destino ou odômetro).
-   - Nunca: formulário completo para todo mundo.
+2. Agente **extrai** (OCR/visão) e **verifica** — só isso. Contra a **política**
+   (regra explícita) e contra **padrões anômalos**: valor fora do teto, consumidor
+   não identificado, natureza incompatível com a categoria (ex.: mercado como
+   "almoço"), horário incoerente, nota duplicada.
+   **Ninguém preenche nada** — nem formulário, nem campo no WhatsApp. O que a
+   evidência não mostra, ninguém digita. Negado é negado.
 3. Agente consulta a política e decide:
 
 | Situação | Decisão | Experiência |
@@ -214,8 +216,16 @@ exceções, apertar o botão do dossiê.
 7. Retroatividade, tetos e exigências vêm da política da empresa — nunca de defaults
    escondidos do produto.
 8. O dossiê é o produto final: cada item entregue é uma defesa completa, não um anexo.
-9. O produto não escritura, não lança, não opina em tributo: prepara e defende;
-   o contador decide e assina.
+9. Reembolso e fiscal são **dois motores separados** (D-014): o reembolso decide se a
+   despesa é devida ao colaborador (política + padrões anômalos); o motor fiscal
+   decide o que é aproveitável tributariamente (créditos, CFOP/NCM, regime) — depois,
+   com regras próprias. Um cupom pode ser reprovado no reembolso e ter tratamento
+   fiscal independente.
+10. No reembolso, **ninguém preenche nada** (D-014): o agente extrai e verifica;
+    negado é negado; dúvida material vai para a revisão manual do gestor, que decide
+    sobre a evidência — não sobre campos de formulário.
+11. O produto não escritura, não lança, não opina em tributo: prepara e defende;
+    o contador decide e assina.
 
 ---
 

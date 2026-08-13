@@ -43,7 +43,8 @@ Dois processos de deploy a partir do mesmo repo:
 | Módulo | Responsabilidade | Status |
 |---|---|---|
 | `brain/policy` | Parser de política (PDF→regras) ✅ v1.4.3 + **versões da política** ❌ + incorporação de regra nova vinda de exceção ❌ | 🟡 |
-| `brain/decisor` | Dado (despesa, regras da política, perfil do funcionário) → `APROVADA(regra citada)` / `REPROVADA(regra citada)` / `REVISAO_MANUAL(motivo material)` — **só aprova com regra explícita (D-013)** | ❌ |
+| `brain/decisor-reembolso` | Extrai (OCR/visão) + verifica: política (regra explícita) + **padrões anômalos** (valor>teto, consumidor não identificado, natureza≠categoria, horário incoerente, duplicidade) → `APROVADA` / `REPROVADA(regra citada)` / `REVISAO_MANUAL(motivo material)` — **só aprova com regra explícita; ninguém preenche nada (D-013/D-014)** | ❌ |
+| `motor/fiscal` (existente) | Apuração tributária: créditos, CFOP/NCM/CST, elegibilidade por regime. **Motor separado, entra depois, regras próprias (D-014)** — decisões e trilhas independentes do reembolso | 🟡 |
 | `brain/perfil` | Checklist contextual por pessoa: o que falta para defender cada categoria que ela declarou (veículo, etc.) | ❌ |
 | `brain/dossie` | Monta o kit zip de recuperação: por despesa, documento fiscal + evidências + veículo/km + motivo + regra aplicada + trilha | ❌ (relatório parcial 🟡) |
 | ~~`brain/politica-viva`~~ | ⛔ **removido (D-013)** — o sistema nunca sugere nem acrescenta regras na política; ela só muda por edição humana versionada | — |
@@ -83,8 +84,8 @@ COLETANDO_CADASTRO  → pede veículo se declarou combustível (foto do document
 PRONTO              → onboarding concluído; portão aberto para despesas
 
 RECEBENDO_DESPESA   → foto recebida → OCR/visão → categoria detectada
-COLETANDO_DEFESA    → perguntas contextuais do caso (cliente? pagamento? km?)
-DECIDINDO           → chama brain/decisor
+DECIDINDO           → chama brain/decisor-reembolso (extrai + verifica; D-014:
+                      ninguém preenche nada — sem estado de coleta de dados)
   ├─ aprovada       → responde c/ valor + regra → PRONTO
   ├─ reprovada      → responde c/ regra citada  → PRONTO
   └─ revisao_manual → "encaminhei para o gestor revisar" → AGUARDANDO_REVISAO
@@ -210,9 +211,9 @@ WhatsApp; sem motor não há revisões; sem revisões resolvidas o dossiê sai i
 
 ## 9. Riscos/abertos técnicos
 
-1. **Qualidade do OCR de cupom** — fotos ruins caem hoje em preenchimento assistido;
-   no agente, isso vira pergunta ("não consegui ler o valor — quanto foi?"). Aceitável,
-   mas medir taxa de fallback.
+1. **Qualidade do OCR de cupom** — fotos ruins caem hoje em preenchimento assistido
+   (motor fiscal, web). No reembolso (D-014), **ninguém preenche nada**: o que não deu
+   para ler vira `REVISAO_MANUAL` do gestor sobre a evidência. Medir taxa de fallback.
 2. **Janela de 24h da Meta** — só se aplica na migração futura para a API oficial;
    no piloto (Evolution) não há essa restrição. Mesmo assim, manter lembrete por
    e-mail como hábito do desenho.

@@ -32,6 +32,37 @@ gestor quando a *evidência* não permite concluir.
 
 ---
 
+## D-014 · Reembolso e fiscal são dois motores separados; no reembolso ninguém preenche nada — 14/08/2026
+
+**Contexto:** o produto nasceu como motor fiscal (extração de notas, CFOP/NCM/CST,
+créditos) e o reembolso cresceu em cima dele — inclusive herdando telas de
+"preenchimento assistido". Caso real (cupom de hortifruti, R$ 90,14, consumidor não
+identificado) mostrou a fronteira: no reembolso, a decisão vem da política, não de
+formulário.
+
+**Decisão (do usuário):**
+1. **O agente de reembolso só faz duas coisas: extrai e verifica.** Verifica contra
+   a **política** (D-013: só aprova com regra explícita) e contra **padrões anômalos**
+   (valor fora do teto, consumidor não identificado, natureza incompatível com a
+   categoria, horário incoerente, nota duplicada).
+2. **Negado é negado — ninguém preenche nada.** Não existe formulário de completar
+   dado, nem no WhatsApp nem no web. O que a evidência não mostra, ninguém digita.
+   Dúvida material → revisão manual do gestor (D-013), que decide olhando a
+   evidência, não editando campos.
+3. **O motor fiscal entra depois, separado, com suas próprias regras.** O reembolso
+   decide se a despesa é devida ao colaborador; o motor fiscal decide o que é
+   aproveitável tributariamente (créditos, CFOP/NCM, elegibilidade por regime).
+   Um mesmo cupom pode ser **reprovado no reembolso** e ainda assim ter tratamento
+   fiscal próprio — decisões independentes, trilhas independentes.
+
+**Consequências:** o contrato do decisor de reembolso não pede nem aceita input
+manual de dados da nota; o "preenchimento assistido" pertence exclusivamente ao
+motor fiscal (superfície web), fora do fluxo do colaborador. Dossiê do contador
+(v1.8.0) consolida as duas camadas: decisão de reembolso (política citada) +
+apuração fiscal (regras fiscais), sem misturar os critérios.
+
+---
+
 ## D-012 · Repriorização: admin limpo + convites antes do motor de decisão — 12/08/2026
 
 **Contexto:** o roadmap (ARQUITETURA §8) previa v1.6.0 = motor de decisão. Com o
