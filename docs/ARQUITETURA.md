@@ -40,6 +40,11 @@ Dois processos de deploy a partir do mesmo repo:
 
 ## 2. Pacote BRAIN (a extrair/construir)
 
+> **Layout de código (v1.6.5, D-014):** os dois motores vivem em módulos separados —
+> `api/modules/reembolso/` (agente + policy + whatsapp) e `api/modules/fiscal/`
+> (engine + ocr + cnpj). Plataforma compartilhada (auth, routers, mail, db) fora dos
+> módulos. Mapa completo em `api/modules/README.md`.
+
 | Módulo | Responsabilidade | Status |
 |---|---|---|
 | `brain/policy` | Parser de política (PDF→regras) ✅ v1.4.3 + **versões da política** ❌ + incorporação de regra nova vinda de exceção ❌ | 🟡 |

@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { getDb } from "../queries/connection";
+import { getDb } from "../../../queries/connection";
 import {
   colaboradores,
   declaracoesPerfil,
@@ -8,7 +8,7 @@ import {
   veiculos,
 } from "@db/schema";
 import type { MensagemRecebida, WhatsappProvider } from "../whatsapp/types";
-import { registrarLog } from "../routers/_shared";
+import { registrarLog } from "../../../routers/_shared";
 import {
   MSG_TELEFONE_DESCONHECIDO,
   proximoPasso,

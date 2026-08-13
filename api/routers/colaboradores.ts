@@ -4,8 +4,8 @@ import { createRouter, perfilProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import { colaboradores } from "@db/schema";
 import { assertEmpresaAcesso, registrarLog } from "./_shared";
-import { normalizarTelefone } from "../agente";
-import { gerarLinkConviteAgente } from "../agente/convite";
+import { normalizarTelefone } from "../modules/reembolso/agente";
+import { gerarLinkConviteAgente } from "../modules/reembolso/agente/convite";
 import { enviarConviteAgenteEmail } from "../mail/mailer";
 import { TRPCError } from "@trpc/server";
 

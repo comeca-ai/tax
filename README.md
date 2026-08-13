@@ -121,7 +121,7 @@ Para manter no ar: `pm2 start dist/boot.js --name tax-engine && pm2 save` (insta
 | Backend | Hono + tRPC 11 (type-safe ponta a ponta, superjson) |
 | Banco | Drizzle ORM + MySQL (provisionado pela plataforma — zero configuração) |
 | Auth | Email + senha próprios (scrypt + sessão HMAC-SHA256 em cookie httpOnly `tax_session`, 7 dias) |
-| OCR | Provider plugável (`api/ocr/`) — default `heuristico` (lê NF-e XML completo; imagem/PDF cai no preenchimento assistido), pronto para IA de visão |
+| OCR | Provider plugável (`api/modules/fiscal/ocr/`) — default `heuristico` (lê NF-e XML completo; imagem/PDF cai no preenchimento assistido), pronto para IA de visão |
 
 ## 3. Estrutura
 
@@ -176,7 +176,7 @@ A matriz de elegibilidade completa (10 CNAEs × 6 categorias) e as bases legais 
 
 ## 6. OCR plugável
 
-`api/ocr/` define o contrato estável — o provider recebe `{ arquivoNome, arquivoMime, arquivoBase64 }` e devolve `OcrExtracao`:
+`api/modules/fiscal/ocr/` define o contrato estável — o provider recebe `{ arquivoNome, arquivoMime, arquivoBase64 }` e devolve `OcrExtracao`:
 
 ```ts
 type OcrExtracao = {
@@ -231,7 +231,7 @@ Nenhuma outra parte do sistema muda — o wizard já exibe confiança por campo 
 
 `auth` (registro, login, logout, me, trocarSenha) · `empresas` (list/get/create/update — RF-00) · `veiculos` (CRUD) · `despesas` (uploadNota OCR, create → motor, list/get, addEvidencia) · `revisao` (fila, decidir — RF-04/RF-05) · `dashboard` (resumo — RF-08) · `relatorios` (gerar, exportarCsv — RF-06) · `regras` (matriz, vigentes por data — RF-07, auditoria).
 
-Contrato completo dos tipos em `contracts/types.ts`. Detalhes de implementação do motor em `api/engine/` (com testes em `api/engine/engine.test.ts`).
+Contrato completo dos tipos em `contracts/types.ts`. Detalhes de implementação do motor em `api/modules/fiscal/engine/` (com testes em `api/modules/fiscal/engine/engine.test.ts`).
 
 ### Convites de usuários (v1.2.0)
 

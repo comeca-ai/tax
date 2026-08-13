@@ -25,9 +25,9 @@ import {
 import {
   processarDespesa,
   type RegraVigente,
-} from "../engine";
-import { getOcrProvider } from "../ocr";
-import { avaliarDespesa } from "../policy/agent";
+} from "../modules/fiscal/engine";
+import { getOcrProvider } from "../modules/fiscal/ocr";
+import { avaliarDespesa } from "../modules/reembolso/policy/agent";
 import { assertEmpresaAcesso, registrarLog } from "./_shared";
 
 export const despesasRouter = createRouter({

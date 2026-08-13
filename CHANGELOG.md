@@ -4,6 +4,22 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.6.5] — 2026-08-14
+
+Reorganização do código em módulos, materializando a D-014. Sem mudança de
+comportamento — 72/72 testes verdes.
+
+### Mudado (estrutura)
+- **`api/modules/reembolso/`**: `agente/` (máquina de estados, processamento,
+  convite-isqueiro), `policy/` (parser + avaliador), `whatsapp/` (adapter
+  Evolution/Meta) — o motor que só extrai e verifica
+- **`api/modules/fiscal/`**: `engine/` (regras tributárias RF-00..09), `ocr/`
+  (provider plugável), `cnpj/` (ReceitaWS) — a apuração que entra depois,
+  com regras próprias
+- Plataforma compartilhada (auth, routers, mail, db) permanece fora dos módulos
+- Mapa dos módulos em `api/modules/README.md`; paths atualizados no README e
+  no ARQUITETURA.md
+
 ## [1.6.4] — 2026-08-14
 
 Release documental — separação dos motores (D-014), validada com caso real

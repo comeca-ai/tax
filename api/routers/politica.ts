@@ -13,8 +13,8 @@ import {
   regrasPoliticaSchema,
   type ResultadoPolitica,
 } from "@contracts/types";
-import { getPolicyParser } from "../policy/parser";
-import { avaliarDespesa } from "../policy/agent";
+import { getPolicyParser } from "../modules/reembolso/policy/parser";
+import { avaliarDespesa } from "../modules/reembolso/policy/agent";
 import { assertEmpresaAcesso, registrarLog } from "./_shared";
 
 /**

@@ -9,7 +9,7 @@ import {
   cnpjValido,
   consultarCnpjReceitaWs,
   somenteDigitos,
-} from "../cnpj/receitaws";
+} from "../modules/fiscal/cnpj/receitaws";
 import { assertEmpresaAcesso, registrarLog } from "./_shared";
 
 /** RF-00: cadastro completo exige CNAE principal, regime tributário e UF. */
