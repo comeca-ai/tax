@@ -4,6 +4,14 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.6.6] — 2026-08-14
+
+### Adicionado
+- **`scripts/deploy.sh`**: deploy na VPS em um comando — fetch de tags, checkout
+  (tag mais recente ou a informada), `npm ci`, migrações, build e
+  `pm2 restart reembolsa` com health check no final
+- **Endpoint `GET /api/health`** para health check de deploy e monitoramento
+
 ## [1.6.5] — 2026-08-14
 
 Reorganização do código em módulos, materializando a D-014. Sem mudança de

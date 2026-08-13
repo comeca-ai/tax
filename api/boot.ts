@@ -19,6 +19,9 @@ app.use("/api/trpc/*", async (c) => {
     createContext,
   });
 });
+// ── Health check (deploy/monitoramento) ─────────────────────────────────────
+app.get("/api/health", (c) => c.json({ ok: true, ts: new Date().toISOString() }));
+
 // ── Webhook WhatsApp (fundação — v1.2.0) ────────────────────────────────────
 // Base para o futuro bot: o usuário envia foto do recibo pelo WhatsApp e o
 // pipeline (OCR → motor de regras → despesa) cria o lançamento automaticamente.
