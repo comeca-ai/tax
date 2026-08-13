@@ -136,3 +136,64 @@ export async function enviarConviteAgenteEmail(opts: {
     return { enviado: false };
   }
 }
+
+/**
+ * E-mail de redefinição de senha (v1.6.1). Mesma regra do convite: sem SMTP,
+ * retorna { enviado: false } e o caller decide o fallback (log do servidor —
+ * nunca expor o link ao cliente, para não virar vetor de tomada de conta).
+ */
+export async function enviarResetSenhaEmail(opts: {
+  para: string;
+  link: string;
+}): Promise<{ enviado: boolean }> {
+  const host = process.env.SMTP_HOST;
+  if (!host) return { enviado: false };
+
+  const port = Number(process.env.SMTP_PORT || 587);
+  const user = process.env.SMTP_USER;
+  const from = process.env.SMTP_FROM || user;
+
+  const texto = [
+    "Olá!",
+    "",
+    "Recebemos um pedido para redefinir sua senha no reembolsa.ia.",
+    `Para criar uma nova senha, acesse: ${opts.link}`,
+    "",
+    "Este link expira em 1 hora. Se não foi você, ignore este e-mail — sua senha continua a mesma.",
+  ].join("\n");
+
+  const html = `
+<div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a1a;">
+  <h2 style="color: #0f766e;">Redefinir sua senha</h2>
+  <p>Recebemos um pedido para redefinir sua senha no <strong>reembolsa.ia</strong>.</p>
+  <p style="margin: 24px 0;">
+    <a href="${opts.link}"
+       style="background: #0f766e; color: #ffffff; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
+      Criar nova senha
+    </a>
+  </p>
+  <p style="font-size: 13px; color: #555;">
+    Este link expira em 1 hora. Se não foi você, ignore este e-mail — sua senha continua a mesma.
+  </p>
+</div>`.trim();
+
+  try {
+    const transport = nodemailer.createTransport({
+      host,
+      port,
+      secure: process.env.SMTP_PORT === "465",
+      auth: user ? { user, pass: process.env.SMTP_PASS } : undefined,
+    });
+    await transport.sendMail({
+      from,
+      to: opts.para,
+      subject: "Redefinição de senha — reembolsa.ia",
+      text: texto,
+      html,
+    });
+    return { enviado: true };
+  } catch (err) {
+    console.error("[mailer] Falha ao enviar e-mail de reset:", err);
+    return { enviado: false };
+  }
+}

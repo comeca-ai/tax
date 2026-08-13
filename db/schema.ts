@@ -330,6 +330,23 @@ export const convites = mysqlTable(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 12b. Redefinição de senha (v1.6.1) — token único, 1h de validade, uso único.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const resetsSenha = mysqlTable(
+  "resets_senha",
+  {
+    id: serial("id").primaryKey(),
+    email: varchar("email", { length: 255 }).notNull(),
+    token: varchar("token", { length: 128 }).notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    usedAt: timestamp("used_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("resets_senha_token_unique").on(t.token)],
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 13. Colaboradores (v1.5.0) — pessoas da empresa que pedem reembolso.
 // O admin cadastra (hoje manual; upload em lote na v1.9.0). O vínculo com
 // `usuarios` é opcional: o colaborador pode existir só no WhatsApp, sem login.

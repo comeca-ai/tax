@@ -8,6 +8,7 @@ import Tese from "@/pages/Tese"
 import Login from "@/pages/Login"
 import Cadastro from "@/pages/Cadastro"
 import Convite from "@/pages/Convite"
+import RedefinirSenha from "@/pages/RedefinirSenha"
 import Dashboard from "@/pages/app/Dashboard"
 import Despesas from "@/pages/app/Despesas"
 import NovaDespesa from "@/pages/app/NovaDespesa"
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/cadastro" element={<Cadastro />} />
         <Route path="/convite/:token" element={<Convite />} />
+        <Route path="/redefinir-senha/:token" element={<RedefinirSenha />} />
         <Route element={<RequireAuth />}>
           <Route path="/app" element={<AppShell />}>
             <Route index element={<Navigate to="/app/dashboard" replace />} />

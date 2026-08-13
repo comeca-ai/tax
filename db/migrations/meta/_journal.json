@@ -36,6 +36,13 @@
       "when": 1786509645192,
       "tag": "0004_agente_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1786590766225,
+      "tag": "0005_resets_senha",
+      "breakpoints": true
     }
   ]
 }

@@ -109,10 +109,24 @@ function RecuperarSenhaDialog({
 }) {
   const [email, setEmail] = useState("")
 
+  const solicitar = trpc.auth.solicitarResetSenha.useMutation({
+    onSuccess: () => {
+      onOpenChange(false)
+      setEmail("")
+      toast.success("Se o e-mail existir, enviamos o link. Verifique sua caixa de entrada.")
+    },
+    onError: () => {
+      toast.error("Não foi possível enviar agora. Tente novamente em instantes.")
+    },
+  })
+
   const enviar = () => {
-    onOpenChange(false)
-    setEmail("")
-    toast.success("Se o e-mail existir, enviamos o link. Verifique sua caixa de entrada.")
+    const limpo = email.trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(limpo)) {
+      toast.error("Informe um e-mail válido")
+      return
+    }
+    solicitar.mutate({ email: limpo })
   }
 
   return (
@@ -154,9 +168,10 @@ function RecuperarSenhaDialog({
           <button
             type="button"
             onClick={enviar}
-            className="inline-flex h-10 items-center rounded-[10px] bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-500/90"
+            disabled={solicitar.isPending}
+            className="inline-flex h-10 items-center rounded-[10px] bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-500/90 disabled:opacity-50"
           >
-            Enviar link
+            {solicitar.isPending ? "Enviando…" : "Enviar link"}
           </button>
         </DialogFooter>
       </DialogContent>

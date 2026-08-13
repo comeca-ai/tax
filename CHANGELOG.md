@@ -4,6 +4,28 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.6.1] — 2026-08-13
+
+Hotfix: "Esqueci a senha" era um mock (só exibia toast). Agora é um fluxo
+real de redefinição de senha, ponta a ponta.
+
+### Adicionado
+- **`auth.solicitarResetSenha`** (público): gera token com validade de 1h e
+  envia link `${APP_URL}/redefinir-senha/<token>` por e-mail via SMTP. Sem
+  SMTP configurado, o link vai apenas para o log do servidor — nunca para o
+  cliente. Resposta é sempre uniforme (`{ok: true}`), sem vazar se o e-mail
+  existe ou não
+- **`auth.redefinirSenha`** (público): valida token (existe, não usado, não
+  expirado), atualiza a senha, marca o token como usado (uso único) e
+  registra na auditoria
+- **Página `/redefinir-senha/:token`**: nova senha + confirmação (mín. 8
+  caracteres), redireciona ao login após sucesso
+- **Tabela `resets_senha`** (migração `0005_resets_senha.sql`)
+
+### Corrigido
+- Dialog "Esqueci a senha" do login agora chama o backend de verdade
+  (antes era apenas um toast de mentira)
+
 ## [1.6.0] — 2026-08-12
 
 Admin limpo + convites do agente (D-012: repriorização do roadmap — o motor de
