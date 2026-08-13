@@ -4,6 +4,25 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.6.3] — 2026-08-13
+
+Release documental — correção de doutrina do motor de decisão (D-013).
+
+### Mudado (documentação)
+- **D-013 registrada**: nenhum reembolso é aprovado sem regra explícita na
+  política; **não existe zona cinzenta de decisão** — dúvidas materiais
+  (imagem ilegível, dado inconsistente, caso sem cobertura) vão para
+  **revisão manual do gestor**; o sistema **nunca sugere nem acrescenta nada**
+  na política de reembolso — ela só muda por edição humana versionada
+- **D-006 (política viva) revogada**; D-007 ajustada ("cinza" → revisão manual)
+- PRODUTO.md: princípio 4 reescrito, §4.4 reescrita ("Revisão manual — e por
+  que não existe zona cinzenta"), regras 5-6 do resumo normativo, roadmap sem
+  a onda de política viva
+- ARQUITETURA.md: contrato do decisor passa a `aprovada | reprovada |
+  revisao_manual`; módulo `politica-viva` removido; tabela `excecoes` →
+  `revisoes` (sem "virou_regra"); roadmap v1.9.0 = escala (política viva
+  cancelada)
+
 ## [1.6.2] — 2026-08-13
 
 Cadastro de empresa: sem veículo no wizard, com aceites legais.

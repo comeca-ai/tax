@@ -5,6 +5,33 @@
 
 ---
 
+## D-013 · Sem aprovação fora da política; revisão manual ≠ zona cinzenta; sistema nunca toca a política — 13/08/2026
+
+**Contexto:** o desenho anterior tinha "zona cinzenta" (caso que a política não cobre
+→ sobe um degrau) e "política viva" (decisão repetida → sistema propõe texto novo na
+política, botão "virar regra"). O usuário corrigiu a doutrina.
+
+**Decisão (do usuário, literal):**
+1. **Nenhum reembolso pode ser aprovado que não conste na política.** Se a política
+   não autoriza, o agente não aprova — ponto. Aprovação automática exige regra
+   explícita citável.
+2. **Não existe zona cinzenta de decisão.** O que existe é **revisão manual do
+   gestor** para dúvidas *materiais* — imagem ilegível, dado inconsistente,
+   comprovante suspeito, caso sem cobertura na política. O gestor decide; se a
+   política não cobre o caso, ele não aprova (ou trata com a empresa por fora).
+3. **O sistema não sugere nem acrescenta nada na política de reembolso.** A política
+   só muda por decisão humana, editando o documento. Sem botão "virar regra", sem
+   proposta automática de texto, sem aprendizado — implícito ou explícito.
+
+**Consequências:** D-006 ("política viva") **revogada** — a política é única fonte de
+verdade e **estática**: só muda por edição humana versionada. D-007 ajustada: o que
+escalava como "cinza" passa a ser **fila de revisão manual do gestor**; o resultado
+`cinza` do decisor vira `revisao_manual` (motivo material). O motor fica mais simples
+e mais defensável: aprova citando regra, reprova citando regra, ou devolve para o
+gestor quando a *evidência* não permite concluir.
+
+---
+
 ## D-012 · Repriorização: admin limpo + convites antes do motor de decisão — 12/08/2026
 
 **Contexto:** o roadmap (ARQUITETURA §8) previa v1.6.0 = motor de decisão. Com o
@@ -88,7 +115,7 @@ viva só faz sentido com exceções reais acontecendo).
 
 ---
 
-## D-007 · Aprovação por gestão de exceção; cinza sobe um degrau — 12/08/2026
+## D-007 · Aprovação por gestão de exceção — 12/08/2026 — ✏️ **ajustada por D-013 (13/08/2026): "cinza" virou "revisão manual do gestor"; não há mais "virar regra"**
 
 **Contexto:** admin aprovando item a item não escala (87 pessoas × N despesas).
 
@@ -99,7 +126,13 @@ aprovação custa uma glosa).
 
 ---
 
-## D-006 · Política viva, sem aprendizado de caixa-preta — 12/08/2026
+## D-006 · ~~Política viva~~ — 12/08/2026 — ⚠️ **REVOGADA por D-013 (13/08/2026)**
+
+> A política é a única fonte de verdade e **só muda por edição humana**. O sistema
+> não propõe, não sugere e não acrescenta regras — nem a partir de decisões repetidas.
+> Registro histórico abaixo.
+
+## D-006 (histórico) · Política viva, sem aprendizado de caixa-preta — 12/08/2026
 
 **Contexto:** proposta inicial era o agente "aprender" com decisões de exceção.
 

@@ -47,7 +47,7 @@ aprovação por achismo. Decisões tomadas:
 |---|---|
 | **Agente-first** | O produto é um agente de reembolso; web vira back office; funcionário vive no WhatsApp |
 | **Onboarding progressivo** | Admin sobe planilha → e-mail-isqueiro → funcionário confirma dados e declara despesas → cadastra veículo só se for usar |
-| **Gestão por exceção** | Agente aprova/reprova citando a política; cinza sobe um degrau (superior → admin) |
+| **Gestão por exceção** | Agente aprova/reprova citando a política (só aprova com regra explícita); dúvida material → revisão manual do gestor — D-013 |
 | **Política viva** | Decisão repetida vira texto na política; sem aprendizado de caixa-preta |
 | **Dossiê 1-botão** | Kit zip de recuperação fiscal → contador. Produto não entra na parte fiscal |
 | **Custo Meta** | Convite por e-mail + wa.me: funcionário inicia a conversa (janela gratuita) |

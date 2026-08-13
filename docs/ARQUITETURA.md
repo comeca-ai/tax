@@ -27,7 +27,7 @@
   aqui, exatamente uma vez. Se o app e o WhatsApp divergirem numa decisão, a tese do
   produto (fim do achismo) morre — por isso a regra existe em um lugar só.
 - **web/** — back office (React + tRPC/Hono, ✅ existe). Vira consumidor do cérebro:
-  fila de exceções, painel-caixa-de-entrada, botão do dossiê.
+  fila de revisão manual, painel-caixa-de-entrada, botão do dossiê.
 - **agent/** — serviço novo. Magro por definição: recebe mídia/texto, gerencia a
   máquina de estados da conversa, chama o cérebro, traduz a resposta para linguagem
   humana. **Nunca decide nada sozinho.**
@@ -43,23 +43,28 @@ Dois processos de deploy a partir do mesmo repo:
 | Módulo | Responsabilidade | Status |
 |---|---|---|
 | `brain/policy` | Parser de política (PDF→regras) ✅ v1.4.3 + **versões da política** ❌ + incorporação de regra nova vinda de exceção ❌ | 🟡 |
-| `brain/decisor` | Dado (despesa, regras da política, perfil do funcionário) → `APROVADA` / `REPROVADA(regra citada)` / `CINZA(motivo)` | ❌ |
+| `brain/decisor` | Dado (despesa, regras da política, perfil do funcionário) → `APROVADA(regra citada)` / `REPROVADA(regra citada)` / `REVISAO_MANUAL(motivo material)` — **só aprova com regra explícita (D-013)** | ❌ |
 | `brain/perfil` | Checklist contextual por pessoa: o que falta para defender cada categoria que ela declarou (veículo, etc.) | ❌ |
 | `brain/dossie` | Monta o kit zip de recuperação: por despesa, documento fiscal + evidências + veículo/km + motivo + regra aplicada + trilha | ❌ (relatório parcial 🟡) |
-| `brain/politica-viva` | Decisão de cinza marcada como "regra nova" → propõe texto → versão nova da política → decisor passa a aplicar | ❌ |
+| ~~`brain/politica-viva`~~ | ⛔ **removido (D-013)** — o sistema nunca sugere nem acrescenta regras na política; ela só muda por edição humana versionada | — |
 
 ### O contrato central (a peça mais importante do sistema)
 
 ```
 decidir(despesa, politica, perfilFuncionario) →
-  | { resultado: "aprovada",  regraCitada: "Alimentação: teto R$ 55" }
-  | { resultado: "reprovada", regraCitada: "...", explicacao: "nota R$ 80 > teto R$ 55" }
-  | { resultado: "cinza",     motivo: "valor 12% acima do teto, política silente sobre tolerância" }
+  | { resultado: "aprovada",       regraCitada: "Alimentação: teto R$ 55" }
+  | { resultado: "reprovada",      regraCitada: "...", explicacao: "nota R$ 80 > teto R$ 55" }
+  | { resultado: "revisao_manual", motivo: "imagem ilegível / dado inconsistente / sem cobertura na política" }
 ```
 
-Toda saída carrega **regraCitada** — nenhuma decisão sem fundamento textual.
-Esse contrato é consumido pelo agente (resposta imediata no WhatsApp) e pelo web
-(fila de exceções) — mesma decisão, duas renderizações.
+**D-013:** `aprovada` exige regra explícita da política. Não existe aprovação por
+tolerância, similaridade ou heurística. `revisao_manual` não é "zona cinzenta" de
+decisão — é devolução ao gestor por dúvida *material*; ele também está limitado à
+política. Sem regra, sem aprovação.
+
+Toda saída de aprovação/reprovação carrega **regraCitada** — nenhuma decisão sem
+fundamento textual. Esse contrato é consumido pelo agente (resposta imediata no
+WhatsApp) e pelo web (fila de revisão) — mesma decisão, duas renderizações.
 
 ---
 
@@ -80,10 +85,10 @@ PRONTO              → onboarding concluído; portão aberto para despesas
 RECEBENDO_DESPESA   → foto recebida → OCR/visão → categoria detectada
 COLETANDO_DEFESA    → perguntas contextuais do caso (cliente? pagamento? km?)
 DECIDINDO           → chama brain/decisor
-  ├─ aprovada  → responde c/ valor + regra → PRONTO
-  ├─ reprovada → responde c/ regra citada  → PRONTO
-  └─ cinza     → "encaminhei para o responsável" → AGUARDANDO_EXCECAO
-AGUARDANDO_EXCECAO  → notificado quando superior decidir → informa resultado
+  ├─ aprovada       → responde c/ valor + regra → PRONTO
+  ├─ reprovada      → responde c/ regra citada  → PRONTO
+  └─ revisao_manual → "encaminhei para o gestor revisar" → AGUARDANDO_REVISAO
+AGUARDANDO_REVISAO  → notificado quando o gestor decidir → informa resultado
 ```
 
 Regras da máquina:
@@ -128,13 +133,13 @@ sessões, máquina de estados, decisor e dossiê permanecem idênticos.
 |---|---|
 | Pessoas | **upload em lote** (CSV/planilha): validação, resumo, disparo de convites ❌ |
 | Pessoas (detalhe) | status de ativação: convidado / confirmou / pendências (veículo etc.) ❌ |
-| Aprovações | vira **fila de exceções**: só cinzas, cada item com dossiê lateral + botões aprovar / negar / **virar regra** ❌ |
-| Política | upload ✅ + histórico de versões + regras incorporadas via exceção ❌ |
+| Aprovações | vira **fila de revisão manual**: só o que o decisor devolveu (dúvida material), cada item com dossiê lateral + botões aprovar / negar — **sem "virar regra"** (D-013) ❌ |
+| Política | upload ✅ + histórico de versões — regras só entram por **edição humana** (D-013) ❌ |
 | Fechamento | botão **gerar kit do contador** (zip) 🟡→❌ |
 | Notificações | admin/superior recebem push (e-mail/WhatsApp) com link direto para a decisão ❌ |
 
 Aprovação item-a-item manual (✅ existe) **não acaba** — passa a ser o destino das
-exceções, não o fluxo principal.
+revisões manuais, não o fluxo principal.
 
 ---
 
@@ -144,9 +149,9 @@ exceções, não o fluxo principal.
 |---|---|
 | `funcionarios` (ou extensão de `usuarios`) | matrícula, telefone, centro de custo, **`superior_matricula`** (hierarquia p/ escalação), status de ativação |
 | `sessoes_conversa` | funcionário, estado atual, contexto JSON, última interação (janela Meta) |
-| `despesas` (extensão) | `decisao` (auto_aprovada/auto_reprovada/cinza/aprovada_manual/negada_manual), **`regra_citada`**, `politica_versao_id` |
-| `excecoes` | despesa, motivo do cinza, atribuída a (superior/admin), decisão, virou_regra? |
-| `politica_versoes` | versão, origem (upload inicial / regra de exceção), texto extraído, regras estruturadas |
+| `despesas` (extensão) | `decisao` (auto_aprovada/auto_reprovada/revisao_manual/aprovada_manual/negada_manual), **`regra_citada`**, `politica_versao_id` |
+| `revisoes` | despesa, motivo material da devolução, atribuída a (gestor/admin), decisão — **sem campo "virou_regra"** (D-013) |
+| `politica_versoes` | versão, origem (**somente upload/edição humana**), texto extraído, regras estruturadas |
 | `declaracoes_perfil` | funcionário × categorias declaradas (combustivel/viagem/refeição), pendências de cadastro |
 | `dossies` | mês/empresa, arquivo gerado, checksum, enviado para (contador), data |
 
@@ -193,13 +198,13 @@ services:
 |---|---|---|
 | **v1.5.0** — fundação ⬅ próxima | Extração do `brain/` (parser vira pacote), tabelas novas (funcionários+hierarquia, sessões, política_versoes), SMTP, adapter `WHATSAPP_PROVIDER=evolution`, agente com onboarding conversacional (convite wa.me → confirmação → declaração → veículo) | Evolution instalado na VPS (usuário) + SMTP |
 | **v1.6.0** — admin limpo + convites ✅ (D-012) | Navegação agrupada, Equipe com colaboradores + convite-isqueiro (wa.me/SMTP) | v1.5.0 |
-| **v1.7.0** — motor ⬅ próxima | OCR provider, fluxo de despesa pelo WhatsApp, decisor (aprova/reprova/cinza citando regra), fila de exceções no web, push de aviso | v1.6.0 |
+| **v1.7.0** — motor ⬅ próxima | OCR provider, fluxo de despesa pelo WhatsApp, decisor (aprova/reprova citando regra — **só com regra explícita**, D-013), fila de revisão manual no web, push de aviso | v1.6.0 |
 | **v1.8.0** — dossiê | kit zip 1-botão com regra citada + versão da política por despesa | v1.7.0 |
-| **v1.9.0** — política viva | exceção → regra escrita → nova versão → decisor aplica; histórico auditável | v1.8.0 |
-| **v1.10.0** — escala | upload em lote de funcionários, lembretes automáticos, painel caixa-de-entrada | qualquer ponto após v1.7.0 |
+| ~~**v1.9.0** — política viva~~ | ⛔ **cancelada (D-013)** — sistema nunca altera a política | — |
+| **v1.9.0** — escala | upload em lote de funcionários, lembretes automáticos, painel caixa-de-entrada | qualquer ponto após v1.7.0 |
 
 Ordem pensada por valor-desbloqueio: sem onboarding conversacional não há despesa pelo
-WhatsApp; sem motor não há exceção; sem exceções resolvidas o dossiê sai incompleto.
+WhatsApp; sem motor não há revisões; sem revisões resolvidas o dossiê sai incompleto.
 
 ---
 
@@ -214,7 +219,8 @@ WhatsApp; sem motor não há exceção; sem exceções resolvidas o dossiê sai 
 2b. **Risco do Evolution (não-oficial)** — banimento do número ou quebra de protocolo.
    Mitigação: número dedicado ao produto, volume de piloto, adapter isolado que permite
    trocar de provider sem tocar no produto.
-3. **Decisor na zona cinzenta precisa ser conservador** — na dúvida, escala. Falso
-   cinza custa um clique do superior; falsa aprovação custa uma glosa.
+3. **Decisor conservador por construção (D-013)** — só aprova com regra explícita;
+   qualquer dúvida material vira revisão manual. Uma devolução a mais custa um clique
+   do gestor; uma falsa aprovação custa uma glosa.
 4. **Contador: destinatário ou usuário?** (decisão de produto em aberto no PRODUTO.md —
    afeta se `dossies` vira só arquivo ou portal de acesso).

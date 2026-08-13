@@ -41,9 +41,11 @@ O funcionário idealmente nunca o abre.
    O humano só é chamado quando há decisão real. O melhor dia do admin é o dia em que
    ele não abre o painel. Métrica de UX do admin: **minutos por mês**, não engajamento.
 
-4. **A política é a única fonte de verdade — e ela é viva.**
-   O que não está na política não existe como regra. Quando uma decisão de zona cinzenta
-   se repete, ela vira texto novo na política. A inteligência do sistema mora no
+4. **A política é a única fonte de verdade — e o sistema nunca a toca.**
+   O que não está na política não existe como regra — e nada é aprovado fora dela.
+   Dúvidas materiais (imagem ilegível, dado inconsistente) vão para revisão manual
+   do gestor. O sistema **não sugere nem acrescenta nada** na política: ela só muda
+   por decisão humana, editando o documento. A inteligência do sistema mora no
    documento; o agente é o executor incansável e sem humor do que está escrito.
 
 5. **O interesse do funcionário é o motor.**
@@ -57,7 +59,7 @@ O funcionário idealmente nunca o abre.
 | Ator | Interface | Trabalho | Carga alvo |
 |------|-----------|----------|-----------|
 | **Funcionário** | WhatsApp | Confirmar dados, mandar despesas, responder o agente | Segundos por despesa |
-| **Superior direto** | WhatsApp / link | Decidir zona cinzenta do seu time | Alguns itens por mês |
+| **Superior direto / gestor** | WhatsApp / link | Revisão manual: dúvidas de imagem e casos sem cobertura na política | Alguns itens por mês |
 | **Admin** | Web (back office) | Subir planilha, manter política, decidir exceções, gerar dossiê | Minutos por mês |
 | **Contador** | Recebe o kit | Conferir e lançar | Só conferência |
 | **Agente** | — | Confirmar, coletar, aplicar a política, escalar, montar dossiê | Tudo o resto |
@@ -77,7 +79,7 @@ Funcionário: conversa → Superior: fila de decisões → Admin: caixa de entra
    O sistema extrai tetos, exigências, km, e mostra o que ficou pendente.
 3. Admin sobe a **planilha de funcionários** (upload em lote — CSV/Excel que o DP já tem).
    Mínimo: nome, telefone, matrícula. Desejável: e-mail, centro de custo, matrícula do
-   superior (define a hierarquia para zona cinzenta).
+   superior (define quem recebe a revisão manual).
 4. Sistema valida em lote (telefone inválido, matrícula duplicada) e mostra resumo
    antes de disparar convites.
 
@@ -129,9 +131,13 @@ produto** — sessões, máquina de estados e decisor permanecem idênticos.
 
 | Situação | Decisão | Experiência |
 |----------|---------|-------------|
-| Dentro da política | **Aprova na hora** | "Aprovado: R$ 42,00" — segundos, não semanas |
-| Claramente fora | **Reprova citando a regra** | "Sua política limita alimentação a R$ 55 — essa nota é R$ 80" |
-| Zona cinzenta | **Escala um degrau** | Vai para o superior direto, com o dossiê do item |
+| Dentro da política (regra explícita) | **Aprova na hora** | "Aprovado: R$ 42,00" — segundos, não semanas |
+| Fora da política (ou sem regra que autorize) | **Reprova citando a regra** | "Sua política limita alimentação a R$ 55 — essa nota é R$ 80" |
+| Dúvida material (imagem ilegível, dado inconsistente) | **Revisão manual do gestor** | Vai para a fila de revisão, com o dossiê do item |
+
+**Não existe zona cinzenta de decisão.** Nada é aprovado que não conste na política.
+A revisão manual existe para o gestor resolver *dúvidas sobre a evidência*, não para
+criar exceções à política.
 
 4. **Retroatividade:** definida pela política da empresa, não pelo produto.
    "Aceita despesas de até 60 dias" é regra do documento; o agente aplica e cita.
@@ -140,24 +146,25 @@ produto** — sessões, máquina de estados e decisor permanecem idênticos.
 5. Toda decisão do agente **cita a regra aplicada**. Reprovação com fundamento não gera
    briga; arbitrariedade gera.
 
-### 4.4 Zona cinzenta e a política viva
+### 4.4 Revisão manual — e por que não existe zona cinzenta
 
-1. Cinza sobe **um degrau**: funcionário → superior direto. Sem superior cadastrado →
-   admin. Sem admin separado → quem paga. A regra é "sobe um degrau; se não há degrau,
-   sobe ao topo".
-2. O superior decide com contexto: nota, regra que não fechou, histórico do funcionário.
-   **O agente reprova, o humano absolve — nunca o contrário.** A disciplina fica com a
-   máquina; a simpatia, com o humano.
-3. Ao decidir, a pergunta seguinte: **"exceção única ou regra nova?"**
-   - Exceção: vale só para aquele caso, fica registrado.
-   - Regra nova: entra como texto na política ("almoço com cliente: teto R$ 70") e o
-     agente passa a aplicar sozinho.
-4. **Nada de aprendizado implícito.** A decisão não vira viés estatístico do agente;
-   vira regra escrita, auditável, igual para todos — contador, auditor e fiscal leem
-   o mesmo documento.
+1. O agente só tem três saídas: **aprova citando a regra**, **reprova citando a
+   regra**, ou **devolve para revisão manual** quando a *evidência* não permite
+   concluir (imagem ilegível, dado inconsistente, comprovante suspeito, caso sem
+   cobertura na política).
+2. Revisão vai para o **gestor** (superior direto; sem superior cadastrado → admin;
+   sem admin separado → quem paga). Ele decide com contexto: nota, regra aplicável,
+   histórico do funcionário.
+3. **O gestor decide com base na política — ela é o limite dele também.** Se a
+   política não cobre o caso, o correto é não aprovar e, se a empresa quiser,
+   **alguém edita a política por fora** — a decisão seguinte já encontra a regra
+   escrita. O sistema **não sugere nem acrescenta nada** no documento.
+4. **Nada de aprendizado, implícito ou explícito.** Decisões humanas não viram viés
+   do agente nem texto automático na política. O documento só muda por edição humana
+   versionada — contador, auditor e fiscal leem exatamente o que vigorava.
 
-**Volume esperado:** com política boa, a zona cinzenta é pequena (~poucos % do volume)
-e encolhe a cada regra nova incorporada. O trabalho humano colapsa e melhora.
+**Volume esperado:** com política boa, a revisão manual é pequena (~poucos % do
+volume) — a maioria é evidência ruim, não dúvida de regra.
 
 ### 4.5 Fechamento do mês → dossiê → contador
 
@@ -184,8 +191,8 @@ o painel do escritório. Fora do escopo atual.)
 
 O admin também opera por **push**: em vez de lembrar de abrir o painel, ele é avisado
 (e-mail/WhatsApp) quando há decisão pendente, com link direto. O painel é uma
-**caixa de entrada**: 3 pessoas sem ativar → reenviar lembrete; 5 cinzas → decidir;
-mês fechado → gerar dossiê. Caixa vazia = está tudo bem.
+**caixa de entrada**: 3 pessoas sem ativar → reenviar lembrete; 5 itens em revisão
+→ decidir; mês fechado → gerar dossiê. Caixa vazia = está tudo bem.
 
 Três atos mensais do admin, no máximo: subir/atualizar algo quando muda, decidir
 exceções, apertar o botão do dossiê.
@@ -199,8 +206,11 @@ exceções, apertar o botão do dossiê.
    o funcionário confirma/completa o que é dele (telefone, e-mail, veículo).
 3. O agente só pede o dado que defende a despesa em questão — contextual, por caso.
 4. Toda decisão automática cita a regra da política.
-5. Zona cinzenta sobe um degrau de hierarquia; sem degrau, sobe ao topo.
-6. Decisão repetida vira texto na política; exceção única fica registrada como exceção.
+5. Nenhum reembolso é aprovado sem regra explícita na política — não existe zona
+   cinzenta de decisão.
+6. Dúvida material (imagem, inconsistência, caso sem cobertura) vai para revisão
+   manual do gestor. O sistema nunca sugere nem acrescenta nada na política — ela
+   só muda por edição humana.
 7. Retroatividade, tetos e exigências vêm da política da empresa — nunca de defaults
    escondidos do produto.
 8. O dossiê é o produto final: cada item entregue é uma defesa completa, não um anexo.
@@ -222,9 +232,9 @@ exceções, apertar o botão do dossiê.
 | **Hierarquia (superior direto por matrícula)** | ❌ falta |
 | **Onboarding conversacional no WhatsApp (confirmação + declaração)** | ❌ falta — webhook esqueleto existe (v1.2.0), sem credenciais Meta |
 | **Agente: fluxo de despesa pelo WhatsApp com perguntas contextuais** | ❌ falta |
-| **Motor de decisão: aprova/reprova/escala citando a política** | ❌ falta (insumos do parser prontos) |
-| **Fila de exceções (admin/superior) + push de aviso** | ❌ falta |
-| **Política viva: decisão de cinza → texto novo na política** | ❌ falta |
+| **Motor de decisão: aprova/reprova citando a política (só aprova com regra explícita)** | ❌ falta (insumos do parser prontos) |
+| **Fila de revisão manual (gestor/admin) + push de aviso** | ❌ falta |
+| ~~Política viva~~ | ⛔ **não fazer** — D-013: o sistema nunca sugere nem acrescenta regras na política |
 | **OCR de cupom por visão** | ❌ falta — hook `OCR_PROVIDER` existe sem provider |
 | **Kit zip do contador (1 botão)** | ❌ falta |
 | SMTP real para e-mails de convite/lembrete | ❌ falta (hoje log) |
@@ -239,9 +249,11 @@ exceções, apertar o botão do dossiê.
    convite vira e-mail → wa.me; onboarding conversacional (confirmação + declaração +
    veículo contextual).
 2. **Motor de decisão**: despesa via WhatsApp → parser da política decide →
-   aprova/reprova citando regra → cinza escala um degrau (hierarquia + fila de exceções).
+   aprova/reprova citando regra (só aprova com regra explícita) → dúvida material
+   vai para revisão manual do gestor (fila + push).
 3. **Dossiê 1-botão**: kit zip completo de recuperação para o contador.
-4. **Política viva**: decisão de exceção vira regra escrita; versões da política.
+4. ~~Política viva~~ — **removida do roadmap (D-013)**: a política só muda por
+   edição humana versionada; o sistema nunca propõe regras.
 5. **Escala de UX**: upload em lote, lembretes automáticos, painel-caixa-de-entrada,
    OCR por visão.
 
