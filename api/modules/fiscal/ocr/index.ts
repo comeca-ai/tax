@@ -1,4 +1,5 @@
 import type { CategoriaDespesa, OcrExtracao } from "@contracts/types";
+import { VisaoOcrProvider } from "./visao";
 
 /**
  * Provider plugável de OCR/extração (RF-01).
@@ -231,11 +232,13 @@ export class HeuristicOcrProvider implements OcrProvider {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Providers registrados. Para plugar IA de visão (ex.: OCR_PROVIDER=visao),
- * basta registrar um novo provider aqui — o contrato OcrExtracao é o mesmo.
+ * Providers registrados. OCR_PROVIDER=visao ativa a IA de visão (OpenAI com
+ * fallback Gemini — v1.7.0): XML/texto segue no heurístico, imagem/PDF vai
+ * para a IA; sem chave ou em falha, a nota cai em revisão manual (D-014).
  */
 const providers: Record<string, () => OcrProvider> = {
   heuristico: () => new HeuristicOcrProvider(),
+  visao: () => new VisaoOcrProvider(new HeuristicOcrProvider()),
 };
 
 export function getOcrProvider(): OcrProvider {

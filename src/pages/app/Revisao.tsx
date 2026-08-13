@@ -30,7 +30,7 @@ import {
 } from "@/components/ops/rotulos"
 import { cn } from "@/lib/utils"
 
-type FilaItem = NonNullable<ReturnType<typeof trpc.revisao.fila.useQuery>["data"]>[number]
+type FilaItem = NonNullable<ReturnType<typeof trpc.revisao.fila.useQuery>["data"]> extends readonly (infer T)[] ? T : any
 
 /** Chips de motivo derivados dos dados reais da despesa (memorial + evidências). */
 function motivosDaFila(item: FilaItem): string[] {
@@ -237,7 +237,6 @@ export default function Revisao() {
 
   const aguardandoEvidencia = itens.filter((i) => i.quantidadeEvidencias === 0).length
   const divergentes = itens.filter((i) => (i.despesa.memorial ?? "").includes("RF-09")).length
-  const somenteLeitura = aba === "resolvidas"
 
   return (
     <motion.div

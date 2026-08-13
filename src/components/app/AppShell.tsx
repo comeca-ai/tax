@@ -18,6 +18,7 @@ import {
   TriangleAlert,
   Menu,
   X,
+  type LucideIcon,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -46,7 +47,15 @@ function iniciais(nome: string): string {
 }
 
 /** Navegação agrupada (v1.6.0): o admin pensa em 3 momentos, não em 11 telas. */
-const NAV_GROUPS = [
+interface NavItem {
+  to: string
+  label: string
+  icon: LucideIcon
+  end: boolean
+  badge?: number
+  adminOnly?: boolean
+}
+const NAV_GROUPS: { rotulo: string; itens: NavItem[] }[] = [
   {
     rotulo: "Dia a dia",
     itens: [

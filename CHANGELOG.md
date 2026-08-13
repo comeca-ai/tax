@@ -4,6 +4,41 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.7.0] — 2026-08-14
+
+**Motor de decisão automático: a foto entra → extrai → aprova ou nega.**
+Materializa as decisões D-013 e D-014 no fluxo do produto: ninguém preenche
+nada — a despesa é decidida pelo agente com base na política e nos padrões
+anômalos, citando a regra aplicada.
+
+### Adicionado
+- **Módulo `decisor-reembolso`** (`api/modules/reembolso/decisor/`): função
+  pura `decidirReembolso(extracao, regrasPolitica, contexto)` →
+  `aprovado | negado | revisao_manual`, com motivos e regras aplicadas.
+  Sem política ativa **nunca aprova** (D-013); extração incompleta vai para
+  revisão manual do gestor (D-014) — 10 testes novos
+- **Procedure `despesas.processarAutomatica`**: recebe a nota enviada, roda o
+  decisor e grava a despesa já decidida (`aprovada`, `rejeitada` ou
+  `em_revisao` com motivo), com trilha de auditoria e versão da política
+  aplicada. O motor fiscal só roda quando há dados suficientes — depois e
+  separado, com regras próprias (D-014)
+- **OCR de visão (`VisaoOcrProvider`)**: fotos e PDFs de notas são lidos por
+  IA — OpenAI (`gpt-4o-mini`) com fallback Gemini (`gemini-2.0-flash`),
+  ativado com `OCR_PROVIDER=visao` + `OPENAI_API_KEY`/`GEMINI_API_KEY`.
+  XML/texto continuam gratuitos (heurístico). Falha total → revisão manual,
+  nunca erro para o usuário — 8 testes novos
+- **`StepVeredito`**: tela de veredito com a decisão, a fundamentação
+  (motivos + regras citadas + versão da política) e o resumo da extração —
+  somente leitura
+
+### Mudado
+- **Nova Despesa e Envio Rápido em 2 passos**: "Enviar nota" → "Veredito".
+  O formulário de preenchimento manual assistido foi **removido** — quem
+  extrai e verifica é o agente
+- `notas_fiscais` ganha `categoria_sugerida` e `litros` (migração 0006);
+  `despesas.categoria` passa a aceitar `NULL` (decisão do agente, não do
+  usuário)
+
 ## [1.6.6] — 2026-08-14
 
 ### Adicionado

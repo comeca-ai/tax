@@ -5,7 +5,6 @@ import { useDropzone, type FileRejection } from "react-dropzone"
 import {
   Building2,
   Camera,
-  Check,
   FileText,
   ScanLine,
   TriangleAlert,
@@ -15,7 +14,6 @@ import {
 import { toast } from "sonner"
 import { trpc } from "@/providers/trpc"
 import { useActiveCompany } from "@/hooks/useActiveCompany"
-import type { ResultadoMotor, ResultadoPolitica } from "@contracts/types"
 import {
   Select,
   SelectContent,
@@ -27,19 +25,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 import { fileParaBase64, formatTamanho } from "@/components/despesas/arquivo"
-import { REGIME_ROTULO } from "@/components/ops/rotulos"
-import StepRevisao from "@/components/despesas/wizard/StepRevisao"
-import StepResultado from "@/components/despesas/wizard/StepResultado"
-import {
-  formFromExtracao,
-  parseNumeroPt,
-  type FormState,
-  type NotaProcessada,
-} from "@/components/despesas/wizard/types"
+import StepVeredito, { type Veredito } from "@/components/despesas/wizard/StepVeredito"
 
 const TAMANHO_MAX = 10 * 1024 * 1024 // 10 MB
 
-const PASSOS = ["Foto", "Confirma", "Veredito"] as const
+const PASSOS = ["Foto", "Veredito"] as const
 
 type StatusEnvio = "enviando" | "ocr" | "falha"
 
@@ -50,17 +40,17 @@ interface EnvioItem {
   erro?: string
 }
 
-/** Indicador compacto de progresso (mobile-first): 1/2/3. */
-function ProgressoRapido({ step }: { step: 1 | 2 | 3 }) {
+/** Indicador compacto de progresso (mobile-first): 1/2. */
+function ProgressoRapido({ step }: { step: 1 | 2 }) {
   return (
-    <ol className="flex items-center gap-2" aria-label={`Passo ${step} de 3 — ${PASSOS[step - 1]}`}>
+    <ol className="flex items-center gap-2" aria-label={`Passo ${step} de 2 — ${PASSOS[step - 1]}`}>
       {PASSOS.map((rotulo, i) => {
         const numero = i + 1
         return (
           <li key={rotulo} className="flex items-center gap-2">
             <span
               className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-full font-mono text-[13px] font-semibold tabular transition-colors",
+                "flex h-6 w-6 items-center justify-center rounded-full font-mono text-[11px] font-semibold tabular",
                 step > numero
                   ? "bg-brand-500 text-white"
                   : step === numero
@@ -68,17 +58,17 @@ function ProgressoRapido({ step }: { step: 1 | 2 | 3 }) {
                     : "bg-paper text-text-500 ring-1 ring-line",
               )}
             >
-              {step > numero ? <Check className="h-4 w-4" /> : numero}
+              {numero}
             </span>
             <span
               className={cn(
-                "hidden text-[13px] font-medium sm:inline",
+                "text-[12px] font-medium",
                 step === numero ? "text-text-900" : "text-text-500",
               )}
             >
               {rotulo}
             </span>
-            {numero < 3 && <span className="h-px w-5 bg-line sm:w-8" />}
+            {i < PASSOS.length - 1 && <span className="mx-0.5 h-px w-6 bg-line" />}
           </li>
         )
       })}
@@ -86,7 +76,6 @@ function ProgressoRapido({ step }: { step: 1 | 2 | 3 }) {
   )
 }
 
-/** Estado do envio em andamento (envio + OCR). */
 function StatusEnvioCard({ item }: { item: EnvioItem }) {
   return (
     <motion.div
@@ -116,7 +105,11 @@ function StatusEnvioCard({ item }: { item: EnvioItem }) {
         <span className="truncate text-[13px] font-medium text-text-900">{item.nome}</span>
         <span className="font-mono text-[11px] text-text-500">
           {formatTamanho(item.tamanho)} ·{" "}
-          {item.status === "enviando" ? "Enviando…" : item.status === "ocr" ? "Processando OCR…" : "Falha na leitura"}
+          {item.status === "enviando"
+            ? "Enviando…"
+            : item.status === "ocr"
+              ? "Extraindo e decidindo…"
+              : "Falha na leitura"}
           {item.erro ? ` — ${item.erro}` : ""}
         </span>
         {item.status !== "falha" && (
@@ -130,32 +123,29 @@ function StatusEnvioCard({ item }: { item: EnvioItem }) {
   )
 }
 
+/**
+ * Envio rápido (v1.7.0 — D-013/D-014): foto → extrai → veredito.
+ * Aprova, nega citando a regra, ou manda para revisão manual do gestor.
+ * Ninguém confere nem preenche campo — o que a evidência não mostrou,
+ * ninguém digita.
+ */
 export default function EnvioRapido() {
   const { activeCompany, companies, isLoading: empresaLoading } = useActiveCompany()
   const utils = trpc.useUtils()
 
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [step, setStep] = useState<1 | 2>(1)
   const [empresaEscolhida, setEmpresaEscolhida] = useState<number | null>(null)
   const [envio, setEnvio] = useState<EnvioItem | null>(null)
-  const [nota, setNota] = useState<NotaProcessada | null>(null)
-  const [form, setForm] = useState<FormState | null>(null)
-  const [editados, setEditados] = useState<Set<string>>(new Set())
-  const [erroRf00, setErroRf00] = useState<string | null>(null)
-  const [resultado, setResultado] = useState<{
-    despesaId: number
-    resultado: ResultadoMotor
-    politica: (ResultadoPolitica & { versao: number | null }) | null
-  } | null>(null)
+  const [veredito, setVeredito] = useState<Veredito | null>(null)
 
   const cameraInputRef = useRef<HTMLInputElement>(null)
 
   // Empresa padrão = empresa ativa do shell; só muda se o usuário tiver várias.
   const empresaId = empresaEscolhida ?? activeCompany?.id ?? 0
   const empresa = companies.find((c) => c.id === empresaId) ?? activeCompany
-  const cadastroIncompleto = empresa?.cadastroCompleto === false
 
   const uploadNota = trpc.despesas.uploadNota.useMutation()
-  const create = trpc.despesas.create.useMutation()
+  const processarAutomatica = trpc.despesas.processarAutomatica.useMutation()
 
   const processarArquivo = useCallback(
     async (arquivo: File) => {
@@ -164,31 +154,38 @@ export default function EnvioRapido() {
       try {
         const base64 = await fileParaBase64(arquivo)
         setEnvio({ nome: arquivo.name, tamanho: arquivo.size, status: "ocr" })
-        const res = await uploadNota.mutateAsync({
+        const up = await uploadNota.mutateAsync({
           empresaId,
           arquivoNome: arquivo.name,
           arquivoMime: arquivo.type || "application/octet-stream",
           arquivoBase64: base64,
         })
-        setNota({
-          notaFiscalId: res.notaFiscalId,
-          arquivoNome: arquivo.name,
-          arquivoMime: arquivo.type || "application/octet-stream",
-          arquivoBase64: base64,
-          extracao: res.extracao,
+        // Decisão imediata: aprova / nega / revisão manual
+        const res = await processarAutomatica.mutateAsync({
+          empresaId,
+          notaFiscalId: up.notaFiscalId,
         })
-        setForm(formFromExtracao(res.extracao))
-        setEditados(new Set())
-        setErroRf00(null)
-        setResultado(null)
+        setVeredito({
+          despesaId: res.despesaId,
+          decisao: res.decisao,
+          motivos: res.motivos,
+          regrasAplicadas: res.regrasAplicadas,
+          politicaVersao: res.politicaVersao,
+          categoria: res.categoria,
+          valor: res.valor,
+          dataFatoGerador: res.dataFatoGerador,
+          cnpjEmitente: res.cnpjEmitente,
+        })
         setEnvio(null)
         setStep(2)
+        await utils.despesas.list.invalidate()
       } catch (erro) {
         const mensagem = erro instanceof Error ? erro.message : "Falha ao processar a nota."
         setEnvio({ nome: arquivo.name, tamanho: arquivo.size, status: "falha", erro: mensagem })
+        toast.error("Não foi possível processar a nota", { description: mensagem })
       }
     },
-    [empresaId, uploadNota],
+    [empresaId, uploadNota, processarAutomatica, utils],
   )
 
   const onDrop = useCallback(
@@ -217,58 +214,9 @@ export default function EnvioRapido() {
     },
   })
 
-  function onEditou(campo: string) {
-    setEditados((prev) => {
-      if (prev.has(campo)) return prev
-      const next = new Set(prev)
-      next.add(campo)
-      return next
-    })
-  }
-
-  async function processar() {
-    if (!nota || !form) return
-    setErroRf00(null)
-    try {
-      const res = await create.mutateAsync({
-        empresaId,
-        notaFiscalId: nota.notaFiscalId,
-        veiculoId: form.veiculoId ? Number(form.veiculoId) : undefined,
-        categoria: form.categoria as Exclude<FormState["categoria"], "">,
-        colaborador: form.colaborador.trim() || undefined,
-        centroCusto: form.centroCusto.trim() || undefined,
-        motivoDeslocamento: form.motivo.trim() || undefined,
-        kmComercial: parseNumeroPt(form.kmComercial),
-        kmNaoComercial: parseNumeroPt(form.kmNaoComercial),
-        litros: form.litros.trim() ? parseNumeroPt(form.litros) : undefined,
-        valorNota: parseNumeroPt(form.valorNota),
-        dataFatoGerador: form.dataFatoGerador,
-        cnpjEmitente: form.cnpjEmitente.trim() || undefined,
-        cfop: form.cfop.trim() || undefined,
-        ncm: form.ncm.trim() || undefined,
-        cst: form.cst.trim() || undefined,
-      })
-      setResultado(res)
-      setStep(3)
-      await utils.despesas.list.invalidate()
-    } catch (erro) {
-      const code = (erro as { data?: { code?: string } }).data?.code
-      const mensagem = erro instanceof Error ? erro.message : "Falha ao processar a despesa."
-      if (code === "PRECONDITION_FAILED" || code === "BAD_REQUEST") {
-        setErroRf00(mensagem)
-      } else {
-        toast.error("Não foi possível processar o crédito", { description: mensagem })
-      }
-    }
-  }
-
   function reiniciar() {
     setEnvio(null)
-    setNota(null)
-    setForm(null)
-    setEditados(new Set())
-    setErroRf00(null)
-    setResultado(null)
+    setVeredito(null)
     setStep(1)
   }
 
@@ -294,18 +242,10 @@ export default function EnvioRapido() {
         <ProgressoRapido step={step} />
       </div>
 
-      {/* RF-00 — cadastro incompleto */}
-      {erroRf00 && (
-        <div className="flex items-start gap-3 rounded-xl border border-conf-media-dot/25 bg-conf-media-bg px-4 py-3">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-conf-media-text" />
-          <div className="flex flex-col gap-1">
-            <p className="text-[13px] font-medium text-conf-media-text">{erroRf00}</p>
-            <Link to="/app/empresas" className="text-[13px] font-semibold text-conf-media-text underline">
-              Completar cadastro da empresa
-            </Link>
-          </div>
-        </div>
-      )}
+      <p className="text-[13px] text-text-500">
+        Tire a foto — o agente extrai e decide sozinho: aprova, nega citando a regra,
+        ou encaminha para revisão do gestor.
+      </p>
 
       {empresaLoading ? (
         <div className="flex flex-col gap-4">
@@ -319,8 +259,7 @@ export default function EnvioRapido() {
             Cadastre uma empresa para começar
           </h3>
           <p className="max-w-sm text-sm text-text-500">
-            O motor tributário precisa do CNAE, regime tributário e UF da empresa para classificar
-            as despesas.
+            A empresa define a política de reembolso usada nas decisões.
           </p>
           <Link
             to="/app/empresas"
@@ -418,15 +357,14 @@ export default function EnvioRapido() {
             </motion.div>
           )}
 
-          {step === 2 && nota && form && (
+          {step === 2 && veredito && (
             <motion.div
-              key={`rapido-2-${nota.notaFiscalId}`}
+              key="rapido-2"
               initial={{ opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -40 }}
               transition={{ duration: 0.25, ease: "easeOut" }}
             >
-              {/* Empresa da nota (vinculada no envio — não pode mudar na confirmação) */}
               {companies.length > 1 && empresa && (
                 <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-line bg-surface px-4 py-3 shadow-card">
                   <Building2 className="h-4 w-4 shrink-0 text-text-500" />
@@ -438,48 +376,7 @@ export default function EnvioRapido() {
                   </span>
                 </div>
               )}
-              <StepRevisao
-                nota={nota}
-                empresaId={empresaId}
-                form={form}
-                onChange={setForm}
-                editados={editados}
-                onEditou={onEditou}
-                assistido={
-                  nota.extracao.confiancaExtracao === "baixa" ||
-                  nota.extracao.camposPendentes.length >= 5
-                }
-                cadastroIncompleto={cadastroIncompleto}
-                processando={create.isPending}
-                onVoltar={reiniciar}
-                onProcessar={() => void processar()}
-              />
-            </motion.div>
-          )}
-
-          {step === 3 && resultado && empresa && (
-            <motion.div
-              key="rapido-3"
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -40 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-            >
-              <StepResultado
-                despesaId={resultado.despesaId}
-                resultado={resultado.resultado}
-                politica={resultado.politica}
-                categoria={form?.categoria ?? ""}
-                cnaeEmpresa={empresa.cnaePrincipal ?? "—"}
-                regimeEmpresa={
-                  REGIME_ROTULO[empresa.regimeTributario as keyof typeof REGIME_ROTULO] ??
-                  empresa.regimeTributario ??
-                  "—"
-                }
-                restantes={0}
-                onProximaNota={reiniciar}
-                onReiniciar={reiniciar}
-              />
+              <StepVeredito veredito={veredito} onReiniciar={reiniciar} />
               <div className="mt-4 flex justify-center">
                 <Link
                   to="/app/despesas"

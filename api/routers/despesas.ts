@@ -28,6 +28,7 @@ import {
 } from "../modules/fiscal/engine";
 import { getOcrProvider } from "../modules/fiscal/ocr";
 import { avaliarDespesa } from "../modules/reembolso/policy/agent";
+import { decidirReembolso } from "../modules/reembolso/decisor";
 import { assertEmpresaAcesso, registrarLog } from "./_shared";
 
 export const despesasRouter = createRouter({
@@ -58,6 +59,8 @@ export const despesasRouter = createRouter({
           cst: extracao.cst,
           valor: extracao.valor,
           dataFatoGerador: extracao.dataFatoGerador,
+          categoriaSugerida: extracao.categoriaSugerida,
+          litros: extracao.litros,
           arquivoNome: input.arquivoNome,
           arquivoMime: input.arquivoMime,
           arquivoBase64: input.arquivoBase64,
@@ -323,6 +326,227 @@ export const despesasRouter = createRouter({
         politica: politicaResultado
           ? { ...politicaResultado, versao: politicaAtiva?.versao ?? null }
           : null,
+      };
+    }),
+
+  /**
+   * Fluxo automático de reembolso (v1.7.0 — D-013/D-014): a nota já foi
+   * extraída no upload; aqui o decisor APROVA, NEGA ou manda para REVISÃO
+   * MANUAL — sem ninguém preencher nada. O motor fiscal roda depois, quando
+   * (e se) houver dados fiscais completos.
+   */
+  processarAutomatica: protectedProcedure
+    .input(
+      z.object({
+        empresaId: z.number().int().positive(),
+        notaFiscalId: z.number().int().positive(),
+        veiculoId: z.number().int().positive().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const empresa = await assertEmpresaAcesso(ctx, input.empresaId);
+      const db = getDb();
+
+      const notaRows = await db
+        .select()
+        .from(notasFiscais)
+        .where(
+          and(
+            eq(notasFiscais.id, input.notaFiscalId),
+            eq(notasFiscais.empresaId, input.empresaId),
+          ),
+        )
+        .limit(1);
+      const nota = notaRows[0];
+      if (!nota) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Nota fiscal não encontrada." });
+      }
+      const despesaExistente = await db
+        .select({ id: despesas.id })
+        .from(despesas)
+        .where(eq(despesas.notaFiscalId, input.notaFiscalId))
+        .limit(1);
+      if (despesaExistente.length > 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Esta nota já foi processada.",
+        });
+      }
+
+      // Política ativa (mais recente)
+      const politicaRows = await db
+        .select()
+        .from(politicasReembolso)
+        .where(
+          and(
+            eq(politicasReembolso.empresaId, input.empresaId),
+            eq(politicasReembolso.status, "ativa"),
+          ),
+        )
+        .orderBy(desc(politicasReembolso.versao))
+        .limit(1);
+      const politicaAtiva = politicaRows[0] ?? null;
+      const regrasPolitica = politicaAtiva
+        ? regrasPoliticaSchema.parse(politicaAtiva.regras ?? {})
+        : null;
+
+      // Veículo (opcional — só faz sentido para combustível)
+      let temVeiculo = false;
+      if (input.veiculoId) {
+        const v = await db
+          .select({ id: veiculos.id })
+          .from(veiculos)
+          .where(
+            and(eq(veiculos.id, input.veiculoId), eq(veiculos.empresaId, input.empresaId)),
+          )
+          .limit(1);
+        temVeiculo = v.length > 0;
+      }
+
+      // ── Decisor de reembolso (função pura — módulo reembolso) ──────────
+      const decisao = decidirReembolso(
+        {
+          categoriaSugerida: (nota.categoriaSugerida as never) ?? null,
+          valor: nota.valor,
+          dataFatoGerador: nota.dataFatoGerador,
+          cnpjEmitente: nota.cnpjEmitente,
+          confiancaExtracao: nota.valor != null && nota.cnpjEmitente ? "alta" : "baixa",
+          camposPendentes: [],
+        },
+        regrasPolitica,
+        { temVeiculo },
+      );
+
+      const statusFinal: StatusDespesa =
+        decisao.decisao === "aprovado"
+          ? "aprovada"
+          : decisao.decisao === "negado"
+            ? "rejeitada"
+            : "em_revisao";
+
+      // ── Motor fiscal (módulo fiscal) — entra DEPOIS e só com dados ──────
+      let motor: ReturnType<typeof processarDespesa> | null = null;
+      const cadastroCompleto = Boolean(
+        empresa.cnaePrincipal && empresa.regimeTributario && empresa.uf,
+      );
+      if (
+        cadastroCompleto &&
+        decisao.categoria &&
+        nota.valor != null &&
+        nota.dataFatoGerador
+      ) {
+        const regrasRows = await db.select().from(regrasElegibilidade);
+        const regras: RegraVigente[] = regrasRows.map((r) => ({
+          cnaePadrao: r.cnaePadrao,
+          categoria: r.categoria,
+          tributo: r.tributo,
+          tipoBeneficio: r.tipoBeneficio,
+          confianca: r.confianca,
+          aliquota: r.aliquota,
+          baseLegal: r.baseLegal,
+          vigenciaInicio: r.vigenciaInicio,
+          vigenciaFim: r.vigenciaFim,
+          versao: r.versao,
+        }));
+        motor = processarDespesa(
+          {
+            cnaePrincipal: empresa.cnaePrincipal,
+            regimeTributario: empresa.regimeTributario,
+            uf: empresa.uf,
+          },
+          {
+            categoria: decisao.categoria,
+            valorNota: nota.valor,
+            dataFatoGerador: nota.dataFatoGerador,
+            litros: nota.litros ?? null,
+            kmComercial: 0,
+            kmNaoComercial: 0,
+          },
+          null,
+          regras,
+        );
+      }
+
+      const memorial = motor
+        ? [
+            ...motor.memorialTributos.map((m) => `[${m.tributo}] ${m.formula}`),
+            ...motor.alertas.map((a) => `ALERTA: ${a}`),
+          ].join("\n")
+        : null;
+
+      const insert = await db.insert(despesas).values({
+        empresaId: input.empresaId,
+        notaFiscalId: input.notaFiscalId,
+        veiculoId: input.veiculoId ?? null,
+        categoria: decisao.categoria,
+        kmComercial: 0,
+        kmNaoComercial: 0,
+        litros: nota.litros ?? null,
+        valorFiscal: motor?.valorFiscal ?? 0,
+        valorReembolsavel: nota.valor ?? 0,
+        confianca: motor?.confianca ?? "media",
+        status: statusFinal,
+        memorial,
+        motivoRevisao:
+          decisao.decisao === "revisao_manual" ? decisao.motivos.join("\n") : null,
+        politicaDecisao:
+          decisao.decisao === "revisao_manual"
+            ? "revisao_humana"
+            : decisao.decisao === "negado"
+              ? "negado"
+              : "aprovado",
+        politicaMotivo: decisao.motivos.join("\n"),
+        politicaVersaoAplicada: politicaAtiva?.versao ?? null,
+      });
+      const despesaId = Number(insert[0].insertId);
+
+      if (motor && motor.memorialTributos.length > 0) {
+        const statusCredito =
+          motor.confianca === "alta"
+            ? ("apurado" as const)
+            : motor.confianca === "vedado"
+              ? ("rejeitado" as const)
+              : ("em_revisao" as const);
+        await db.insert(creditosApurados).values(
+          motor.memorialTributos.map((m) => ({
+            despesaId,
+            tributo: m.tributo,
+            tipoBeneficio: m.tipoBeneficio,
+            valor: m.valor,
+            status: statusCredito,
+            memorial: m.formula,
+            regraVersao: m.regraVersao,
+          })),
+        );
+      }
+
+      // Trilha: decisão do reembolso (ator: agente automático)
+      await registrarLog(db, {
+        usuarioId: null,
+        empresaId: input.empresaId,
+        acao: "reembolso_decisao",
+        entidade: "despesa",
+        entidadeId: despesaId,
+        detalhes: JSON.stringify({
+          decisao: decisao.decisao,
+          motivos: decisao.motivos,
+          regrasAplicadas: decisao.regrasAplicadas,
+          politicaId: politicaAtiva?.id ?? null,
+        }),
+        regraVersao: politicaAtiva ? `politica-v${politicaAtiva.versao}` : "sem-politica",
+      });
+
+      return {
+        despesaId,
+        decisao: decisao.decisao,
+        motivos: decisao.motivos,
+        regrasAplicadas: decisao.regrasAplicadas,
+        politicaVersao: politicaAtiva?.versao ?? null,
+        categoria: decisao.categoria,
+        valor: nota.valor,
+        dataFatoGerador: nota.dataFatoGerador,
+        cnpjEmitente: nota.cnpjEmitente,
+        motor,
       };
     }),
 

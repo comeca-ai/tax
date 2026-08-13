@@ -9,7 +9,7 @@ import {
   veiculos,
 } from "./schema";
 import { hashSenha } from "../api/auth/password";
-import { VERSAO_REGRA } from "../api/engine/params";
+import { VERSAO_REGRA } from "../api/modules/fiscal/engine/params";
 import type { RegrasPolitica } from "@contracts/types";
 
 /**

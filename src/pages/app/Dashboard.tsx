@@ -12,6 +12,7 @@ import {
   Clock,
   FileWarning,
   Info,
+  Receipt,
   ScanLine,
 } from "lucide-react"
 import {
@@ -284,7 +285,7 @@ export default function Dashboard() {
 
   const categoriasPresentes = useMemo(() => {
     const set = new Set<CategoriaDespesa>()
-    for (const d of filtradas) set.add(d.categoria)
+    for (const d of filtradas) if (d.categoria) set.add(d.categoria)
     return (Object.keys(CATEGORIA_LABEL) as CategoriaDespesa[]).filter((c) => set.has(c))
   }, [filtradas])
 
@@ -858,7 +859,7 @@ export default function Dashboard() {
                   </thead>
                   <tbody>
                     {recentes.map((d, i) => {
-                      const Icone = CATEGORIA_ICON[d.categoria]
+                      const Icone = d.categoria ? CATEGORIA_ICON[d.categoria] : Receipt
                       return (
                         <motion.tr
                           key={d.id}
@@ -874,7 +875,7 @@ export default function Dashboard() {
                           <td className="px-4">
                             <span className="flex items-center gap-2 text-[13px] font-medium text-text-900">
                               <Icone className="h-3.5 w-3.5 text-text-500" />
-                              {CATEGORIA_LABEL[d.categoria]}
+                              {d.categoria ? CATEGORIA_LABEL[d.categoria] : "a definir"}
                             </span>
                           </td>
                           <td className="max-w-40 truncate px-4 text-[13px] text-text-500">

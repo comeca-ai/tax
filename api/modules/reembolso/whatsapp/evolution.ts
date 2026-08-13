@@ -83,7 +83,9 @@ export function parseEvolutionPayload(
     tipo: tipoDaMensagem(message),
     mensagemId: typeof key.id === "string" ? key.id : undefined,
     nomeContato:
-      typeof data.pushName === "string" ? (data.pushName as string) : undefined,
+      typeof data?.pushName === "string"
+        ? (data.pushName as string)
+        : undefined,
   };
 }
 

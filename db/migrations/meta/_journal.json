@@ -43,6 +43,13 @@
       "when": 1786590766225,
       "tag": "0005_resets_senha",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1786641732151,
+      "tag": "0006_reembolso_automatico",
+      "breakpoints": true
     }
   ]
 }

@@ -223,7 +223,7 @@ export type DashboardResumo = {
 export type RelatorioLinha = {
   despesaId: number;
   dataFatoGerador: string | null;
-  categoria: CategoriaDespesa;
+  categoria: CategoriaDespesa | null;
   confianca: NivelConfianca;
   status: StatusDespesa;
   valorFiscal: number;

@@ -1,35 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { Link } from "react-router"
 import { AnimatePresence, motion } from "framer-motion"
-import { ArrowLeft, Building2, Check, TriangleAlert } from "lucide-react"
+import { ArrowLeft, Building2, Check } from "lucide-react"
 import { toast } from "sonner"
 import { trpc } from "@/providers/trpc"
 import { useActiveCompany } from "@/hooks/useActiveCompany"
-import type { RegimeTributario, ResultadoMotor, ResultadoPolitica } from "@contracts/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { fileParaBase64 } from "@/components/despesas/arquivo"
 import StepUpload from "@/components/despesas/wizard/StepUpload"
-import StepRevisao from "@/components/despesas/wizard/StepRevisao"
-import StepResultado from "@/components/despesas/wizard/StepResultado"
-import {
-  formFromExtracao,
-  parseNumeroPt,
-  type FilaItem,
-  type FormState,
-  type NotaProcessada,
-} from "@/components/despesas/wizard/types"
-
-const REGIME_ROTULO: Record<RegimeTributario, string> = {
-  lucro_real: "Lucro Real",
-  lucro_presumido: "Lucro Presumido",
-  simples_nacional: "Simples Nacional",
-}
+import StepVeredito, { type Veredito } from "@/components/despesas/wizard/StepVeredito"
+import type { FilaItem } from "@/components/despesas/wizard/types"
 
 const PASSOS = [
   { numero: 1, rotulo: "Enviar nota" },
-  { numero: 2, rotulo: "Conferir dados" },
-  { numero: 3, rotulo: "Resultado" },
+  { numero: 2, rotulo: "Veredito" },
 ] as const
 
 function StepIndicator({ step }: { step: number }) {
@@ -64,47 +49,24 @@ function StepIndicator({ step }: { step: number }) {
   )
 }
 
+/**
+ * Nova despesa (v1.7.0 — D-013/D-014): foto entra → extrai → veredito.
+ * Aprova, nega ou manda para revisão manual. Ninguém confere nem preenche
+ * campo nenhum — o que a evidência não mostrou, ninguém digita.
+ */
 export default function NovaDespesa() {
   const { activeCompany, isLoading: empresaLoading } = useActiveCompany()
   const utils = trpc.useUtils()
 
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [step, setStep] = useState<1 | 2>(1)
   const [fila, setFila] = useState<FilaItem[]>([])
-  const [processadas, setProcessadas] = useState<NotaProcessada[]>([])
-  const [indiceAtual, setIndiceAtual] = useState(0)
-  const [form, setForm] = useState<FormState | null>(null)
-  const [editados, setEditados] = useState<Set<string>>(new Set())
-  const [assistido, setAssistido] = useState(false)
-  const [erroRf00, setErroRf00] = useState<string | null>(null)
-  const [resultado, setResultado] = useState<{
-    despesaId: number
-    resultado: ResultadoMotor
-    politica: (ResultadoPolitica & { versao: number | null }) | null
-  } | null>(null)
-
-  const revisaoIniciadaRef = useRef(false)
-  const stepRef = useRef(step)
-  useEffect(() => {
-    stepRef.current = step
-  }, [step])
+  const [veredito, setVeredito] = useState<Veredito | null>(null)
+  const processandoRef = useRef(false)
 
   const empresaId = activeCompany?.id ?? 0
-  const cadastroIncompleto = activeCompany?.cadastroCompleto === false
 
   const uploadNota = trpc.despesas.uploadNota.useMutation()
-  const create = trpc.despesas.create.useMutation()
-
-  const iniciarRevisao = useCallback((nota: NotaProcessada, indice: number) => {
-    setIndiceAtual(indice)
-    setForm(formFromExtracao(nota.extracao))
-    setEditados(new Set())
-    setAssistido(
-      nota.extracao.confiancaExtracao === "baixa" || nota.extracao.camposPendentes.length >= 5,
-    )
-    setErroRf00(null)
-    setResultado(null)
-    setStep(2)
-  }, [])
+  const processarAutomatica = trpc.despesas.processarAutomatica.useMutation()
 
   const processarArquivos = useCallback(
     async (arquivos: File[]) => {
@@ -117,106 +79,52 @@ export default function NovaDespesa() {
         try {
           const base64 = await fileParaBase64(arquivo)
           setFila((prev) => prev.map((i) => (i.key === key ? { ...i, status: "ocr" } : i)))
-          const res = await uploadNota.mutateAsync({
+          const up = await uploadNota.mutateAsync({
             empresaId,
             arquivoNome: arquivo.name,
             arquivoMime: arquivo.type || "application/octet-stream",
             arquivoBase64: base64,
           })
-          const nota: NotaProcessada = {
-            notaFiscalId: res.notaFiscalId,
-            arquivoNome: arquivo.name,
-            arquivoMime: arquivo.type || "application/octet-stream",
-            arquivoBase64: base64,
-            extracao: res.extracao,
-          }
-          setFila((prev) => prev.map((i) => (i.key === key ? { ...i, status: "concluido" } : i)))
-          setProcessadas((prev) => {
-            const proximoIndice = prev.length
-            if (!revisaoIniciadaRef.current && stepRef.current === 1) {
-              revisaoIniciadaRef.current = true
-              iniciarRevisao(nota, proximoIndice)
-            }
-            return [...prev, nota]
+          // Decisão imediata: aprova / nega / revisão manual (D-013/D-014)
+          const res = await processarAutomatica.mutateAsync({
+            empresaId,
+            notaFiscalId: up.notaFiscalId,
           })
+          setFila((prev) => prev.map((i) => (i.key === key ? { ...i, status: "concluido" } : i)))
+          if (!processandoRef.current) {
+            processandoRef.current = true
+            setVeredito({
+              despesaId: res.despesaId,
+              decisao: res.decisao,
+              motivos: res.motivos,
+              regrasAplicadas: res.regrasAplicadas,
+              politicaVersao: res.politicaVersao,
+              categoria: res.categoria,
+              valor: res.valor,
+              dataFatoGerador: res.dataFatoGerador,
+              cnpjEmitente: res.cnpjEmitente,
+            })
+            setStep(2)
+          }
         } catch (erro) {
           const mensagem = erro instanceof Error ? erro.message : "Falha ao processar a nota."
           setFila((prev) =>
             prev.map((i) => (i.key === key ? { ...i, status: "falha", erro: mensagem } : i)),
           )
+          toast.error("Não foi possível processar a nota", { description: mensagem })
         }
       }
-    },
-    [empresaId, uploadNota, iniciarRevisao],
-  )
-
-  function onEditou(campo: string) {
-    setEditados((prev) => {
-      if (prev.has(campo)) return prev
-      const next = new Set(prev)
-      next.add(campo)
-      return next
-    })
-  }
-
-  async function processar() {
-    const nota = processadas[indiceAtual]
-    if (!nota || !form) return
-    setErroRf00(null)
-    try {
-      const res = await create.mutateAsync({
-        empresaId,
-        notaFiscalId: nota.notaFiscalId,
-        veiculoId: form.veiculoId ? Number(form.veiculoId) : undefined,
-        categoria: form.categoria as Exclude<FormState["categoria"], "">,
-        colaborador: form.colaborador.trim() || undefined,
-        centroCusto: form.centroCusto.trim() || undefined,
-        motivoDeslocamento: form.motivo.trim() || undefined,
-        kmComercial: parseNumeroPt(form.kmComercial),
-        kmNaoComercial: parseNumeroPt(form.kmNaoComercial),
-        litros: form.litros.trim() ? parseNumeroPt(form.litros) : undefined,
-        valorNota: parseNumeroPt(form.valorNota),
-        dataFatoGerador: form.dataFatoGerador,
-        cnpjEmitente: form.cnpjEmitente.trim() || undefined,
-        cfop: form.cfop.trim() || undefined,
-        ncm: form.ncm.trim() || undefined,
-        cst: form.cst.trim() || undefined,
-      })
-      setResultado(res)
-      setStep(3)
       await utils.despesas.list.invalidate()
-    } catch (erro) {
-      const code = (erro as { data?: { code?: string } }).data?.code
-      const mensagem = erro instanceof Error ? erro.message : "Falha ao processar a despesa."
-      if (code === "PRECONDITION_FAILED" || code === "BAD_REQUEST") {
-        // RF-00: cadastro incompleto — mensagem PT-BR + link para completar
-        setErroRf00(mensagem)
-      } else {
-        toast.error("Não foi possível processar o crédito", { description: mensagem })
-      }
-    }
-  }
+    },
+    [empresaId, uploadNota, processarAutomatica, utils],
+  )
 
   function reiniciar() {
     setFila([])
-    setProcessadas([])
-    setIndiceAtual(0)
-    setForm(null)
-    setEditados(new Set())
-    setAssistido(false)
-    setErroRf00(null)
-    setResultado(null)
-    revisaoIniciadaRef.current = false
+    setVeredito(null)
+    processandoRef.current = false
     setStep(1)
   }
-
-  function proximaNota() {
-    const proxima = processadas[indiceAtual + 1]
-    if (proxima) iniciarRevisao(proxima, indiceAtual + 1)
-  }
-
-  const notaAtual = processadas[indiceAtual] ?? null
-  const restantes = processadas.length - (indiceAtual + 1)
 
   return (
     <motion.div
@@ -240,20 +148,11 @@ export default function NovaDespesa() {
           </h1>
           <StepIndicator step={step} />
         </div>
+        <p className="text-[13px] text-text-500">
+          Envie a foto da nota — o agente extrai e decide sozinho: aprova, nega citando
+          a regra, ou encaminha para revisão do gestor.
+        </p>
       </div>
-
-      {/* RF-00 — cadastro incompleto */}
-      {erroRf00 && (
-        <div className="flex items-start gap-3 rounded-xl border border-conf-media-dot/25 bg-conf-media-bg px-4 py-3">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-conf-media-text" />
-          <div className="flex flex-col gap-1">
-            <p className="text-[13px] font-medium text-conf-media-text">{erroRf00}</p>
-            <Link to="/app/empresas" className="text-[13px] font-semibold text-conf-media-text underline">
-              Completar cadastro da empresa
-            </Link>
-          </div>
-        </div>
-      )}
 
       {empresaLoading ? (
         <div className="flex flex-col gap-4">
@@ -267,8 +166,7 @@ export default function NovaDespesa() {
             Cadastre uma empresa para começar
           </h3>
           <p className="max-w-sm text-sm text-text-500">
-            O motor tributário precisa do CNAE, regime tributário e UF da empresa para classificar
-            as despesas.
+            A empresa define a política de reembolso e o regime tributário usados nas decisões.
           </p>
           <Link
             to="/app/empresas"
@@ -295,53 +193,15 @@ export default function NovaDespesa() {
             </motion.div>
           )}
 
-          {step === 2 && notaAtual && form && (
+          {step === 2 && veredito && (
             <motion.div
-              key={`passo-2-${notaAtual.notaFiscalId}`}
+              key="passo-2"
               initial={{ opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -40 }}
               transition={{ duration: 0.25, ease: "easeOut" }}
             >
-              <StepRevisao
-                nota={notaAtual}
-                empresaId={empresaId}
-                form={form}
-                onChange={setForm}
-                editados={editados}
-                onEditou={onEditou}
-                assistido={assistido}
-                cadastroIncompleto={cadastroIncompleto}
-                processando={create.isPending}
-                onVoltar={() => setStep(1)}
-                onProcessar={() => void processar()}
-              />
-            </motion.div>
-          )}
-
-          {step === 3 && resultado && (
-            <motion.div
-              key="passo-3"
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -40 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-            >
-              <StepResultado
-                despesaId={resultado.despesaId}
-                resultado={resultado.resultado}
-                politica={resultado.politica}
-                categoria={form?.categoria ?? ""}
-                cnaeEmpresa={activeCompany.cnaePrincipal ?? "—"}
-                regimeEmpresa={
-                  REGIME_ROTULO[activeCompany.regimeTributario as RegimeTributario] ??
-                  activeCompany.regimeTributario ??
-                  "—"
-                }
-                restantes={restantes}
-                onProximaNota={proximaNota}
-                onReiniciar={reiniciar}
-              />
+              <StepVeredito veredito={veredito} onReiniciar={reiniciar} />
             </motion.div>
           )}
         </AnimatePresence>

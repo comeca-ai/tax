@@ -57,19 +57,20 @@ export const dashboardRouter = createRouter({
       }
 
       for (const d of despesasRows) {
-        const atual = porCategoria.get(d.categoria) ?? {
+        const chaveCat = d.categoria ?? "sem_categoria";
+        const atual = porCategoria.get(chaveCat) ?? {
           total: 0,
           valorCreditos: 0,
           quantidade: 0,
         };
         atual.total += d.valorFiscal;
         atual.quantidade += 1;
-        porCategoria.set(d.categoria, atual);
+        porCategoria.set(chaveCat, atual);
       }
       for (const c of creditosRows) {
         const despesa = despesasRows.find((d) => d.id === c.despesaId);
         if (!despesa || c.status === "rejeitado") continue;
-        const atual = porCategoria.get(despesa.categoria);
+        const atual = porCategoria.get(despesa.categoria ?? "sem_categoria");
         if (atual) atual.valorCreditos += c.valor;
       }
 

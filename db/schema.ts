@@ -147,6 +147,9 @@ export const notasFiscais = mysqlTable("notas_fiscais", {
   cst: varchar("cst", { length: 10 }),
   valor: double("valor"),
   dataFatoGerador: date("data_fato_gerador", { mode: "string" }),
+  // Extração automática (v1.7.0, D-014): o que o OCR/visão detectou — ninguém digita
+  categoriaSugerida: varchar("categoria_sugerida", { length: 20 }),
+  litros: double("litros"),
   // Upload na plataforma: arquivo original guardado inline (MVP, sem storage externo)
   arquivoNome: varchar("arquivo_nome", { length: 255 }),
   arquivoMime: varchar("arquivo_mime", { length: 100 }),
@@ -170,7 +173,9 @@ export const despesas = mysqlTable("despesas", {
   veiculoId: bigint("veiculo_id", { mode: "number", unsigned: true }).references(
     () => veiculos.id,
   ),
-  categoria: categoriaDespesaEnum.notNull(),
+  // Nullable desde v1.7.0 (D-014): sem categoria detectável → revisão manual,
+  // ninguém preenche nada
+  categoria: categoriaDespesaEnum,
   colaborador: varchar("colaborador", { length: 255 }),
   centroCusto: varchar("centro_custo", { length: 255 }),
   motivoDeslocamento: text("motivo_deslocamento"),

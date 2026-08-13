@@ -86,7 +86,7 @@ export default function VeiculoFormDialog({
   consumoReal,
   onSubmit,
 }: VeiculoFormDialogProps) {
-  const form = useForm<VeiculoFormValores>({
+  const form = useForm<z.input<typeof veiculoFormSchema>, unknown, VeiculoFormValores>({
     resolver: zodResolver(veiculoFormSchema),
     defaultValues: {
       descricao: "",

@@ -302,6 +302,7 @@ export default function Relatorios() {
   const grupos = useMemo(() => {
     const porCategoria = new Map<CategoriaDespesa, RelatorioLinha[]>()
     for (const l of linhas) {
+      if (!l.categoria) continue
       const arr = porCategoria.get(l.categoria) ?? []
       arr.push(l)
       porCategoria.set(l.categoria, arr)
@@ -855,7 +856,7 @@ export default function Relatorios() {
                                   <td className="px-4 font-mono text-[13px] tabular text-text-500">
                                     #{l.despesaId}
                                   </td>
-                                  <td className="px-4 text-[13px] text-text-900">{CATEGORIA_LABEL[l.categoria]}</td>
+                                  <td className="px-4 text-[13px] text-text-900">{l.categoria ? CATEGORIA_LABEL[l.categoria] : "a definir"}</td>
                                   <td className="px-4 font-mono text-[12px] tabular text-text-900">
                                     {l.tributo ? TRIBUTO_LABEL[l.tributo] : "—"}
                                   </td>
@@ -978,7 +979,7 @@ export default function Relatorios() {
                 <tr key={`print-${l.despesaId}-${l.tributo ?? "sem"}-${i}`} className="border-b border-[#E3E8E2]">
                   <td className="py-1.5 pr-3 font-mono text-[11px] tabular">{formatDataPtBR(l.dataFatoGerador)}</td>
                   <td className="py-1.5 pr-3 font-mono text-[11px] tabular">#{l.despesaId}</td>
-                  <td className="py-1.5 pr-3 text-[11px]">{CATEGORIA_LABEL[l.categoria]}</td>
+                  <td className="py-1.5 pr-3 text-[11px]">{l.categoria ? CATEGORIA_LABEL[l.categoria] : "a definir"}</td>
                   <td className="py-1.5 pr-3 font-mono text-[11px]">{l.tributo ? TRIBUTO_LABEL[l.tributo] : "—"}</td>
                   <td className="py-1.5 pr-3 text-[11px]">{l.tipoBeneficio ? BENEFICIO_LABEL[l.tipoBeneficio] : "—"}</td>
                   <td className="py-1.5 pr-3 font-mono text-[11px] tabular">{formatBRL(l.valorFiscal)}</td>

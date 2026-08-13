@@ -135,7 +135,7 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
     const itens: { data: Date | string; texto: string }[] = [
       {
         data: despesa.createdAt,
-        texto: `Despesa criada · classificada ${STATUS_TIMELINE[despesa.confianca] ?? despesa.confianca} · categoria ${CATEGORIA_META[despesa.categoria]?.label ?? despesa.categoria}`,
+        texto: `Despesa criada · classificada ${STATUS_TIMELINE[despesa.confianca] ?? despesa.confianca} · categoria ${despesa.categoria ? (CATEGORIA_META[despesa.categoria]?.label ?? despesa.categoria) : "a definir"}`,
       },
       ...creditos.map((c) => ({
         data: c.createdAt,
@@ -162,7 +162,7 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
     })
   }
 
-  const categoriaMeta = despesa ? CATEGORIA_META[despesa.categoria] : null
+  const categoriaMeta = despesa?.categoria ? CATEGORIA_META[despesa.categoria] : null
   const CategoriaIcon = categoriaMeta?.icon
 
   return (

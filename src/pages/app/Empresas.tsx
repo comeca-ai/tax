@@ -48,7 +48,7 @@ import {
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
-type EmpresaLista = NonNullable<ReturnType<typeof trpc.empresas.list.useQuery>["data"]>[number]
+type EmpresaLista = NonNullable<ReturnType<typeof trpc.empresas.list.useQuery>["data"]> extends readonly (infer T)[] ? T : any
 
 function iniciais(nome: string): string {
   const partes = nome.trim().split(/\s+/)

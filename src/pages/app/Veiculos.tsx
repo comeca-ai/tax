@@ -115,8 +115,8 @@ function DefesaVeiculosBanner() {
   )
 }
 
-type Veiculo = NonNullable<ReturnType<typeof trpc.veiculos.list.useQuery>["data"]>[number]
-type DespesaRow = NonNullable<ReturnType<typeof trpc.despesas.list.useQuery>["data"]>[number]
+type Veiculo = NonNullable<ReturnType<typeof trpc.veiculos.list.useQuery>["data"]> extends readonly (infer T)[] ? T : any
+type DespesaRow = NonNullable<ReturnType<typeof trpc.despesas.list.useQuery>["data"]> extends readonly (infer T)[] ? T : any
 
 interface ConsumoAgregado {
   kmTotal: number
