@@ -192,10 +192,11 @@ services:
 | Release | Escopo | Depende de |
 |---|---|---|
 | **v1.5.0** — fundação ⬅ próxima | Extração do `brain/` (parser vira pacote), tabelas novas (funcionários+hierarquia, sessões, política_versoes), SMTP, adapter `WHATSAPP_PROVIDER=evolution`, agente com onboarding conversacional (convite wa.me → confirmação → declaração → veículo) | Evolution instalado na VPS (usuário) + SMTP |
-| **v1.6.0** — motor ⬅ em seguida | OCR provider, fluxo de despesa pelo WhatsApp, decisor (aprova/reprova/cinza citando regra), fila de exceções no web, push de aviso | v1.5.0 |
-| **v1.7.0** — dossiê | kit zip 1-botão com regra citada + versão da política por despesa | v1.6.0 |
-| **v1.8.0** — política viva | exceção → regra escrita → nova versão → decisor aplica; histórico auditável | v1.7.0 |
-| **v1.9.0** — escala | upload em lote de funcionários, lembretes automáticos, painel caixa-de-entrada | qualquer ponto após v1.6.0 |
+| **v1.6.0** — admin limpo + convites ✅ (D-012) | Navegação agrupada, Equipe com colaboradores + convite-isqueiro (wa.me/SMTP) | v1.5.0 |
+| **v1.7.0** — motor ⬅ próxima | OCR provider, fluxo de despesa pelo WhatsApp, decisor (aprova/reprova/cinza citando regra), fila de exceções no web, push de aviso | v1.6.0 |
+| **v1.8.0** — dossiê | kit zip 1-botão com regra citada + versão da política por despesa | v1.7.0 |
+| **v1.9.0** — política viva | exceção → regra escrita → nova versão → decisor aplica; histórico auditável | v1.8.0 |
+| **v1.10.0** — escala | upload em lote de funcionários, lembretes automáticos, painel caixa-de-entrada | qualquer ponto após v1.7.0 |
 
 Ordem pensada por valor-desbloqueio: sem onboarding conversacional não há despesa pelo
 WhatsApp; sem motor não há exceção; sem exceções resolvidas o dossiê sai incompleto.

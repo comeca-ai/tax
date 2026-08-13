@@ -5,6 +5,9 @@ import { getDb } from "../queries/connection";
 import { colaboradores } from "@db/schema";
 import { assertEmpresaAcesso, registrarLog } from "./_shared";
 import { normalizarTelefone } from "../agente";
+import { gerarLinkConviteAgente } from "../agente/convite";
+import { enviarConviteAgenteEmail } from "../mail/mailer";
+import { TRPCError } from "@trpc/server";
 
 const colaboradorInput = z.object({
   empresaId: z.number().int().positive(),
@@ -94,5 +97,69 @@ export const colaboradoresRouter = createRouter({
           ),
         );
       return { ok: true };
+    }),
+
+  /**
+   * Convite-isqueiro (v1.6.0 — D-004): gera o link wa.me do agente com
+   * mensagem pré-preenchida e, se houver e-mail + SMTP, dispara o e-mail.
+   * Sem SMTP ou sem e-mail do colaborador, o admin copia/compartilha o link.
+   */
+  enviarConvite: perfilProcedure("admin")
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(colaboradores)
+        .where(eq(colaboradores.id, input.id))
+        .limit(1);
+      const colaborador = rows[0];
+      if (!colaborador) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Colaborador não encontrado." });
+      }
+      const empresa = await assertEmpresaAcesso(ctx, colaborador.empresaId);
+      if (!colaborador.telefone) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cadastre o telefone do colaborador antes de enviar o convite.",
+        });
+      }
+
+      const linkWhatsApp = gerarLinkConviteAgente({
+        nome: colaborador.nome,
+        empresa: empresa.razaoSocial,
+        matricula: colaborador.matricula,
+      });
+      if (!linkWhatsApp) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Configure AGENT_WHATSAPP_NUMBER no .env com o número do agente para gerar o link de convite.",
+        });
+      }
+
+      let enviadoPorEmail = false;
+      if (colaborador.email) {
+        const r = await enviarConviteAgenteEmail({
+          para: colaborador.email,
+          nome: colaborador.nome,
+          empresa: empresa.razaoSocial,
+          linkWhatsApp,
+        });
+        enviadoPorEmail = r.enviado;
+      }
+
+      await registrarLog(db, {
+        usuarioId: ctx.usuario!.id,
+        empresaId: colaborador.empresaId,
+        acao: "colaborador.convite",
+        entidade: "colaboradores",
+        entidadeId: colaborador.id,
+        detalhes: enviadoPorEmail
+          ? `Convite-isqueiro enviado por e-mail para ${colaborador.email}`
+          : "Link de convite gerado para compartilhamento manual",
+      });
+
+      return { linkWhatsApp, enviadoPorEmail, email: colaborador.email };
     }),
 });

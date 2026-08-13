@@ -14,9 +14,6 @@ import {
   Scale,
   LogOut,
   ChevronsUpDown,
-  Search,
-  CircleHelp,
-  Bell,
   Check,
   TriangleAlert,
   Menu,
@@ -48,18 +45,33 @@ function iniciais(nome: string): string {
   ).toUpperCase()
 }
 
-const NAV_ITEMS = [
-  { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard, end: false },
-  { to: "/app/despesas", label: "Despesas", icon: Receipt, end: true },
-  { to: "/app/despesas/nova", label: "Nova Despesa", icon: CirclePlus, end: false },
-  { to: "/app/rapido", label: "Envio Rápido", icon: Zap, end: false },
-  { to: "/app/politica", label: "Política", icon: ScrollText, end: false },
-  { to: "/app/revisao", label: "Fila de Revisão", icon: ClipboardCheck, end: false, badge: 3 },
-  { to: "/app/veiculos", label: "Veículos", icon: CarFront, end: false },
-  { to: "/app/empresas", label: "Empresas", icon: Building2, end: false },
-  { to: "/app/equipe", label: "Equipe", icon: Users, end: false, adminOnly: true },
-  { to: "/app/relatorios", label: "Relatórios", icon: FileChartColumn, end: false },
-  { to: "/app/regras", label: "Regras & Matriz", icon: Scale, end: false },
+/** Navegação agrupada (v1.6.0): o admin pensa em 3 momentos, não em 11 telas. */
+const NAV_GROUPS = [
+  {
+    rotulo: "Dia a dia",
+    itens: [
+      { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard, end: false },
+      { to: "/app/rapido", label: "Envio Rápido", icon: Zap, end: false },
+      { to: "/app/despesas", label: "Despesas", icon: Receipt, end: true },
+      { to: "/app/revisao", label: "Fila de Revisão", icon: ClipboardCheck, end: false, badge: 3 },
+    ],
+  },
+  {
+    rotulo: "Configurar",
+    itens: [
+      { to: "/app/politica", label: "Política", icon: ScrollText, end: false },
+      { to: "/app/equipe", label: "Equipe", icon: Users, end: false, adminOnly: true },
+      { to: "/app/veiculos", label: "Veículos", icon: CarFront, end: false },
+      { to: "/app/empresas", label: "Empresas", icon: Building2, end: false },
+      { to: "/app/regras", label: "Regras & Matriz", icon: Scale, end: false },
+    ],
+  },
+  {
+    rotulo: "Fechar o mês",
+    itens: [
+      { to: "/app/relatorios", label: "Relatórios", icon: FileChartColumn, end: false },
+    ],
+  },
 ]
 
 const PAGE_TITLES: Record<string, string> = {
@@ -79,12 +91,20 @@ const PAGE_TITLES: Record<string, string> = {
 /** Conteúdo da navegação — compartilhado entre sidebar desktop e drawer mobile. */
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user, logout } = useAuth()
-  const itens = NAV_ITEMS.filter((item) => !item.adminOnly || user?.perfil === "admin")
+  const grupos = NAV_GROUPS.map((g) => ({
+    ...g,
+    itens: g.itens.filter((item) => !item.adminOnly || user?.perfil === "admin"),
+  }))
 
   return (
     <>
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
-        {itens.map((item) => (
+        {grupos.map((grupo) => (
+          <div key={grupo.rotulo} className="flex flex-col gap-1 pb-3">
+            <span className="px-3 pb-1 pt-2 font-mono text-[10px] uppercase tracking-[0.08em] text-text-dark-400/70">
+              {grupo.rotulo}
+            </span>
+            {grupo.itens.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -112,6 +132,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               </>
             )}
           </NavLink>
+            ))}
+          </div>
         ))}
       </nav>
       <div className="border-t border-line-dark p-3">
@@ -274,29 +296,6 @@ function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
       </nav>
 
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
-        <button
-          type="button"
-          className="hidden h-9 items-center gap-2 rounded-[10px] border border-line px-3 text-[13px] text-text-500 transition-colors hover:bg-paper sm:flex"
-        >
-          <Search className="h-4 w-4" />
-          Buscar
-          <kbd className="rounded border border-line bg-paper px-1.5 font-mono text-[10px] text-text-500">⌘K</kbd>
-        </button>
-        <button
-          type="button"
-          aria-label="Ajuda"
-          className="flex h-9 w-9 items-center justify-center rounded-[10px] text-text-500 transition-colors hover:bg-paper hover:text-text-900"
-        >
-          <CircleHelp className="h-[18px] w-[18px]" />
-        </button>
-        <button
-          type="button"
-          aria-label="Notificações"
-          className="relative flex h-9 w-9 items-center justify-center rounded-[10px] text-text-500 transition-colors hover:bg-paper hover:text-text-900"
-        >
-          <Bell className="h-[18px] w-[18px]" />
-          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-amber-500" />
-        </button>
         <span className="ml-1 flex h-9 w-9 items-center justify-center rounded-full bg-brand-900 font-display text-[12px] font-semibold text-brand-400">
           {user ? iniciais(user.nome) : "…"}
         </span>

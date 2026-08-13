@@ -5,6 +5,24 @@
 
 ---
 
+## D-012 · Repriorização: admin limpo + convites antes do motor de decisão — 12/08/2026
+
+**Contexto:** o roadmap (ARQUITETURA §8) previa v1.6.0 = motor de decisão. Com o
+agente de onboarding de pé (v1.5.0), o gargalo virou a operação do admin:
+cadastrar colaboradores, disparar convites e navegar um menu de 11 itens.
+
+**Decisão (do usuário):** v1.6.0 passa a ser **redesenho da navegação do admin +
+convites do colaborador (e-mail-isqueiro + link wa.me)**. O motor de decisão
+(deslocado) vira a release seguinte.
+
+**O que mudou no concreto:** navegação agrupada em 3 momentos (Dia a dia /
+Configurar / Fechar o mês), botões mortos removidos da topbar, tela de Equipe
+dividida em "Colaboradores no WhatsApp" (jornada do agente) e "Usuários do
+painel" (convites web), mutation `colaboradores.enviarConvite` com link wa.me
+pré-preenchido e e-mail via SMTP quando disponível.
+
+---
+
 ## D-011 · Evolution roda como stack separado, fora do compose do app — 12/08/2026
 
 **Contexto:** Evolution instalada pelo usuário na VPS. Dentro ou fora do

@@ -40,6 +40,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { waCompartilhar } from "@/lib/whatsapp"
+import Colaboradores from "@/components/equipe/Colaboradores"
 import {
   mensagemErro,
   useConvitesClient,
@@ -262,7 +263,22 @@ export default function Equipe() {
           Equipe
         </h1>
         <p className="text-sm text-text-500">
-          Convide pessoas para a plataforma e acompanhe o status dos convites.
+          Colaboradores pedem reembolso pelo WhatsApp; usuários do painel acessam a plataforma.
+        </p>
+      </header>
+
+      {/* Colaboradores (jornada WhatsApp — v1.6.0) */}
+      <Colaboradores />
+
+      <hr className="border-line" />
+
+      {/* Usuários do painel (convites por e-mail) */}
+      <header className="flex flex-col gap-1">
+        <h2 className="font-display text-lg font-semibold tracking-[-0.01em] text-text-900">
+          Usuários do painel
+        </h2>
+        <p className="text-sm text-text-500">
+          Convide administradores, clientes e revisores para acessar a plataforma web.
         </p>
       </header>
 

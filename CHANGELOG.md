@@ -4,6 +4,36 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.6.0] — 2026-08-12
+
+Admin limpo + convites do agente (D-012: repriorização do roadmap — o motor de
+decisão passa a ser a v1.7.0).
+
+### Adicionado
+- **Convite-isqueiro do colaborador** (D-004): `colaboradores.enviarConvite`
+  gera o link `wa.me` do agente com mensagem pré-preenchida ("Oi! Sou Maria,
+  da Empresa. Minha matrícula é 77. Quero ativar meu reembolso.") e dispara
+  por e-mail quando há SMTP (`enviarConviteAgenteEmail`); sem SMTP, o admin
+  copia o link. Variável nova: `AGENT_WHATSAPP_NUMBER`
+- **Equipe → Colaboradores no WhatsApp**: cadastro rápido (nome, WhatsApp,
+  e-mail, matrícula), lista com status de ativação (Aguardando ativar / Ativo
+  no WhatsApp / Revisar dados) e botão "Enviar convite" por linha — o status
+  muda sozinho quando o colaborador conclui o onboarding com o agente
+- **4 testes novos** (72 no total) do helper de convite (link, mensagem,
+  fallbacks de configuração)
+
+### Melhorado
+- **Navegação do admin redesenhada**: 11 itens soltos → 3 grupos com rótulo
+  ("Dia a dia", "Configurar", "Fechar o mês"); "Nova Despesa" sai do menu
+  (ação dentro do Dashboard); topbar sem botões mortos (Buscar ⌘K, Ajuda e
+  Notificações sem função removidos)
+- Tela de Equipe dividida em "Colaboradores no WhatsApp" (jornada do agente)
+  e "Usuários do painel" (convites web admin/revisor/cliente)
+
+### Documentação
+- D-012 (repriorização) em `docs/DECISOES.md`; roadmap reordenado em
+  `docs/ARQUITETURA.md` §8 e `docs/LINHA-DO-TEMPO.md`
+
 ## [1.5.0] — 2026-08-12
 
 Fundação do agente de reembolso (onda 1 do redesenho — ver `docs/PRODUTO.md`

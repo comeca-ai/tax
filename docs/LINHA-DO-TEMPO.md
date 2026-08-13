@@ -68,13 +68,14 @@ Artefatos gerados:
 
 ## Futuro — roadmap (ordem de valor-desbloqueio)
 
-| Release | Tema | Entrega principal | Bloqueio externo |
+| Release | Tema | Entrega principal | Status |
 |---|---|---|---|
-| **v1.5.0** | Fundação do agente | `brain/` extraído, tabelas novas, adapter WhatsApp (Evolution), onboarding conversacional | **Evolution instalado na VPS** + **SMTP** |
-| **v1.6.0** | Motor de decisão | Despesa pelo WhatsApp → aprova/reprova/cinza citando regra; fila de exceções | OCR provider |
-| **v1.7.0** | Dossiê 1-botão | Kit zip de recuperação para o contador | decisão: contador destinatário ou usuário? |
-| **v1.8.0** | Política viva | Exceção vira regra escrita; versões auditáveis | — |
-| **v1.9.0** | Escala de UX | Upload em lote, lembretes, painel caixa-de-entrada | — |
+| **v1.5.0** | Fundação do agente | Adapter WhatsApp (Evolution), onboarding conversacional, sessões | ✅ entregue 12/08 |
+| **v1.6.0** | Admin limpo + convites | Navegação em 3 momentos, Equipe com colaboradores + convite-isqueiro | ✅ entregue 12/08 |
+| **v1.7.0** | Motor de decisão ⬅ próxima | Despesa pelo WhatsApp → aprova/reprova/cinza citando regra; fila de exceções | OCR provider |
+| **v1.8.0** | Dossiê 1-botão | Kit zip de recuperação para o contador | decisão: contador destinatário ou usuário? |
+| **v1.9.0** | Política viva | Exceção vira regra escrita; versões auditáveis | — |
+| **v1.10.0** | Escala de UX | Upload em lote, lembretes, painel caixa-de-entrada | — |
 
 Depois, em aberto: Recomeça como 2º produto sobre a mesma plataforma de agente.
 
@@ -83,8 +84,11 @@ Depois, em aberto: Recomeça como 2º produto sobre a mesma plataforma de agente
 ## Pendências operacionais (não esquecer)
 
 - [ ] Revisar PRODUTO.md, ARQUITETURA.md e DECISOES.md (você)
-- [ ] Instalar Evolution API na VPS + número dedicado (bloqueio da v1.5.0)
-- [ ] SMTP (Resend/SES ou similar — 20 min)
+- [x] Instalar Evolution API na VPS + número dedicado ✅ (feito 12/08)
+- [ ] Deploy da v1.6.0 na VPS + `.env`: EVOLUTION_API_URL/KEY/INSTANCE + AGENT_WHATSAPP_NUMBER
+- [ ] Apontar webhook do Evolution → `https://oreembolsobot.app/api/whatsapp/webhook`
+- [ ] Teste de fogo: cadastrar colaborador real → enviar convite → "oi" no WhatsApp
+- [ ] SMTP (Resend/SES ou similar — 20 min) — sem ele o convite é link manual
 - [ ] Revogar o 3º token do GitHub após os deploys (segurança)
 - [ ] Backup do Caddyfile da VPS em repo privado de infra
 - [ ] Comentário no teste do parser: "PDF real" → "documento fictício"
