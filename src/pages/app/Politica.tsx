@@ -338,6 +338,7 @@ export default function Politica() {
                 confiancaExtracao={extracao.confiancaExtracao}
                 provedor={extracao.provedor}
                 avisos={extracao.avisos}
+                textoExtraido={extracao.textoExtraido}
                 salvando={updateRegras.isPending}
                 onVoltar={() => setStep(1)}
                 onSalvar={() => void salvarRegras()}
@@ -354,6 +355,12 @@ export default function Politica() {
               transition={{ duration: 0.25, ease: "easeOut" }}
               className="flex flex-col gap-4"
             >
+              <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-5 shadow-card">
+                <h3 className="font-display text-[15px] font-semibold text-text-900">
+                  Regras que serão ativadas
+                </h3>
+                {form && <PoliticaResumo regras={regrasFromForm(form)} />}
+              </div>
               <div className="rounded-xl border border-line bg-surface p-5 shadow-card">
                 <p className="mb-4 text-[13px] leading-relaxed text-text-500">
                   Teste o agente antes de ativar: ajuste categoria, valor e contexto e veja o

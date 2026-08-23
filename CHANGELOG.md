@@ -4,6 +4,35 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [Unreleased] — branch `feat/policy-llm-gemini` (base 1.4.0; versão definida no merge em `master`)
+
+**Política da empresa: tudo nasce do documento.** O gestor vê o texto que o
+OCR leu e ajusta as regras extraídas antes de ativar.
+
+### Adicionado
+- **Parser de política via LLM** (provider plugável, mesmo padrão do OCR):
+  `mistral` (OCR `mistral-ocr-latest` + chat `json_object`) e `gemini`
+  (leitura nativa de PDF/imagem). Seleção por `POLICY_PROVIDER`
+  (`heuristico` | `mistral` | `llm` = alias de mistral); falha do LLM cai no
+  heurístico com aviso — o upload nunca quebra. Variáveis `MISTRAL_API_KEY`,
+  `MISTRAL_MODEL`, `MISTRAL_OCR_MODEL`, `GEMINI_API_KEY`, `OCR_GEMINI_MODEL`
+  passam pelo `docker-compose.yml`
+- **Texto lido do documento** no passo "Revisar regras": painel lado a lado
+  (desktop) / accordion (mobile) com confiança da extração, parser usado,
+  avisos (inclusive páginas com problema de leitura) e o texto do OCR
+- **Regras extraídas editáveis**: agrupadas por tema, com editar inline,
+  remover e adicionar (com seletor de tema) antes de ativar; passo
+  "Simular e ativar" mostra "Regras que serão ativadas"
+- `APP_URL` no ambiente; cookie de sessão só leva `Secure` quando a URL
+  pública é HTTPS
+- Testes: `texto.test.ts`, `mistral.test.ts`, `observacoes.test.ts`
+  (vitest passa a coletar `src/**/*.test.ts`)
+
+### Alterado
+- Parser Mistral grava o markdown integral do OCR em `texto_extraido`
+  (truncado a 65 000 bytes UTF-8, sem partir caractere); o resumo da
+  extração passou para os avisos. Heurístico usa o mesmo truncamento
+
 ## [1.4.0] — 2026-08-09
 
 ### Adicionado

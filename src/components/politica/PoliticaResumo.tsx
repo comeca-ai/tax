@@ -10,6 +10,7 @@ import type { CategoriaDespesa, RegrasPolitica } from "@contracts/types"
 import { CATEGORIA_META } from "@/components/despesas/meta"
 import { formatBRL } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { agruparObservacoes } from "./observacoes"
 
 interface PoliticaResumoProps {
   regras: RegrasPolitica
@@ -136,14 +137,28 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
 
       {regras.observacoes.length > 0 && (
         <Linha icone={StickyNote} titulo="Observações da política">
-          <ul className="flex flex-col gap-1">
-            {regras.observacoes.map((obs, i) => (
-              <li key={i} className="flex items-start gap-2 text-[12px] leading-relaxed text-text-500">
-                <CircleCheck className="mt-0.5 h-3 w-3 shrink-0 text-conf-alta-dot" />
-                {obs}
-              </li>
-            ))}
-          </ul>
+          <div className="flex w-full flex-col gap-2.5">
+            {agruparObservacoes(regras.observacoes)
+              .filter((grupo) => grupo.itens.length > 0)
+              .map((grupo) => (
+                <div key={grupo.indiceCabecalho ?? "sem-tema"} className="flex flex-col gap-1">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.04em] text-text-500">
+                    {grupo.tema ?? "Sem tema"}
+                  </span>
+                  <ul className="flex flex-col gap-1">
+                    {grupo.itens.map((item) => (
+                      <li
+                        key={item.indice}
+                        className="flex items-start gap-2 text-[12px] leading-relaxed text-text-500"
+                      >
+                        <CircleCheck className="mt-0.5 h-3 w-3 shrink-0 text-conf-alta-dot" />
+                        {item.texto}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+          </div>
         </Linha>
       )}
     </div>

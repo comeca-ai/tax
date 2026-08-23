@@ -1,4 +1,5 @@
 import { MistralPolicyParser } from "./mistral";
+import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
 import {
   regrasPoliticaSchema,
   type CategoriaDespesa,
@@ -249,7 +250,7 @@ export class HeuristicPolicyParser implements PolicyParser {
     }
 
     return {
-      textoExtraido: texto.slice(0, 60000),
+      textoExtraido: truncarUtf8(texto, LIMITE_TEXTO_EXTRAIDO_BYTES),
       regras,
       confiancaExtracao,
       camposPendentes,

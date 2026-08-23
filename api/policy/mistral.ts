@@ -6,6 +6,7 @@ import {
   type RegrasPolitica,
 } from "@contracts/types";
 import type { ArquivoPolitica, PolicyParser } from "./parser";
+import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
 
 /**
  * Parser LLM da política de reembolso via Mistral (v1.6.0).
@@ -94,7 +95,12 @@ type RegraLLM = {
 
 type RulesetLLM = {
   politica?: { titulo?: string; vigencia?: string | null; moeda_padrao?: string };
-  qualidade_extracao?: { legivel?: boolean; confianca?: number; observacoes?: string };
+  qualidade_extracao?: {
+    legivel?: boolean;
+    confianca?: number;
+    paginas_com_problema?: number[];
+    observacoes?: string;
+  };
   regras?: RegraLLM[];
   ambiguidades?: { severidade?: string; local?: string; descricao?: string; impacto?: string }[];
 };
@@ -132,6 +138,24 @@ function fmtValor(r: RegraLLM): string {
   const unidade = r.unidade_limite ?? r.limite?.unidade ?? null;
   const sufixo = unidade && !unidade.startsWith("dias_") ? `/${unidade}` : "";
   return ` — até ${moedaDe(r) === "BRL" ? "R$" : moedaDe(r)} ${v}${sufixo}`;
+}
+
+/** Avisos ao gestor a partir do bloco `qualidade_extracao` devolvido pelo modelo. */
+export function avisosQualidade(q: RulesetLLM["qualidade_extracao"]): string[] {
+  const out: string[] = [];
+  if (q?.observacoes) out.push(q.observacoes);
+  const paginas = Array.isArray(q?.paginas_com_problema)
+    ? q.paginas_com_problema.filter((p) => Number.isInteger(p) && p > 0)
+    : [];
+  if (paginas.length) {
+    out.push(
+      `Páginas com problema de leitura: ${paginas.join(", ")}. Confira o texto lido nesses trechos.`,
+    );
+  }
+  if (q && q.legivel === false) {
+    out.push("O modelo sinalizou o documento como pouco legível. Revise todas as regras.");
+  }
+  return out;
 }
 
 /** Converte o ruleset temático do LLM no contrato estável RegrasPolitica. */
@@ -312,12 +336,12 @@ export class MistralPolicyParser implements PolicyParser {
       const confianca = typeof bruto === "number" ? Math.max(0, Math.min(1, bruto)) : 0;
       const { regras, camposPendentes, resumo } = mapearRuleset(ruleset);
       return {
-        textoExtraido: resumo,
+        textoExtraido: truncarUtf8(texto, LIMITE_TEXTO_EXTRAIDO_BYTES),
         regras,
         confiancaExtracao: confianca >= 0.85 ? "alta" : confianca >= 0.7 ? "media" : "baixa",
         camposPendentes,
         provedor: `mistral:${modelo}`,
-        avisos: ruleset.qualidade_extracao?.observacoes ? [ruleset.qualidade_extracao.observacoes] : [],
+        avisos: [resumo.replace(/\n/g, " · "), ...avisosQualidade(ruleset.qualidade_extracao)],
       };
     } catch (erro) {
       if (!this.criarFallback) throw erro;
