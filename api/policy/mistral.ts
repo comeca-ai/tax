@@ -22,7 +22,7 @@ import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
  *
  * Env:
  *  - MISTRAL_API_KEY     (obrigatória p/ este provider)
- *  - MISTRAL_MODEL       (default "mistral-large-latest")
+ *  - MISTRAL_MODEL       (default "mistral-medium-latest" — ~2× mais rápido que o large na extração, mesma qualidade)
  *  - MISTRAL_OCR_MODEL   (default "mistral-ocr-latest")
  *
  * Falhas (rede/quota/JSON inválido) caem no parser de fallback (heurístico)
@@ -61,17 +61,16 @@ Regras de preenchimento:
 - "reembolsavel" so aceita: "sim" (reembolsavel dentro da regra), "excecao" (apenas com aprovacao superior) ou "vedado" (nunca reembolsavel).
 - Cada limite monetario vira uma regra propria. "valor_limite" e numero puro, sem simbolo e sem separador de milhar.
 - Nao invente valores. Se a politica nao definir limite, use null e registre o caso em "ambiguidades".
-- Em "temas", os contadores devem bater com a lista "regras".
 - Liste em "ambiguidades" todo ponto que impeca decisao automatica: limite ausente, recomendacao que nao e vedacao, prazo com contagem indefinida, conflito entre secoes.
 - Use apenas o que esta escrito no documento. Nao aplique conhecimento externo.
+- Seja conciso: "descricao" e "condicao" com no maximo 200 caracteres cada, sem copiar paragrafos do documento; no maximo 15 ambiguidades, as mais relevantes.
 
-Responda APENAS com um JSON valido (sem markdown, sem comentarios), exatamente nesta estrutura:
+Responda APENAS com um JSON valido, COMPACTO (sem markdown, sem comentarios, sem quebras de linha ou espacos decorativos), exatamente nesta estrutura:
 {
   "politica": { "titulo": string, "vigencia": string ou null, "moeda_padrao": string },
   "qualidade_extracao": { "legivel": boolean, "confianca": numero entre 0 e 1, "paginas_com_problema": [numeros], "observacoes": string },
-  "temas": [ { "tema": string, "titulo": string, "total_regras": numero, "reembolsaveis": numero, "excecoes": numero, "vedadas": numero, "regras": [ids] } ],
-  "regras": [ { "id": string kebab-case, "tema": string, "categoria": string, "descricao": string, "condicao": string ou null, "reembolsavel": "sim"|"excecao"|"vedado", "valor_limite": numero ou null, "moeda": string ou null, "unidade_limite": "dia"|"mes"|"viagem"|"evento"|"percentual"|"dias_antecedencia"|"dias_para_pagamento" ou null, "escopo": "nacional"|"internacional"|"ambos", "exige_comprovante": boolean, "aprovacao_minima": string ou null, "prazo_envio_dias": numero ou null, "base_documental": string } ],
-  "ambiguidades": [ { "id": string kebab-case, "severidade": "alta"|"media"|"baixa", "local": string, "descricao": string, "impacto": string } ]
+  "regras": [ { "id": string kebab-case, "tema": string, "categoria": string, "descricao": string, "condicao": string ou null, "reembolsavel": "sim"|"excecao"|"vedado", "valor_limite": numero ou null, "moeda": string ou null, "unidade_limite": "dia"|"mes"|"viagem"|"evento"|"percentual"|"dias_antecedencia"|"dias_para_pagamento" ou null, "exige_comprovante": boolean } ],
+  "ambiguidades": [ { "id": string kebab-case, "severidade": "alta"|"media"|"baixa", "local": string, "descricao": string } ]
 }`;
 
 type RegraLLM = {
@@ -264,10 +263,17 @@ async function ocrDocumento(input: ArquivoPolitica, apiKey: string, modelo: stri
   return texto;
 }
 
+/** Teto de tokens da resposta JSON. 8 000 cortava políticas com dezenas de regras (~25 KB de JSON). */
+const MAX_TOKENS_SAIDA = 32_000;
+
 /** Passo 2: chat estrutura o texto no ruleset JSON. */
 async function estruturarRuleset(texto: string, apiKey: string, modelo: string): Promise<RulesetLLM> {
   let ultimaFalha = "";
   for (let tentativa = 1; tentativa <= 2; tentativa++) {
+    // 2ª tentativa após resposta cortada/inválida: pede o mesmo JSON de forma compacta
+    const instrucaoCompacta = ultimaFalha.startsWith("cortada")
+      ? "\n\nIMPORTANTE: a resposta anterior foi cortada por tamanho. Responda o MESMO JSON de forma compacta: sem espacos ou quebras de linha decorativas, campos de texto curtos (ate 200 caracteres), sem repetir trechos do documento."
+      : "";
     const resposta = await comTimeout(
       (signal) =>
         fetch("https://api.mistral.ai/v1/chat/completions", {
@@ -276,15 +282,18 @@ async function estruturarRuleset(texto: string, apiKey: string, modelo: string):
           body: JSON.stringify({
             model: modelo,
             temperature: 0.1,
-            max_tokens: 8000,
+            max_tokens: MAX_TOKENS_SAIDA,
             response_format: { type: "json_object" },
             messages: [
-              { role: "user", content: `${PROMPT_EXTRACAO}\n\nDOCUMENTO (texto extraído por OCR):\n${texto.slice(0, 120_000)}` },
+              {
+                role: "user",
+                content: `${PROMPT_EXTRACAO}${instrucaoCompacta}\n\nDOCUMENTO (texto extraído por OCR):\n${texto.slice(0, 120_000)}`,
+              },
             ],
           }),
           signal,
         }),
-      150_000,
+      240_000, // políticas longas: ~50-110 tokens/s × até 8k tokens de JSON; nginx está em 420 s
     );
     if (!resposta.ok) {
       ultimaFalha = `Mistral chat HTTP ${resposta.status}`;
@@ -295,11 +304,24 @@ async function estruturarRuleset(texto: string, apiKey: string, modelo: string):
       const corpo = await resposta.text().catch(() => "");
       throw new Error(`${ultimaFalha}: ${corpo.slice(0, 200)}`);
     }
-    const dados = (await resposta.json()) as { choices?: { message?: { content?: string } }[] };
-    const conteudo = dados.choices?.[0]?.message?.content ?? "";
+    const dados = (await resposta.json()) as {
+      choices?: { message?: { content?: string }; finish_reason?: string }[];
+    };
+    const escolha = dados.choices?.[0];
+    const conteudo = escolha?.message?.content ?? "";
     if (!conteudo) throw new Error("Mistral chat sem conteúdo na resposta");
+    // Resposta cortada pelo limite de tokens: JSON inválido garantido — repete pedindo compactação
+    if (escolha?.finish_reason === "length") {
+      ultimaFalha = `cortada pelo limite de ${MAX_TOKENS_SAIDA} tokens de saída`;
+      continue;
+    }
     const semCercas = conteudo.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-    return JSON.parse(semCercas) as RulesetLLM;
+    try {
+      return JSON.parse(semCercas) as RulesetLLM;
+    } catch (erro) {
+      ultimaFalha = `cortada/inválida (${erro instanceof Error ? erro.message : String(erro)})`;
+      continue;
+    }
   }
   throw new Error(ultimaFalha || "Mistral indisponível");
 }
@@ -311,7 +333,7 @@ export class MistralPolicyParser implements PolicyParser {
 
   async extract(input: ArquivoPolitica): Promise<PolicyExtracao> {
     const apiKey = process.env.MISTRAL_API_KEY;
-    const modelo = process.env.MISTRAL_MODEL ?? "mistral-large-latest";
+    const modelo = process.env.MISTRAL_MODEL ?? "mistral-medium-latest";
     const modeloOcr = process.env.MISTRAL_OCR_MODEL ?? "mistral-ocr-latest";
 
     if (!apiKey) {

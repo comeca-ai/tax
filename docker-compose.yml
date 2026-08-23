@@ -49,7 +49,7 @@ services:
       # Consulta CNPJ na Receita via ReceitaWS (opcional — v1.3.0)
       RECEITAWS_TOKEN: ${RECEITAWS_TOKEN:-}
       MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
-      MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-large-latest}
+      MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-medium-latest}
       MISTRAL_OCR_MODEL: ${MISTRAL_OCR_MODEL:-mistral-ocr-latest}
       POLICY_PROVIDER: ${POLICY_PROVIDER:-heuristico}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}

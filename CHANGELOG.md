@@ -28,6 +28,13 @@ OCR leu e ajusta as regras extraídas antes de ativar.
 - Testes: `texto.test.ts`, `mistral.test.ts`, `observacoes.test.ts`
   (vitest passa a coletar `src/**/*.test.ts`)
 
+### Corrigido
+- Parser Mistral: política com dezenas de regras estourava `max_tokens` (8 000) e
+  devolvia JSON cortado → caía no heurístico. Agora: teto 32 000 tokens, detecção
+  de `finish_reason=length`/JSON inválido com nova tentativa compacta, prompt
+  enxuto (só os campos consumidos pelo mapeador), modelo padrão
+  `mistral-medium-latest` (~2× mais rápido) e timeout do chat de 240 s
+
 ### Alterado
 - Parser Mistral grava o markdown integral do OCR em `texto_extraido`
   (truncado a 65 000 bytes UTF-8, sem partir caractere); o resumo da
