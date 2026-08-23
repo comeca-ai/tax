@@ -93,3 +93,62 @@ export function resumoValor(r: RegraExtraida): string | null {
   const unidade = r.unidadeLimite && !r.unidadeLimite.startsWith("dias_") ? `/${r.unidadeLimite}` : ""
   return `até ${valor}${unidade}`
 }
+
+/** Rótulo curto para a coluna de badge do resumo (passo 3 / política ativa). */
+export const REEMBOLSAVEL_LABELS_CURTO: Record<ReembolsavelRegra, string> = {
+  sim: "Sim",
+  excecao: "Exceção",
+  vedado: "Vedado",
+}
+
+/** "1 regra" · "2 regras". Plural padrão = singular + "s" salvo quando informado. */
+export function plural(n: number, singular: string, pluralForma = `${singular}s`): string {
+  return `${n} ${n === 1 ? singular : pluralForma}`
+}
+
+export interface ContagemRegras {
+  total: number
+  sim: number
+  excecao: number
+  vedado: number
+  /** Temas distintos com ao menos uma regra. */
+  temas: number
+}
+
+export function contarRegras(regras: RegraExtraida[]): ContagemRegras {
+  const c: ContagemRegras = { total: regras.length, sim: 0, excecao: 0, vedado: 0, temas: 0 }
+  const temas = new Set<TemaPolitica>()
+  for (const r of regras) {
+    c[r.reembolsavel]++
+    temas.add(r.tema)
+  }
+  c.temas = temas.size
+  return c
+}
+
+/** "12 regras · 3 vedadas · 2 exceções" — partes zeradas são omitidas; total sempre aparece. */
+export function resumoGrupo(itens: RegraExtraida[]): string {
+  const c = contarRegras(itens)
+  const partes = [plural(c.total, "regra")]
+  if (c.vedado > 0) partes.push(plural(c.vedado, "vedada"))
+  if (c.excecao > 0) partes.push(plural(c.excecao, "exceção", "exceções"))
+  return partes.join(" · ")
+}
+
+/**
+ * Valor da regra para o resumo escaneável (unidade por extenso via UNIDADE_LABELS):
+ *  - percentual → "10%" (nunca moeda)
+ *  - dias_antecedencia / dias_para_pagamento → "30 dias de antecedência" (sem "até", sem moeda)
+ *  - BRL → "até R$ 80,00 por dia" | "até R$ 500,00" (sem unidade)
+ *  - outra moeda → "até USD 80 por viagem" (código ISO, número sem formatação pt-BR)
+ *  - sem valorLimite → null
+ * Não substitui `resumoValor` (usado no passo 2).
+ */
+export function formatarLimite(r: RegraExtraida): string | null {
+  if (r.valorLimite === null) return null
+  const u = r.unidadeLimite
+  if (u === "percentual") return `${r.valorLimite}%`
+  if (u === "dias_antecedencia" || u === "dias_para_pagamento") return `${r.valorLimite} ${UNIDADE_LABELS[u]}`
+  const valor = r.moeda === "BRL" ? formatBRL(r.valorLimite) : `${r.moeda} ${r.valorLimite}`
+  return u ? `até ${valor} ${UNIDADE_LABELS[u]}` : `até ${valor}`
+}

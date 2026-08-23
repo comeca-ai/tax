@@ -48,6 +48,11 @@ OCR leu e ajusta as regras extraídas antes de ativar.
 - Parser Mistral grava o markdown integral do OCR em `texto_extraido`
   (truncado a 65 000 bytes UTF-8, sem partir caractere); o resumo da
   extração passou para os avisos. Heurístico usa o mesmo truncamento
+- Resumo da política (passo "Simular e ativar" e card "Política ativa") ficou
+  escaneável: cabeçalho de números (regras · reembolsáveis · exceções · vedadas
+  · temas), "O que o agente vai aplicar" sobe para o topo em cards, regras
+  agrupadas em accordion por tema (fechado por padrão, "Expandir/Recolher
+  todos") com valor alinhado e unidade por extenso ("por dia", "%", "USD 80")
 
 ## [1.4.0] — 2026-08-09
 

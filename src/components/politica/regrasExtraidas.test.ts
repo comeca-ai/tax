@@ -4,10 +4,14 @@ import { formatBRL } from "@/lib/format"
 import {
   adicionarRegra,
   agruparPorTema,
+  contarRegras,
   editarRegra,
+  formatarLimite,
   gerarId,
   novaRegra,
+  plural,
   removerRegra,
+  resumoGrupo,
   resumoValor,
 } from "./regrasExtraidas"
 
@@ -105,5 +109,98 @@ describe("resumoValor", () => {
 
   it("sem valor devolve null", () => {
     expect(resumoValor(regra("x", "alimentacao"))).toBeNull()
+  })
+})
+
+describe("plural", () => {
+  it("singular, plural padrão e plural informado", () => {
+    expect(plural(1, "regra")).toBe("1 regra")
+    expect(plural(2, "regra")).toBe("2 regras")
+    expect(plural(0, "exceção", "exceções")).toBe("0 exceções")
+    expect(plural(1, "exceção", "exceções")).toBe("1 exceção")
+  })
+})
+
+describe("contarRegras", () => {
+  it("lista vazia zera tudo", () => {
+    expect(contarRegras([])).toEqual({ total: 0, sim: 0, excecao: 0, vedado: 0, temas: 0 })
+  })
+
+  it("conta por reembolsavel e temas distintos", () => {
+    const lista = [
+      regra("a1", "alimentacao"),
+      regra("a2", "alimentacao", { reembolsavel: "vedado" }),
+      regra("g1", "governanca-do-processo", { reembolsavel: "excecao" }),
+    ]
+    expect(contarRegras(lista)).toEqual({ total: 3, sim: 1, excecao: 1, vedado: 1, temas: 2 })
+  })
+
+  it("regras do mesmo tema contam 1 tema", () => {
+    expect(contarRegras([regra("a1", "alimentacao"), regra("a2", "alimentacao")]).temas).toBe(1)
+  })
+})
+
+describe("resumoGrupo", () => {
+  it("só sim mostra apenas o total", () => {
+    expect(resumoGrupo([regra("1", "saude"), regra("2", "saude"), regra("3", "saude")])).toBe("3 regras")
+  })
+
+  it("singular de vedada", () => {
+    expect(resumoGrupo([regra("1", "saude", { reembolsavel: "vedado" })])).toBe("1 regra · 1 vedada")
+  })
+
+  it("mistura na ordem total, vedadas, exceções", () => {
+    const lista = [
+      regra("1", "saude"),
+      regra("2", "saude", { reembolsavel: "vedado" }),
+      regra("3", "saude", { reembolsavel: "vedado" }),
+      regra("4", "saude", { reembolsavel: "excecao" }),
+    ]
+    expect(resumoGrupo(lista)).toBe("4 regras · 2 vedadas · 1 exceção")
+  })
+})
+
+describe("formatarLimite", () => {
+  it("BRL com unidade por extenso", () => {
+    expect(formatarLimite(regra("x", "alimentacao", { valorLimite: 80, unidadeLimite: "dia" }))).toBe(
+      `até ${formatBRL(80)} por dia`,
+    )
+    expect(formatarLimite(regra("x", "saude", { valorLimite: 1200, unidadeLimite: "mes" }))).toMatch(/por mês$/)
+  })
+
+  it("BRL sem unidade", () => {
+    expect(formatarLimite(regra("x", "alimentacao", { valorLimite: 500 }))).toBe(`até ${formatBRL(500)}`)
+  })
+
+  it("moeda estrangeira com código ISO e número sem formatação", () => {
+    expect(
+      formatarLimite(regra("x", "hospedagem-e-viagem", { valorLimite: 80, moeda: "USD", unidadeLimite: "viagem" })),
+    ).toBe("até USD 80 por viagem")
+  })
+
+  it("percentual nunca mostra moeda", () => {
+    const saida = formatarLimite(regra("x", "saude", { valorLimite: 10, moeda: "USD", unidadeLimite: "percentual" }))
+    expect(saida).toBe("10%")
+    expect(saida).not.toContain("R$")
+    expect(saida).not.toContain("USD")
+  })
+
+  it("dias_* sem 'até' e sem moeda", () => {
+    expect(
+      formatarLimite(regra("x", "governanca-do-processo", { valorLimite: 30, unidadeLimite: "dias_para_pagamento" })),
+    ).toBe("30 dias para pagamento")
+    expect(
+      formatarLimite(regra("x", "governanca-do-processo", { valorLimite: 7, unidadeLimite: "dias_antecedencia" })),
+    ).toBe("7 dias de antecedência")
+  })
+
+  it("sem valor devolve null", () => {
+    expect(formatarLimite(regra("x", "alimentacao"))).toBeNull()
+  })
+
+  it("resumoValor do passo 2 não muda", () => {
+    expect(resumoValor(regra("x", "alimentacao", { valorLimite: 80, unidadeLimite: "dia" }))).toBe(
+      `até ${formatBRL(80)}/dia`,
+    )
   })
 })
