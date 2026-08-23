@@ -1,10 +1,18 @@
 import {
-  CATEGORIAS_DESPESA,
+  REEMBOLSAVEL_REGRA,
+  REGRA_TEXTO_MAX,
+  TEMAS_POLITICA,
+  UNIDADES_LIMITE,
   regrasPoliticaSchema,
   type CategoriaDespesa,
   type PolicyExtracao,
+  type RegraExtraida,
   type RegrasPolitica,
+  type ReembolsavelRegra,
+  type TemaPolitica,
+  type UnidadeLimite,
 } from "@contracts/types";
+import { consolidarRegras } from "./derivar";
 import type { ArquivoPolitica, PolicyParser } from "./parser";
 import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
 
@@ -28,18 +36,6 @@ import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
  * Falhas (rede/quota/JSON inválido) caem no parser de fallback (heurístico)
  * com aviso — o upload nunca quebra por indisponibilidade do LLM.
  */
-
-const TEMAS = [
-  ["alimentacao", "Alimentação"],
-  ["transporte-e-deslocamento", "Transporte e deslocamento"],
-  ["hospedagem-e-viagem", "Hospedagem e viagem"],
-  ["saude", "Saúde"],
-  ["educacao-e-desenvolvimento", "Educação e desenvolvimento"],
-  ["tecnologia-e-escritorio", "Tecnologia e escritório"],
-  ["eventos-e-relacionamento", "Eventos e relacionamento"],
-  ["mudanca-e-transferencia", "Mudança e transferência"],
-  ["governanca-do-processo", "Governança do processo"],
-] as const;
 
 const PROMPT_EXTRACAO = `Voce e um analista senior de politicas corporativas de reembolso de despesas.
 Leia o documento abaixo (politica de reembolso de uma empresa) e extraia TODAS as regras de reembolso.
@@ -104,7 +100,9 @@ type RulesetLLM = {
   ambiguidades?: { severidade?: string; local?: string; descricao?: string; impacto?: string }[];
 };
 
-const TEMA_TITULO = new Map<string, string>(TEMAS.map(([slug, titulo]) => [slug, titulo]));
+const TEMAS_VALIDOS = new Set<string>(TEMAS_POLITICA.map(([slug]) => slug));
+const REEMBOLSAVEIS_VALIDOS = new Set<string>(REEMBOLSAVEL_REGRA);
+const UNIDADES_VALIDAS = new Set<string>(UNIDADES_LIMITE);
 
 function categoriaApp(r: RegraLLM): CategoriaDespesa | null {
   const texto = `${r.id ?? ""} ${r.descricao ?? ""}`.toLowerCase();
@@ -127,16 +125,63 @@ function valorLimite(r: RegraLLM): number | null {
   return v !== null && Number.isFinite(v) && v >= 0 ? v : null;
 }
 
+/** Moeda ISO (3 letras, maiúsculas); qualquer outra coisa vira BRL. */
 function moedaDe(r: RegraLLM): string {
-  return (r.moeda ?? r.limite?.moeda ?? "BRL").toUpperCase();
+  const bruta = r.moeda ?? r.limite?.moeda;
+  const moeda = typeof bruta === "string" ? bruta.trim().toUpperCase() : "BRL";
+  return /^[A-Z]{3}$/.test(moeda) ? moeda : "BRL";
 }
 
-function fmtValor(r: RegraLLM): string {
-  const v = valorLimite(r);
-  if (v === null) return "";
+function unidadeDe(r: RegraLLM): UnidadeLimite | null {
   const unidade = r.unidade_limite ?? r.limite?.unidade ?? null;
-  const sufixo = unidade && !unidade.startsWith("dias_") ? `/${unidade}` : "";
-  return ` — até ${moedaDe(r) === "BRL" ? "R$" : moedaDe(r)} ${v}${sufixo}`;
+  return typeof unidade === "string" && UNIDADES_VALIDAS.has(unidade) ? (unidade as UnidadeLimite) : null;
+}
+
+/** Texto do LLM saneado: string não vazia, trim, até REGRA_TEXTO_MAX caracteres; senão null. */
+function texto300(valor: unknown): string | null {
+  const limpo = typeof valor === "string" ? valor.trim().slice(0, REGRA_TEXTO_MAX).trim() : "";
+  return limpo ? limpo : null;
+}
+
+/** Id kebab-case `[a-z0-9-]`; vazio → `regra-N`; repetido → sufixo `-2`, `-3`… */
+function idUnico(bruto: unknown, indice: number, usados: Set<string>): string {
+  const base =
+    (typeof bruto === "string" ? bruto : "")
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 70) || `regra-${indice + 1}`;
+  let id = base;
+  for (let n = 2; usados.has(id); n++) id = `${base}-${n}`;
+  usados.add(id);
+  return id;
+}
+
+/** Sanea cada regra do LLM no contrato `RegraExtraida` (lixo parcial nunca derruba o upload). */
+function regrasExtraidasDe(regras: RegraLLM[]): RegraExtraida[] {
+  const usados = new Set<string>();
+  const out: RegraExtraida[] = [];
+  regras.forEach((r, i) => {
+    if (out.length >= 500) return; // teto do contrato (regrasExtraidas.max(500))
+    const descricao = texto300(r.descricao);
+    if (!descricao) return;
+    out.push({
+      id: idUnico(r.id, i, usados),
+      tema: typeof r.tema === "string" && TEMAS_VALIDOS.has(r.tema) ? (r.tema as TemaPolitica) : "governanca-do-processo",
+      categoria: categoriaApp(r),
+      descricao,
+      condicao: texto300(r.condicao),
+      reembolsavel:
+        typeof r.reembolsavel === "string" && REEMBOLSAVEIS_VALIDOS.has(r.reembolsavel)
+          ? (r.reembolsavel as ReembolsavelRegra)
+          : "sim",
+      valorLimite: valorLimite(r),
+      moeda: moedaDe(r),
+      unidadeLimite: unidadeDe(r),
+      exigeComprovante: r.exige_comprovante === true,
+    });
+  });
+  return out;
 }
 
 /** Avisos ao gestor a partir do bloco `qualidade_extracao` devolvido pelo modelo. */
@@ -157,7 +202,7 @@ export function avisosQualidade(q: RulesetLLM["qualidade_extracao"]): string[] {
   return out;
 }
 
-/** Converte o ruleset temático do LLM no contrato estável RegrasPolitica. */
+/** Converte o ruleset temático do LLM no contrato estável RegrasPolitica (parâmetros derivados das regras). */
 export function mapearRuleset(ruleset: RulesetLLM): {
   regras: RegrasPolitica;
   camposPendentes: string[];
@@ -166,41 +211,11 @@ export function mapearRuleset(ruleset: RulesetLLM): {
   const regras = Array.isArray(ruleset.regras) ? ruleset.regras : [];
   const ambiguidades = Array.isArray(ruleset.ambiguidades) ? ruleset.ambiguidades : [];
 
-  const limites: Partial<Record<CategoriaDespesa, number | null>> = {};
-  for (const cat of CATEGORIAS_DESPESA) {
-    const valores = regras
-      .filter((r) => categoriaApp(r) === cat && r.reembolsavel === "sim" && moedaDe(r) === "BRL")
-      .map((r) => valorLimite(r))
-      .filter((v): v is number => v !== null);
-    if (valores.length) limites[cat] = Math.max(...valores);
-  }
+  const regrasExtraidas = regrasExtraidasDe(regras);
 
-  const exigeEvidencia = regras.some((r) => r.exige_comprovante) ? [...CATEGORIAS_DESPESA] : [];
-
-  const porTema = new Map<string, string[]>();
-  for (const [slug] of TEMAS) porTema.set(slug, []);
-  for (const r of regras) {
-    if (!r.descricao) continue;
-    const slug = r.tema && TEMA_TITULO.has(r.tema) ? r.tema : "governanca-do-processo";
-    const marcador =
-      r.reembolsavel === "vedado" ? "VEDADO: " : r.reembolsavel === "excecao" ? "EXCEÇÃO (aprovação superior): " : "";
-    const condicao = r.condicao ? ` (${r.condicao})` : "";
-    porTema.get(slug)!.push(`${marcador}${r.descricao}${fmtValor(r)}${condicao}`);
-  }
-  const observacoes: string[] = [];
-  for (const [slug, titulo] of TEMAS) {
-    const linhas = porTema.get(slug) ?? [];
-    if (!linhas.length) continue;
-    observacoes.push(`— ${titulo} —`);
-    for (const linha of linhas) observacoes.push(linha);
-  }
-
-  const camposPendentes = [
-    "aprovacaoAutomaticaAte (política não define teto de aprovação automática)",
-    "revisaoHumanaAcimaDe (política não define valor de corte para revisão)",
-    "negacaoAcimaDe (política não define teto de negação)",
-    ...ambiguidades.slice(0, 15).map((a) => `${a.local ?? "documento"}: ${a.descricao ?? ""}`.slice(0, 200)),
-  ];
+  const camposPendentes = ambiguidades
+    .slice(0, 15)
+    .map((a) => `${a.local ?? "documento"}: ${a.descricao ?? ""}`.slice(0, 200));
 
   const totalPorTipo = (tipo: string) => regras.filter((r) => r.reembolsavel === tipo).length;
   const resumo = [
@@ -211,15 +226,7 @@ export function mapearRuleset(ruleset: RulesetLLM): {
   ].join("\n");
 
   return {
-    regras: regrasPoliticaSchema.parse({
-      limitesPorCategoria: limites,
-      exigeVeiculoCadastrado: [],
-      exigeEvidencia,
-      aprovacaoAutomaticaAte: null,
-      revisaoHumanaAcimaDe: null,
-      negacaoAcimaDe: null,
-      observacoes,
-    }),
+    regras: consolidarRegras(regrasPoliticaSchema.parse({ regrasExtraidas })),
     camposPendentes,
     resumo,
   };

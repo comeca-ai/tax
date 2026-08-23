@@ -55,7 +55,7 @@ export default function PoliticaTextoExtraido({
           </span>
           {camposPendentesQtd > 0 && (
             <span className="font-mono text-[11px] tracking-[0.02em] text-conf-media-text">
-              {camposPendentesQtd} campo(s) para conferir — destacados em âmbar
+              {camposPendentesQtd} ponto(s) para conferir — veja os avisos abaixo
             </span>
           )}
         </div>
@@ -97,7 +97,7 @@ export default function PoliticaTextoExtraido({
           </span>
           <p className="max-w-[32ch] text-[12px] leading-relaxed text-text-500">
             Arquivos binários sem camada de texto (PDF escaneado/imagem) só são lidos com o
-            provedor de OCR ativo. Preencha as regras manualmente ao lado.
+            provedor de OCR ativo. Cadastre as regras manualmente ao lado.
           </p>
         </div>
       )}

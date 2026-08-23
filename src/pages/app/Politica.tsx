@@ -20,6 +20,7 @@ import {
   regrasPoliticaSchema,
   STATUS_POLITICA_LABELS,
   type PolicyExtracao,
+  type RegrasPolitica,
   type StatusPolitica,
 } from "@contracts/types"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -93,6 +94,8 @@ export default function Politica() {
   const [politicaId, setPoliticaId] = useState<number | null>(null)
   const [extracao, setExtracao] = useState<PolicyExtracao | null>(null)
   const [form, setForm] = useState<RegrasForm | null>(null)
+  /** Regras consolidadas pelo servidor no último save — é o que o agente vai usar (passo 3). */
+  const [regrasSalvas, setRegrasSalvas] = useState<RegrasPolitica | null>(null)
   const [editados, setEditados] = useState<Set<string>>(new Set())
 
   const ativaQuery = trpc.politica.ativa.useQuery(
@@ -123,6 +126,7 @@ export default function Politica() {
     setPoliticaId(null)
     setExtracao(null)
     setForm(null)
+    setRegrasSalvas(null)
     setEditados(new Set())
     setStep(1)
     setModo("wizard")
@@ -158,7 +162,8 @@ export default function Politica() {
   async function salvarRegras() {
     if (!politicaId || !form) return
     try {
-      await updateRegras.mutateAsync({ id: politicaId, regras: regrasFromForm(form) })
+      const res = await updateRegras.mutateAsync({ id: politicaId, regras: regrasFromForm(form) })
+      setRegrasSalvas(res.regras)
       toast.success("Regras salvas", {
         description: "Simule o agente abaixo antes de ativar a política.",
       })
@@ -186,6 +191,7 @@ export default function Politica() {
       setPoliticaId(null)
       setExtracao(null)
       setForm(null)
+      setRegrasSalvas(null)
     } catch (erro) {
       toast.error("Falha ao ativar a política", {
         description: erro instanceof Error ? erro.message : undefined,
@@ -225,6 +231,7 @@ export default function Politica() {
         avisos: [],
       })
       setForm(formFromRegras(regras))
+      setRegrasSalvas(null)
       setEditados(new Set())
       setUpload({
         nome: politica.arquivoNome,
@@ -359,7 +366,7 @@ export default function Politica() {
                 <h3 className="font-display text-[15px] font-semibold text-text-900">
                   Regras que serão ativadas
                 </h3>
-                {form && <PoliticaResumo regras={regrasFromForm(form)} />}
+                {form && <PoliticaResumo regras={regrasSalvas ?? regrasFromForm(form)} />}
               </div>
               <div className="rounded-xl border border-line bg-surface p-5 shadow-card">
                 <p className="mb-4 text-[13px] leading-relaxed text-text-500">
@@ -451,8 +458,7 @@ export default function Politica() {
             </h3>
             <p className="text-sm leading-relaxed text-text-500">
               Envie o documento da política da empresa (PDF, imagem ou texto) e o agente extrai
-              limites por categoria, exigências e tetos de aprovação — você confere antes de
-              ativar.
+              as regras do documento — você confere e ajusta antes de ativar.
             </p>
           </div>
           <button

@@ -14,6 +14,7 @@ import {
   type ResultadoPolitica,
 } from "@contracts/types";
 import { getPolicyParser } from "../policy/parser";
+import { consolidarRegras } from "../policy/derivar";
 import { avaliarDespesa } from "../policy/agent";
 import { assertEmpresaAcesso, registrarLog } from "./_shared";
 
@@ -144,10 +145,12 @@ export const politicaRouter = createRouter({
       const politica = await buscarPoliticaOuFalhar(input.id);
       await assertEmpresaAcesso(ctx, politica.empresaId);
       const db = getDb();
+      // Limites, exigências e tetos nascem das regras extraídas (servidor é a fonte)
+      const regras = consolidarRegras(input.regras);
 
       await db
         .update(politicasReembolso)
-        .set({ regras: input.regras, camposPendentes: [] })
+        .set({ regras, camposPendentes: [] })
         .where(eq(politicasReembolso.id, politica.id));
 
       await registrarLog(db, {
@@ -156,10 +159,10 @@ export const politicaRouter = createRouter({
         acao: "politica.update_regras",
         entidade: "politica_reembolso",
         entidadeId: politica.id,
-        detalhes: "Regras editadas manualmente (preenchimento assistido).",
+        detalhes: `Regras editadas manualmente (${regras.regrasExtraidas.length} regras extraídas).`,
       });
 
-      return { ok: true };
+      return { ok: true, regras };
     }),
 
   /**
@@ -192,7 +195,11 @@ export const politicaRouter = createRouter({
           );
         await tx
           .update(politicasReembolso)
-          .set({ status: "ativa", versao: novaVersao })
+          .set({
+            status: "ativa",
+            versao: novaVersao,
+            regras: consolidarRegras(regrasPoliticaSchema.parse(politica.regras ?? {})),
+          })
           .where(eq(politicasReembolso.id, politica.id));
         return novaVersao;
       });

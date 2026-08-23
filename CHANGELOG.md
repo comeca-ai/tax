@@ -23,6 +23,15 @@ OCR leu e ajusta as regras extraídas antes de ativar.
 - **Regras extraídas editáveis**: agrupadas por tema, com editar inline,
   remover e adicionar (com seletor de tema) antes de ativar; passo
   "Simular e ativar" mostra "Regras que serão ativadas"
+- **Regras extraídas como única fonte** (`regrasExtraidas` em `RegrasPolitica`):
+  o passo "Revisar regras" mostra só cards estruturados por tema (categoria,
+  valor, unidade, reembolsável, comprovante); limites por categoria,
+  exigências e tetos gerais são derivados no servidor (`api/policy/derivar.ts`)
+  em `updateRegras`/`ativar` — teto geral só de regra de governança sem
+  categoria, classificada pelo campo `reembolsavel` (vedado → negação;
+  exceção → revisão humana; sim + "aprovação automática" no texto →
+  aprovação automática); nada é inferido de texto livre (D-013). `updateRegras` devolve as regras consolidadas; resumo do
+  passo 3 e do card "Política ativa" ganham o bloco "O que o agente vai aplicar"
 - `APP_URL` no ambiente; cookie de sessão só leva `Secure` quando a URL
   pública é HTTPS
 - Testes: `texto.test.ts`, `mistral.test.ts`, `observacoes.test.ts`

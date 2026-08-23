@@ -149,14 +149,7 @@ export class HeuristicPolicyParser implements PolicyParser {
         textoExtraido: null,
         regras: regrasPoliticaSchema.parse({}),
         confiancaExtracao: "baixa",
-        camposPendentes: [
-          "limitesPorCategoria",
-          "exigeVeiculoCadastrado",
-          "exigeEvidencia",
-          "aprovacaoAutomaticaAte",
-          "revisaoHumanaAcimaDe",
-          "negacaoAcimaDe",
-        ],
+        camposPendentes: ["regrasExtraidas"],
         provedor: this.nome,
         avisos: [
           "Arquivo binário (PDF/imagem) sem texto extraível: preencha as regras manualmente na revisão assistida. Conector LLM disponível via POLICY_PROVIDER=llm.",
@@ -165,6 +158,8 @@ export class HeuristicPolicyParser implements PolicyParser {
     }
 
     const regrasInput: Record<string, unknown> = {};
+    // Campos que a heurística não achou — só alimentam a confiança; o gestor
+    // cadastra as regras estruturadas (regrasExtraidas) na revisão assistida.
     const camposPendentes: string[] = [];
     const observacoes: string[] = [];
     let regrasExtraidas = 0;
@@ -232,6 +227,7 @@ export class HeuristicPolicyParser implements PolicyParser {
       observacoes.push(`Tarifa/km mencionada: "${t.trim()}"`);
     }
     regrasInput.observacoes = observacoes;
+    regrasInput.regrasExtraidas = [];
 
     const regras: RegrasPolitica = regrasPoliticaSchema.parse(regrasInput);
 
@@ -243,17 +239,15 @@ export class HeuristicPolicyParser implements PolicyParser {
           ? ("media" as const)
           : ("baixa" as const);
 
-    if (camposPendentes.length > 0) {
-      avisos.push(
-        `Regras não extraídas automaticamente: ${camposPendentes.join(", ")} — confirmar via preenchimento assistido.`,
-      );
-    }
+    avisos.push(
+      "Nenhuma regra estruturada extraída sem LLM: cadastre as regras manualmente na revisão assistida.",
+    );
 
     return {
       textoExtraido: truncarUtf8(texto, LIMITE_TEXTO_EXTRAIDO_BYTES),
       regras,
       confiancaExtracao,
-      camposPendentes,
+      camposPendentes: ["regrasExtraidas"],
       provedor: this.nome,
       avisos,
     };
