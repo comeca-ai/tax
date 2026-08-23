@@ -48,6 +48,12 @@ services:
       WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
       # Consulta CNPJ na Receita via ReceitaWS (opcional — v1.3.0)
       RECEITAWS_TOKEN: ${RECEITAWS_TOKEN:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-large-latest}
+      MISTRAL_OCR_MODEL: ${MISTRAL_OCR_MODEL:-mistral-ocr-latest}
+      POLICY_PROVIDER: ${POLICY_PROVIDER:-heuristico}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OCR_GEMINI_MODEL: ${OCR_GEMINI_MODEL:-gemini-2.5-flash}
       # OCR real (opcional): descomente e preencha
       # OCR_PROVIDER: vision
       # OCR_API_KEY: sk-...

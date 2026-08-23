@@ -1,3 +1,4 @@
+import { MistralPolicyParser } from "./mistral";
 import {
   regrasPoliticaSchema,
   type CategoriaDespesa,
@@ -286,7 +287,9 @@ export class LlmPolicyParser implements PolicyParser {
 
 const parsers: Record<string, () => PolicyParser> = {
   heuristico: () => new HeuristicPolicyParser(),
-  llm: () => new LlmPolicyParser(),
+  // "llm" mantido como alias de "mistral" para não quebrar POLICY_PROVIDER=llm já em uso
+  llm: () => new MistralPolicyParser(() => new HeuristicPolicyParser()),
+  mistral: () => new MistralPolicyParser(() => new HeuristicPolicyParser()),
 };
 
 export function getPolicyParser(): PolicyParser {

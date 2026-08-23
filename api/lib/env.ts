@@ -13,4 +13,5 @@ export const env = {
   appSecret: required("APP_SECRET"),
   isProduction: process.env.NODE_ENV === "production",
   databaseUrl: required("DATABASE_URL"),
+  appUrl: process.env.APP_URL || "http://localhost:3000",
 };
