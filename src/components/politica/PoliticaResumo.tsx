@@ -1,15 +1,34 @@
+import { useMemo, useState } from "react"
 import {
   CarFront,
+  ChevronsDownUp,
+  ChevronsUpDown,
   CircleCheck,
   CircleX,
   Paperclip,
   ScanSearch,
   StickyNote,
 } from "lucide-react"
-import type { CategoriaDespesa, RegrasPolitica } from "@contracts/types"
+import type { CategoriaDespesa, RegrasPolitica, ReembolsavelRegra } from "@contracts/types"
 import { CATEGORIA_META } from "@/components/despesas/meta"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { formatBRL } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { agruparObservacoes } from "./observacoes"
+import {
+  REEMBOLSAVEL_LABELS_CURTO,
+  agruparPorTema,
+  contarRegras,
+  formatarLimite,
+  plural,
+  resumoGrupo,
+} from "./regrasExtraidas"
+
+const BADGE_REEMBOLSAVEL: Record<ReembolsavelRegra, string> = {
+  sim: "bg-conf-alta-bg text-conf-alta-text",
+  excecao: "bg-conf-media-bg text-conf-media-text",
+  vedado: "bg-conf-vedado-bg text-conf-vedado-text",
+}
 
 interface PoliticaResumoProps {
   regras: RegrasPolitica
@@ -70,7 +89,9 @@ function ChipValor({ rotulo, valor, tone }: { rotulo: string; valor: number; ton
 /**
  * Resumo legível das regras da política de reembolso ativa (v1.1.0): limites
  * por categoria, exigências (veículo / evidência), limiares de decisão
- * automática e observações extraídas do documento.
+ * automática e observações extraídas do documento. Com regras estruturadas
+ * (v1.7), mostra cabeçalho de números, o que o agente vai aplicar (derivado)
+ * em cards e as regras em accordion por tema.
  */
 export default function PoliticaResumo({ regras, className }: PoliticaResumoProps) {
   const limites = (Object.entries(regras.limitesPorCategoria ?? {}) as [CategoriaDespesa, number | null][])
@@ -79,14 +100,23 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
     regras.aprovacaoAutomaticaAte != null ||
     regras.revisaoHumanaAcimaDe != null ||
     regras.negacaoAcimaDe != null
-  const semRegras =
-    limites.length === 0 &&
-    regras.exigeVeiculoCadastrado.length === 0 &&
-    regras.exigeEvidencia.length === 0 &&
-    !temLimiares &&
-    regras.observacoes.length === 0
+  const temParametros =
+    limites.length > 0 ||
+    regras.exigeVeiculoCadastrado.length > 0 ||
+    regras.exigeEvidencia.length > 0 ||
+    temLimiares
+  const semRegras = !temParametros && regras.observacoes.length === 0
+  const estruturadas = regras.regrasExtraidas.length > 0
 
-  if (semRegras) {
+  const contagem = useMemo(() => contarRegras(regras.regrasExtraidas), [regras.regrasExtraidas])
+  const grupos = useMemo(
+    () => agruparPorTema(regras.regrasExtraidas).filter((g) => g.itens.length > 0),
+    [regras.regrasExtraidas],
+  )
+  const [abertos, setAbertos] = useState<string[]>([])
+  const todosAbertos = grupos.length > 0 && abertos.length === grupos.length
+
+  if (semRegras && !estruturadas) {
     return (
       <p className={cn("font-mono text-[12px] text-text-500", className)}>
         Política sem regras específicas — toda despesa segue o fluxo padrão do motor tributário.
@@ -94,34 +124,39 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
     )
   }
 
-  return (
-    <div className={cn("flex flex-col gap-4", className)}>
-      {limites.length > 0 && (
-        <Linha icone={CircleX} titulo="Teto por categoria">
+  /** Parâmetros derivados (só os que têm conteúdo), na mesma ordem nos dois ramos. */
+  function blocosParametros(): React.ReactNode[] {
+    const blocos: React.ReactNode[] = []
+    if (limites.length > 0) {
+      blocos.push(
+        <Linha key="teto" icone={CircleX} titulo="Teto por categoria">
           {limites.map(([categoria, valor]) => (
             <ChipCategoria key={categoria} categoria={categoria} extra={`até ${formatBRL(valor!)}`} />
           ))}
-        </Linha>
-      )}
-
-      {regras.exigeVeiculoCadastrado.length > 0 && (
-        <Linha icone={CarFront} titulo="Exige veículo cadastrado">
+        </Linha>,
+      )
+    }
+    if (regras.exigeVeiculoCadastrado.length > 0) {
+      blocos.push(
+        <Linha key="veiculo" icone={CarFront} titulo="Exige veículo cadastrado">
           {regras.exigeVeiculoCadastrado.map((categoria) => (
             <ChipCategoria key={categoria} categoria={categoria} />
           ))}
-        </Linha>
-      )}
-
-      {regras.exigeEvidencia.length > 0 && (
-        <Linha icone={Paperclip} titulo="Exige evidência documental">
+        </Linha>,
+      )
+    }
+    if (regras.exigeEvidencia.length > 0) {
+      blocos.push(
+        <Linha key="evidencia" icone={Paperclip} titulo="Exige evidência documental">
           {regras.exigeEvidencia.map((categoria) => (
             <ChipCategoria key={categoria} categoria={categoria} />
           ))}
-        </Linha>
-      )}
-
-      {temLimiares && (
-        <Linha icone={ScanSearch} titulo="Decisão automática">
+        </Linha>,
+      )
+    }
+    if (temLimiares) {
+      blocos.push(
+        <Linha key="decisao" icone={ScanSearch} titulo="Decisão automática">
           {regras.aprovacaoAutomaticaAte != null && (
             <ChipValor rotulo="aprova até" valor={regras.aprovacaoAutomaticaAte} tone="alta" />
           )}
@@ -131,19 +166,158 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
           {regras.negacaoAcimaDe != null && (
             <ChipValor rotulo="nega acima de" valor={regras.negacaoAcimaDe} tone="vedado" />
           )}
-        </Linha>
-      )}
+        </Linha>,
+      )
+    }
+    return blocos
+  }
 
-      {regras.observacoes.length > 0 && (
+  if (estruturadas) {
+    return (
+      <div className={cn("flex flex-col gap-4", className)}>
+        <p className="font-mono text-[11px] tracking-[0.02em] text-text-500">
+          <span className="font-semibold text-text-900">{plural(contagem.total, "regra")}</span>
+          {" · "}
+          {plural(contagem.sim, "reembolsável", "reembolsáveis")}
+          {" · "}
+          {plural(contagem.excecao, "exceção", "exceções")}
+          {" · "}
+          {plural(contagem.vedado, "vedada")}
+          {" · "}
+          {plural(contagem.temas, "tema")}
+        </p>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-0.5">
+            <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.06em] text-text-500">
+              O que o agente vai aplicar
+            </span>
+            <p className="text-[11px] leading-relaxed text-text-500">
+              Derivado automaticamente das regras — não editável.
+            </p>
+          </div>
+          {temParametros ? (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {blocosParametros().map((bloco, idx) => (
+                <div key={idx} className="rounded-lg border border-line bg-paper px-3 py-2.5">
+                  {bloco}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed border-line bg-paper px-3 py-2.5 font-mono text-[12px] text-text-500">
+              Nenhum limite numérico — toda despesa vai para revisão humana.
+            </p>
+          )}
+        </div>
+
+        {grupos.length > 0 && (
+          <>
+            <div className="border-t border-dashed border-line" />
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.06em] text-text-500">
+                <StickyNote className="h-3 w-3" aria-hidden="true" />
+                Regras da política
+              </span>
+              <button
+                type="button"
+                onClick={() => setAbertos(todosAbertos ? [] : grupos.map((g) => g.tema))}
+                className="inline-flex h-7 items-center gap-1 rounded-md px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.04em] text-text-500 outline-none transition hover:bg-paper hover:text-text-900 focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                {todosAbertos ? (
+                  <ChevronsDownUp className="h-3 w-3" aria-hidden="true" />
+                ) : (
+                  <ChevronsUpDown className="h-3 w-3" aria-hidden="true" />
+                )}
+                {todosAbertos ? "Recolher todos" : "Expandir todos"}
+              </button>
+            </div>
+
+            <Accordion
+              type="multiple"
+              value={abertos}
+              onValueChange={setAbertos}
+              className="rounded-xl border border-line bg-surface px-3"
+            >
+              {grupos.map((grupo) => (
+                <AccordionItem key={grupo.tema} value={grupo.tema} className="border-line">
+                  <AccordionTrigger className="py-3 hover:no-underline">
+                    <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <span className="text-[13px] font-semibold text-text-900">{grupo.titulo}</span>
+                      <span className="font-mono text-[10px] tracking-[0.02em] text-text-500">
+                        {resumoGrupo(grupo.itens)}
+                      </span>
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-3">
+                    <ul className="flex flex-col divide-y divide-line/60">
+                      {grupo.itens.map((item, idx) => {
+                        const valor = formatarLimite(item)
+                        return (
+                          <li
+                            key={`${item.id}-${idx}`}
+                            className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2 gap-y-0.5 py-1.5 text-[12px] leading-relaxed"
+                          >
+                            <span
+                              className={cn(
+                                "mt-0.5 inline-flex h-4 w-[58px] items-center justify-center rounded-full font-mono text-[9px] font-medium uppercase tracking-[0.04em]",
+                                BADGE_REEMBOLSAVEL[item.reembolsavel],
+                              )}
+                            >
+                              {REEMBOLSAVEL_LABELS_CURTO[item.reembolsavel]}
+                            </span>
+                            <span className="min-w-0 break-words text-text-900">{item.descricao}</span>
+                            <span className="whitespace-nowrap text-right font-mono text-[11px] font-semibold tabular text-text-900">
+                              {valor ?? ""}
+                            </span>
+                            {item.condicao && (
+                              <span className="col-span-2 col-start-2 min-w-0 break-words text-[11px] leading-relaxed text-text-500">
+                                {item.condicao}
+                              </span>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn("flex flex-col gap-4", className)}>
+      {blocosParametros()}
+
+      {!estruturadas && regras.observacoes.length > 0 && (
         <Linha icone={StickyNote} titulo="Observações da política">
-          <ul className="flex flex-col gap-1">
-            {regras.observacoes.map((obs, i) => (
-              <li key={i} className="flex items-start gap-2 text-[12px] leading-relaxed text-text-500">
-                <CircleCheck className="mt-0.5 h-3 w-3 shrink-0 text-conf-alta-dot" />
-                {obs}
-              </li>
-            ))}
-          </ul>
+          <div className="flex w-full flex-col gap-2.5">
+            {agruparObservacoes(regras.observacoes)
+              .filter((grupo) => grupo.itens.length > 0)
+              .map((grupo) => (
+                <div key={grupo.indiceCabecalho ?? "sem-tema"} className="flex flex-col gap-1">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.04em] text-text-500">
+                    {grupo.tema ?? "Sem tema"}
+                  </span>
+                  <ul className="flex flex-col gap-1">
+                    {grupo.itens.map((item) => (
+                      <li
+                        key={item.indice}
+                        className="flex items-start gap-2 text-[12px] leading-relaxed text-text-500"
+                      >
+                        <CircleCheck className="mt-0.5 h-3 w-3 shrink-0 text-conf-alta-dot" />
+                        {item.texto}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+          </div>
         </Linha>
       )}
     </div>

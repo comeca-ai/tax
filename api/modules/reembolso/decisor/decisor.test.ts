@@ -10,6 +10,7 @@ const regras: RegrasPolitica = {
   exigeVeiculoCadastrado: [],
   exigeEvidencia: [],
   observacoes: [],
+  regrasExtraidas: [],
 };
 
 const base: ExtracaoNota = {

@@ -2,6 +2,8 @@
 // tenta ler ./test/data quando module.parent é undefined (vitest/bundle ESM)
 // @ts-expect-error — pdf-parse v1 não tem tipos para o subpath da lib
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
+import { MistralPolicyParser } from "./mistral";
+import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
 import {
   regrasPoliticaSchema,
   type CategoriaDespesa,
@@ -187,6 +189,7 @@ export class HeuristicPolicyParser implements PolicyParser {
           "aprovacaoAutomaticaAte",
           "revisaoHumanaAcimaDe",
           "negacaoAcimaDe",
+          "regrasExtraidas",
         ],
         provedor: this.nome,
         avisos: [
@@ -308,6 +311,9 @@ export class HeuristicPolicyParser implements PolicyParser {
       }
     }
     regrasInput.observacoes = observacoes;
+    // A heurística não gera regras estruturadas (fonte única RegraExtraida[]):
+    // o gestor cadastra na revisão assistida ou usa POLICY_PROVIDER=mistral.
+    regrasInput.regrasExtraidas = [];
 
     const regras: RegrasPolitica = regrasPoliticaSchema.parse(regrasInput);
 
@@ -319,14 +325,18 @@ export class HeuristicPolicyParser implements PolicyParser {
           ? ("media" as const)
           : ("baixa" as const);
 
+    camposPendentes.push("regrasExtraidas");
     if (camposPendentes.length > 0) {
       avisos.push(
         `Regras não extraídas automaticamente: ${camposPendentes.join(", ")} — confirmar via preenchimento assistido.`,
       );
     }
+    avisos.push(
+      "Nenhuma regra estruturada extraída sem LLM: cadastre as regras manualmente na revisão assistida.",
+    );
 
     return {
-      textoExtraido: texto.slice(0, 60000),
+      textoExtraido: truncarUtf8(texto, LIMITE_TEXTO_EXTRAIDO_BYTES),
       regras,
       confiancaExtracao,
       camposPendentes,
@@ -364,7 +374,9 @@ export class LlmPolicyParser implements PolicyParser {
 
 const parsers: Record<string, () => PolicyParser> = {
   heuristico: () => new HeuristicPolicyParser(),
-  llm: () => new LlmPolicyParser(),
+  // "llm" mantido como alias de "mistral" para não quebrar POLICY_PROVIDER=llm já em uso
+  llm: () => new MistralPolicyParser(() => new HeuristicPolicyParser()),
+  mistral: () => new MistralPolicyParser(() => new HeuristicPolicyParser()),
 };
 
 export function getPolicyParser(): PolicyParser {

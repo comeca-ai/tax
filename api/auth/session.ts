@@ -65,7 +65,9 @@ export function lerCookie(req: Request, nome: string): string | null {
 
 export function cookieSessao(token: string): string {
   const maxAge = Math.floor(SESSION_TTL_MS / 1000);
-  const secure = env.isProduction ? "; Secure" : "";
+  // Secure só quando a URL pública usa HTTPS — evita que deploys self-hosted
+  // em HTTP (ex.: http://IP:3000) rejeitem o cookie de sessão no navegador.
+  const secure = env.appUrl.startsWith("https://") ? "; Secure" : "";
   return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
 }
 

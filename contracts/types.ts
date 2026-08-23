@@ -273,6 +273,63 @@ export const CONFIANCA_EXTRACAO_LABELS: Record<ConfiancaExtracao, string> = {
   baixa: "Baixa",
 };
 
+/** Grandes temas de uma política de reembolso (slug, título) — ordem de exibição. */
+export const TEMAS_POLITICA = [
+  ["alimentacao", "Alimentação"],
+  ["transporte-e-deslocamento", "Transporte e deslocamento"],
+  ["hospedagem-e-viagem", "Hospedagem e viagem"],
+  ["saude", "Saúde"],
+  ["educacao-e-desenvolvimento", "Educação e desenvolvimento"],
+  ["tecnologia-e-escritorio", "Tecnologia e escritório"],
+  ["eventos-e-relacionamento", "Eventos e relacionamento"],
+  ["mudanca-e-transferencia", "Mudança e transferência"],
+  ["governanca-do-processo", "Governança do processo"],
+] as const;
+export type TemaPolitica = (typeof TEMAS_POLITICA)[number][0];
+export const TEMAS_POLITICA_SLUGS = [
+  "alimentacao",
+  "transporte-e-deslocamento",
+  "hospedagem-e-viagem",
+  "saude",
+  "educacao-e-desenvolvimento",
+  "tecnologia-e-escritorio",
+  "eventos-e-relacionamento",
+  "mudanca-e-transferencia",
+  "governanca-do-processo",
+] as const satisfies readonly TemaPolitica[];
+export const TEMA_POLITICA_TITULO = Object.fromEntries(TEMAS_POLITICA) as Record<TemaPolitica, string>;
+
+export const UNIDADES_LIMITE = [
+  "dia",
+  "mes",
+  "viagem",
+  "evento",
+  "percentual",
+  "dias_antecedencia",
+  "dias_para_pagamento",
+] as const;
+export type UnidadeLimite = (typeof UNIDADES_LIMITE)[number];
+export const REEMBOLSAVEL_REGRA = ["sim", "excecao", "vedado"] as const;
+export type ReembolsavelRegra = (typeof REEMBOLSAVEL_REGRA)[number];
+
+/** Tamanho máximo de `descricao` e `condicao` de uma regra (espelhado no `maxLength` do card de edição). */
+export const REGRA_TEXTO_MAX = 300;
+
+/** Uma regra estruturada extraída do documento (ou cadastrada pelo gestor). Fonte dos parâmetros derivados. */
+export const regraExtraidaSchema = z.object({
+  id: z.string().min(1).max(80),
+  tema: z.enum(TEMAS_POLITICA_SLUGS),
+  categoria: z.enum(CATEGORIAS_DESPESA).nullable().default(null),
+  descricao: z.string().trim().min(1).max(REGRA_TEXTO_MAX),
+  condicao: z.string().trim().max(REGRA_TEXTO_MAX).nullable().default(null),
+  reembolsavel: z.enum(REEMBOLSAVEL_REGRA).default("sim"),
+  valorLimite: z.number().min(0).nullable().default(null),
+  moeda: z.string().trim().toUpperCase().length(3).default("BRL"),
+  unidadeLimite: z.enum(UNIDADES_LIMITE).nullable().default(null),
+  exigeComprovante: z.boolean().default(false),
+});
+export type RegraExtraida = z.infer<typeof regraExtraidaSchema>;
+
 /**
  * JSON de regras da política — contrato estável, versionado junto à política
  * (campo `regras` de politicas_reembolso). Valores monetários em R$.
@@ -294,6 +351,8 @@ export const regrasPoliticaSchema = z.object({
   negacaoAcimaDe: z.number().min(0).nullable().default(null),
   /** Observações em texto livre extraídas do documento da política */
   observacoes: z.array(z.string()).default([]),
+  /** Regras estruturadas (v1.7 do agente). Única fonte editável; os campos acima são derivados delas no servidor. Ausente = política antiga. */
+  regrasExtraidas: z.array(regraExtraidaSchema).max(500).default([]),
 });
 export type RegrasPolitica = z.infer<typeof regrasPoliticaSchema>;
 

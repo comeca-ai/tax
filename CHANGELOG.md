@@ -4,6 +4,56 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [Unreleased] — convergência da branch `feat/policy-llm-gemini` sobre a base 1.7.0 (versão definida no merge em `master`)
+
+**Política da empresa: tudo nasce do documento.** O gestor vê o texto que o
+OCR leu e ajusta as regras extraídas antes de ativar.
+
+### Adicionado
+- **Parser de política via LLM** (provider plugável, mesmo padrão do OCR):
+  `mistral` (OCR `mistral-ocr-latest` + chat `json_object`) e `gemini`
+  (leitura nativa de PDF/imagem). Seleção por `POLICY_PROVIDER`
+  (`heuristico` | `mistral` | `llm` = alias de mistral); falha do LLM cai no
+  heurístico com aviso — o upload nunca quebra. Variáveis `MISTRAL_API_KEY`,
+  `MISTRAL_MODEL`, `MISTRAL_OCR_MODEL`, `GEMINI_API_KEY`, `OCR_GEMINI_MODEL`
+  passam pelo `docker-compose.yml`
+- **Texto lido do documento** no passo "Revisar regras": painel lado a lado
+  (desktop) / accordion (mobile) com confiança da extração, parser usado,
+  avisos (inclusive páginas com problema de leitura) e o texto do OCR
+- **Regras extraídas editáveis**: agrupadas por tema, com editar inline,
+  remover e adicionar (com seletor de tema) antes de ativar; passo
+  "Simular e ativar" mostra "Regras que serão ativadas"
+- **Regras extraídas como única fonte** (`regrasExtraidas` em `RegrasPolitica`):
+  o passo "Revisar regras" mostra só cards estruturados por tema (categoria,
+  valor, unidade, reembolsável, comprovante); limites por categoria,
+  exigências e tetos gerais são derivados no servidor (`api/modules/reembolso/policy/derivar.ts`)
+  em `updateRegras`/`ativar` — teto geral só de regra de governança sem
+  categoria, classificada pelo campo `reembolsavel` (vedado → negação;
+  exceção → revisão humana; sim + "aprovação automática" no texto →
+  aprovação automática); nada é inferido de texto livre (D-013). `updateRegras` devolve as regras consolidadas; resumo do
+  passo 3 e do card "Política ativa" ganham o bloco "O que o agente vai aplicar"
+- `APP_URL` no ambiente; cookie de sessão só leva `Secure` quando a URL
+  pública é HTTPS
+- Testes: `texto.test.ts`, `mistral.test.ts`, `observacoes.test.ts`
+  (vitest passa a coletar `src/**/*.test.ts`)
+
+### Corrigido
+- Parser Mistral: política com dezenas de regras estourava `max_tokens` (8 000) e
+  devolvia JSON cortado → caía no heurístico. Agora: teto 32 000 tokens, detecção
+  de `finish_reason=length`/JSON inválido com nova tentativa compacta, prompt
+  enxuto (só os campos consumidos pelo mapeador), modelo padrão
+  `mistral-medium-latest` (~2× mais rápido) e timeout do chat de 240 s
+
+### Alterado
+- Parser Mistral grava o markdown integral do OCR em `texto_extraido`
+  (truncado a 65 000 bytes UTF-8, sem partir caractere); o resumo da
+  extração passou para os avisos. Heurístico usa o mesmo truncamento
+- Resumo da política (passo "Simular e ativar" e card "Política ativa") ficou
+  escaneável: cabeçalho de números (regras · reembolsáveis · exceções · vedadas
+  · temas), "O que o agente vai aplicar" sobe para o topo em cards, regras
+  agrupadas em accordion por tema (fechado por padrão, "Expandir/Recolher
+  todos") com valor alinhado e unidade por extenso ("por dia", "%", "USD 80")
+
 ## [1.7.0] — 2026-08-14
 
 **Motor de decisão automático: a foto entra → extrai → aprova ou nega.**

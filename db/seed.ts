@@ -306,6 +306,8 @@ async function seed() {
         "Tarifa de R$ 0,85 por km rodado para veículo próprio cadastrado.",
         "Evidência obrigatória para alimentação acima de R$ 120,00.",
       ],
+      // Política demo no formato antigo (sem regras estruturadas): parâmetros acima valem como estão
+      regrasExtraidas: [],
     };
     await db.insert(politicasReembolso).values({
       empresaId,

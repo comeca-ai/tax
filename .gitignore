@@ -27,3 +27,6 @@ coverage/
 docker-compose.override.yml
 proxy/
 uploads/
+
+# Time Claude Code (contém caminhos/domínio do servidor — repo público)
+.claude/
