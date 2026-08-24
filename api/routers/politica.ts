@@ -17,7 +17,7 @@ import { getPolicyParser } from "../modules/reembolso/policy/parser";
 import { consolidarRegras } from "../modules/reembolso/policy/derivar";
 import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "../modules/reembolso/policy/texto";
 import { avaliarDespesa } from "../modules/reembolso/policy/agent";
-import { assertEmpresaAcesso, registrarLog } from "./_shared";
+import { assertAdminDaEmpresa, assertEmpresaAcesso, registrarLog } from "./_shared";
 
 /**
  * Agente de Política de Reembolso (v1.1.0) — CRUD da política por empresa
@@ -135,13 +135,20 @@ export const politicaRouter = createRouter({
       return rows;
     }),
 
-  /** Política completa (regras, textoExtraido, camposPendentes). */
+  /**
+   * Política completa (regras, textoExtraido, camposPendentes). As regras saem
+   * CONSOLIDADAS: a tela precisa ver exatamente os parâmetros que o agente aplica —
+   * devolver o JSON cru mostrava tetos que o motor não usava (v1.8).
+   */
   get: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ input, ctx }) => {
       const politica = await buscarPoliticaOuFalhar(input.id);
       await assertEmpresaAcesso(ctx, politica.empresaId);
-      return politica;
+      return {
+        ...politica,
+        regras: consolidarRegras(regrasPoliticaSchema.parse(politica.regras ?? {})),
+      };
     }),
 
   /** Edição manual das regras extraídas (preenchimento assistido). */
@@ -149,7 +156,9 @@ export const politicaRouter = createRouter({
     .input(politicaUpdateRegrasInput)
     .mutation(async ({ input, ctx }) => {
       const politica = await buscarPoliticaOuFalhar(input.id);
-      await assertEmpresaAcesso(ctx, politica.empresaId);
+      // Editar regra é declarar o que o agente pode aprovar ou negar sozinho: só o
+      // admin da empresa (ou o suporte da plataforma) decide isso (P-4, v1.8).
+      await assertAdminDaEmpresa(ctx, politica.empresaId);
       const db = getDb();
       // Limites, exigências e tetos nascem das regras extraídas (servidor é a fonte)
       const regras = consolidarRegras(input.regras);
@@ -179,7 +188,8 @@ export const politicaRouter = createRouter({
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       const politica = await buscarPoliticaOuFalhar(input.id);
-      await assertEmpresaAcesso(ctx, politica.empresaId);
+      // Ativar é o gesto que põe as marcações em vigor — mesmo portão do updateRegras.
+      await assertAdminDaEmpresa(ctx, politica.empresaId);
       const db = getDb();
 
       const versao = await db.transaction(async (tx) => {
@@ -264,7 +274,13 @@ export const politicaRouter = createRouter({
         )
         .orderBy(desc(politicasReembolso.versao))
         .limit(1);
-      return rows[0] ?? null;
+      const politica = rows[0];
+      if (!politica) return null;
+      // Consolidado: o card da política ativa e o motor precisam dizer a mesma coisa.
+      return {
+        ...politica,
+        regras: consolidarRegras(regrasPoliticaSchema.parse(politica.regras ?? {})),
+      };
     }),
 
   /**

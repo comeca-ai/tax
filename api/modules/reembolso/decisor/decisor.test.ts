@@ -7,15 +7,21 @@ import { confiancaDaNota, decidirReembolso, type ExtracaoNota } from "./index";
 const regras: RegrasPolitica = {
   limitesPorCategoria: { alimentacao: 55 },
   tetosTemporaisPorCategoria: {},
+  limitesCitados: [],
   categoriasVedadas: [],
   categoriasExcecao: [],
   aprovacaoAutomaticaAte: 55,
+  aprovacaoAutomaticaAteRegraId: null,
+  aprovacaoAutomaticaPorCategoria: {},
   revisaoHumanaAcimaDe: 55,
+  revisaoHumanaAcimaDeRegraId: null,
   negacaoAcimaDe: 500,
+  negacaoAcimaDeRegraId: null,
   exigeVeiculoCadastrado: [],
   exigeEvidencia: [],
   exigeDocumentoFiscal: true,
   regraDocumentoFiscalId: "comprovantes-nao-aceitos",
+  lacunas: [],
   observacoes: [],
   regrasExtraidas: [
     {
@@ -30,6 +36,8 @@ const regras: RegrasPolitica = {
       moeda: "BRL",
       unidadeLimite: null,
       exigeComprovante: false,
+      exigeDocumentoFiscal: true,
+      decisaoAutomatica: "nenhuma",
     },
   ],
 };
@@ -67,14 +75,16 @@ describe("decidirReembolso (D-013/D-014)", () => {
     expect(r.motivos.join(" ")).toContain("teto");
   });
 
-  it("devolve para revisão quando acima do limite da categoria (dentro de 1,5×)", () => {
+  it("devolve para revisão quando acima do limite da categoria", () => {
     const r = decidirReembolso({ ...base, valor: 70 }, regras, { temVeiculo: false });
     expect(r.decisao).toBe("revisao_manual");
   });
 
-  it("nega quando acima de 1,5× o limite da categoria (caso do cupom R$ 90,14 > 1,5× R$ 55)", () => {
+  it("muito acima do limite da categoria também é revisão (cupom R$ 90,14 com limite R$ 55)", () => {
+    // Antes da v1.8 a tolerância de 1,5× negava — número que a política nunca escreveu (D-013).
     const r = decidirReembolso({ ...base, valor: 90.14 }, regras, { temVeiculo: false });
-    expect(r.decisao).toBe("negado");
+    expect(r.decisao).toBe("revisao_manual");
+    expect(r.motivos.join(" ")).not.toContain("1,5");
   });
 
   it("sem política ativa, NUNCA aprova — vai para revisão manual", () => {
@@ -124,13 +134,15 @@ describe("decidirReembolso (D-013/D-014)", () => {
       { temVeiculo: false },
     );
     expect(r.decisao).toBe("revisao_manual");
-    expect(r.motivos.join(" ")).toContain("Hospedagem em viagens");
+    // A política real não declara nada para hospedagem: a revisão nomeia a lacuna.
+    expect(r.motivos.join(" ")).toContain("regra vedada e regra permissiva para hospedagem");
     expect(r.motivos.join(" ")).not.toContain("CNPJ");
     expect(r.motivos.join(" ")).not.toContain("limite de hospedagem");
+    expect(r.motivos.join(" ")).not.toContain("1,5");
     expect(r.confianca).toBe("media");
   });
 
-  it("categoria vedada pela política → negado citando a regra", () => {
+  it("regra vedada SEM marcação do gestor não nega: revisão nomeando a lacuna", () => {
     const soVedado = consolidarRegras(
       regrasPoliticaSchema.parse({
         regrasExtraidas: [
@@ -147,6 +159,32 @@ describe("decidirReembolso (D-013/D-014)", () => {
     const r = decidirReembolso(
       { ...base, categoriaSugerida: "uber", valor: 32 },
       soVedado,
+      { temVeiculo: false },
+    );
+    expect(r.decisao).toBe("revisao_manual");
+    expect(r.motivos.join(" ")).toContain("só tem regra vedada para Uber/app");
+    expect(r.motivos.join(" ")).not.toContain("negado");
+  });
+
+  it("a MESMA regra marcada 'negar' com escopo categoria → negado citando a regra", () => {
+    const vedadaMarcada = consolidarRegras(
+      regrasPoliticaSchema.parse({
+        regrasExtraidas: [
+          {
+            id: "gorjetas-motoristas-aplicativo",
+            tema: "transporte-e-deslocamento",
+            categoria: "uber",
+            escopo: "categoria",
+            descricao: "Gorjetas para motoristas de aplicativos de mobilidade urbana",
+            reembolsavel: "vedado",
+            decisaoAutomatica: "negar",
+          },
+        ],
+      }),
+    );
+    const r = decidirReembolso(
+      { ...base, categoriaSugerida: "uber", valor: 32 },
+      vedadaMarcada,
       { temVeiculo: false },
     );
     expect(r.decisao).toBe("negado");
@@ -175,6 +213,8 @@ describe("decidirReembolso (D-013/D-014)", () => {
             descricao: "Aprovação automática até o valor de alçada do gestor",
             reembolsavel: "sim",
             valorLimite: 1000,
+            // Sem esta marcação o texto "aprovação automática" não autoriza nada (v1.8).
+            decisaoAutomatica: "aprovar",
           },
         ],
       }),
@@ -262,6 +302,29 @@ describe("decidirReembolso (D-013/D-014)", () => {
       { temVeiculo: false },
     );
     expect(r.decisao).toBe("aprovado");
+  });
+
+  it("documento classificado como 'outro' NÃO é mais tratado como não fiscal (NFC-e de maquininha)", () => {
+    const r = decidirReembolso(
+      { ...base, tipoDocumento: "outro", confiancaTipo: "alta" },
+      regras,
+      { temVeiculo: false },
+    );
+    expect(r.decisao).not.toBe("negado");
+    expect(r.decisao).toBe("aprovado");
+  });
+
+  it("tipo sem lastro fiscal e política silenciosa: vira ressalva e não bloqueia", () => {
+    const r = decidirReembolso(
+      { ...base, tipoDocumento: "extrato_conta", confiancaTipo: "alta" },
+      regrasSemExigencia,
+      { temVeiculo: false },
+    );
+    expect(r.decisao).toBe("aprovado");
+    expect(r.ressalvas.join(" ")).toContain(
+      "sua política não declara se esse tipo de comprovante é aceito",
+    );
+    expect(r.confianca).toBe("media");
   });
 
   it("todas as saídas devolvem ressalvas e confianca — inclusive a de 'sem política ativa'", () => {

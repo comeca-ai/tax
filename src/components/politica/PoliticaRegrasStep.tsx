@@ -1,12 +1,27 @@
 import { useState } from "react"
-import { ArrowLeft, Check, CircleAlert, Layers, Paperclip, Pencil, Plus, Save, X } from "lucide-react"
 import {
+  ArrowLeft,
+  Check,
+  CircleAlert,
+  CircleCheck,
+  CircleX,
+  Layers,
+  Paperclip,
+  Pencil,
+  Plus,
+  Receipt,
+  Save,
+  X,
+} from "lucide-react"
+import {
+  DECISOES_AUTOMATICAS_REGRA,
   REEMBOLSAVEL_REGRA,
   REGRA_TEXTO_MAX,
   TEMAS_POLITICA,
   UNIDADES_LIMITE,
   type CategoriaDespesa,
   type ConfiancaExtracao,
+  type DecisaoAutomaticaRegra,
   type RegraExtraida,
   type ReembolsavelRegra,
   type TemaPolitica,
@@ -25,13 +40,17 @@ import { numeroParaPt, parseNumeroPt } from "@/components/despesas/wizard/types"
 import { cn } from "@/lib/utils"
 import { CATEGORIAS_POLITICA, type RegrasForm } from "./regrasForm"
 import {
+  DECISAO_AUTOMATICA_CHIP,
+  DECISAO_AUTOMATICA_LABELS,
   REEMBOLSAVEL_LABELS,
   UNIDADE_LABELS,
   adicionarRegra,
   agruparPorTema,
   editarRegra,
+  estadoDecisaoAutomatica,
   estadoEscopo,
   novaRegra,
+  rebaixarDecisaoAutomatica,
   removerRegra,
   resumoValor,
   type GrupoRegras,
@@ -66,6 +85,13 @@ const BADGE_REEMBOLSAVEL: Record<ReembolsavelRegra, string> = {
 }
 
 const CHIP = "inline-flex h-6 items-center gap-1.5 rounded-md border border-line bg-surface px-2 text-[11px] font-medium"
+
+/** Chip da decisão automática: verde quando aprova sozinho, vermelho quando nega. */
+const CHIP_DECISAO: Record<DecisaoAutomaticaRegra, string> = {
+  nenhuma: "",
+  aprovar: "border-conf-alta-dot/25 bg-conf-alta-bg text-conf-alta-text",
+  negar: "border-conf-vedado-dot/25 bg-conf-vedado-bg text-conf-vedado-text",
+}
 
 /** Destaque âmbar de preenchimento assistido (pendente e ainda não editado). */
 function destaqueAssistido(pendente: boolean): string {
@@ -259,11 +285,27 @@ export default function PoliticaRegrasStep({
                 Vale para a categoria
               </span>
             )}
+            {DECISAO_AUTOMATICA_CHIP[regra.decisaoAutomatica] && (
+              <span className={cn(CHIP, CHIP_DECISAO[regra.decisaoAutomatica])}>
+                {regra.decisaoAutomatica === "aprovar" ? (
+                  <CircleCheck className="h-3 w-3" aria-hidden="true" />
+                ) : (
+                  <CircleX className="h-3 w-3" aria-hidden="true" />
+                )}
+                {DECISAO_AUTOMATICA_CHIP[regra.decisaoAutomatica]}
+              </span>
+            )}
             {valor && <span className={cn(CHIP, "font-mono tabular text-text-900")}>{valor}</span>}
             {regra.exigeComprovante && (
               <span className={cn(CHIP, "text-text-900")}>
                 <Paperclip className="h-3 w-3 text-text-500" />
                 Exige comprovante
+              </span>
+            )}
+            {regra.exigeDocumentoFiscal && (
+              <span className={cn(CHIP, "text-text-900")}>
+                <Receipt className="h-3 w-3 text-text-500" aria-hidden="true" />
+                Só nota fiscal ou recibo
               </span>
             )}
           </div>
@@ -294,7 +336,9 @@ export default function PoliticaRegrasStep({
     const r = rascunho.regra
     const podeSalvar = r.descricao.trim() !== "" && textoDentroDoLimite(r.descricao, r.condicao)
     const escopo = estadoEscopo(r, rascunho.valor)
+    const decisao = estadoDecisaoAutomatica(r, rascunho.valor)
     const dicaEscopoId = `escopo-dica-${rascunho.id}`
+    const dicaDecisaoId = `decisao-dica-${rascunho.id}`
     return (
       <li key={rascunho.id} className="flex flex-col gap-2 rounded-lg border border-brand-500 bg-paper px-3 py-2">
         <textarea
@@ -356,7 +400,16 @@ export default function PoliticaRegrasStep({
           <input
             inputMode="decimal"
             value={rascunho.valor}
-            onChange={(e) => setEditando({ ...rascunho, valor: e.target.value, valorAlterado: true })}
+            onChange={(e) => {
+              // Zerar/limpar o valor derruba a autorização de aprovar sozinho no mesmo patch.
+              const valor = e.target.value
+              setEditando({
+                ...rascunho,
+                valor,
+                valorAlterado: true,
+                regra: { ...r, ...rebaixarDecisaoAutomatica(r, valor) },
+              })
+            }}
             placeholder="sem limite"
             aria-label="Valor limite (R$)"
             className={INPUT_BASE}
@@ -364,9 +417,13 @@ export default function PoliticaRegrasStep({
           <select
             aria-label="Unidade do limite"
             value={r.unidadeLimite ?? ""}
-            onChange={(e) =>
-              setRascunho({ unidadeLimite: e.target.value === "" ? null : (e.target.value as UnidadeLimite) })
-            }
+            onChange={(e) => {
+              const unidadeLimite = e.target.value === "" ? null : (e.target.value as UnidadeLimite)
+              setRascunho({
+                unidadeLimite,
+                ...rebaixarDecisaoAutomatica({ ...r, unidadeLimite }, rascunho.valor),
+              })
+            }}
             className={cn(INPUT_BASE, "font-sans")}
           >
             <option value="">—</option>
@@ -379,7 +436,14 @@ export default function PoliticaRegrasStep({
           <select
             aria-label="Reembolsável"
             value={r.reembolsavel}
-            onChange={(e) => setRascunho({ reembolsavel: e.target.value as ReembolsavelRegra })}
+            onChange={(e) => {
+              // Trocar a classificação da regra derruba a decisão automática que ela sustentava.
+              const reembolsavel = e.target.value as ReembolsavelRegra
+              setRascunho({
+                reembolsavel,
+                ...rebaixarDecisaoAutomatica({ ...r, reembolsavel }, rascunho.valor),
+              })
+            }}
             className={cn(INPUT_BASE, "font-sans")}
           >
             {REEMBOLSAVEL_REGRA.map((v) => (
@@ -389,7 +453,7 @@ export default function PoliticaRegrasStep({
             ))}
           </select>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <label className="flex min-h-11 items-center gap-2 text-[12px] text-text-900 sm:min-h-0">
             <Checkbox
               checked={r.exigeComprovante}
@@ -397,6 +461,14 @@ export default function PoliticaRegrasStep({
               aria-label="Exige comprovante"
             />
             Exige comprovante
+          </label>
+          <label className="flex min-h-11 items-center gap-2 text-[12px] text-text-900 sm:min-h-0">
+            <Checkbox
+              checked={r.exigeDocumentoFiscal}
+              onCheckedChange={(v) => setRascunho({ exigeDocumentoFiscal: v === true })}
+              aria-label="Só aceito nota fiscal ou recibo"
+            />
+            Só aceito nota fiscal ou recibo
           </label>
           <label
             className={cn(
@@ -418,12 +490,39 @@ export default function PoliticaRegrasStep({
               </span>
             )}
           </label>
-          {escopo.aviso && (
-            <p className="order-1 w-full text-[11px] leading-relaxed text-text-500 sm:order-3">
-              {escopo.aviso}
-            </p>
-          )}
-          <div className="order-2 flex items-center gap-2">
+        </div>
+        {escopo.aviso && (
+          <p className="text-[11px] leading-relaxed text-text-500">{escopo.aviso}</p>
+        )}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <select
+              aria-label="Decisão automática"
+              aria-describedby={decisao.dica ? dicaDecisaoId : undefined}
+              value={decisao.valor}
+              onChange={(e) => setRascunho({ decisaoAutomatica: e.target.value as DecisaoAutomaticaRegra })}
+              className={cn(INPUT_BASE, "h-11 font-sans sm:h-10 sm:max-w-[260px]")}
+            >
+              {DECISOES_AUTOMATICAS_REGRA.map((v) => (
+                <option
+                  key={v}
+                  value={v}
+                  disabled={
+                    (v === "aprovar" && !decisao.aprovar.habilitada) ||
+                    (v === "negar" && !decisao.negar.habilitada)
+                  }
+                >
+                  {DECISAO_AUTOMATICA_LABELS[v]}
+                </option>
+              ))}
+            </select>
+            {decisao.dica && (
+              <span id={dicaDecisaoId} className="text-[11px] leading-relaxed text-text-500">
+                {decisao.dica}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setEditando(null)}
@@ -470,7 +569,7 @@ export default function PoliticaRegrasStep({
           {/* Regras estruturadas por tema (fonte dos parâmetros do agente) */}
           <SecaoRegras
             titulo="Regras da política"
-            descricao="Tudo que o agente aplica nasce destas regras. Edite valores, categorias e condições; remova o que não vale; acrescente o que faltou. Ao cadastrar regras aqui, limites e tetos antigos desta política são substituídos pelos derivados. Marque “Vale para a categoria inteira” nas regras que definem o limite geral do tipo de despesa; sub-itens (lavanderia, frigobar, gorjeta) ficam desmarcados."
+            descricao="Tudo que o agente aplica nasce destas regras. Edite valores, categorias e condições; remova o que não vale; acrescente o que faltou. Ao cadastrar regras aqui, limites e tetos antigos desta política são substituídos pelos derivados. Marque “Vale para a categoria inteira” nas regras que definem o limite geral do tipo de despesa; sub-itens (lavanderia, frigobar, gorjeta) ficam desmarcados. Marque “O agente pode aprovar sozinho” nas regras que autorizam o agente a decidir sem você. Sem nenhuma regra marcada, toda despesa vem para a sua revisão."
             pendente={pendente("regrasExtraidas")}
           >
             {comItens.length > 0 ? (

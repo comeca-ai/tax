@@ -1,18 +1,23 @@
 import { describe, expect, it } from "vitest"
-import { TEMAS_POLITICA, type RegraExtraida } from "@contracts/types"
+import { TEMAS_POLITICA, regrasPoliticaSchema, type RegraExtraida } from "@contracts/types"
 import { formatBRL } from "@/lib/format"
 import {
   AVISO_TETO_TEMPORAL,
+  DICA_APROVACAO_AUTOMATICA,
+  DICA_NEGACAO_AUTOMATICA,
   adicionarRegra,
   agruparPorTema,
   contarRegras,
+  estadoDecisaoAutomatica,
   estadoEscopo,
   editarRegra,
   formatarLimite,
   gerarId,
   novaRegra,
   plural,
+  rebaixarDecisaoAutomatica,
   removerRegra,
+  semAutorizacaoDeAprovacao,
   resumoGrupo,
   resumoValor,
 } from "./regrasExtraidas"
@@ -254,5 +259,111 @@ describe("estadoEscopo", () => {
     )
     expect(e.marcado).toBe(true)
     expect(e.aviso).toBeNull()
+  })
+})
+
+describe("estadoDecisaoAutomatica", () => {
+  const base = regra("x", "governanca-do-processo")
+
+  it("regra nova nasce sem autorizar nada", () => {
+    expect(novaRegra("alimentacao", "Almoço").decisaoAutomatica).toBe("nenhuma")
+    expect(novaRegra("alimentacao", "Almoço").exigeDocumentoFiscal).toBe(false)
+  })
+
+  it("aprovar só com reembolsável + valor em reais", () => {
+    const comValor = estadoDecisaoAutomatica(base, "500,00")
+    expect(comValor.aprovar.habilitada).toBe(true)
+    expect(comValor.dica).toBeNull()
+
+    const semValor = estadoDecisaoAutomatica(base, "")
+    expect(semValor.aprovar.habilitada).toBe(false)
+    expect(semValor.aprovar.dica).toBe(DICA_APROVACAO_AUTOMATICA)
+    expect(semValor.dica).toBe(DICA_APROVACAO_AUTOMATICA)
+
+    const percentual = estadoDecisaoAutomatica(
+      { ...base, unidadeLimite: "percentual" },
+      "50,00",
+    )
+    expect(percentual.aprovar.habilitada).toBe(false)
+
+    const prazo = estadoDecisaoAutomatica({ ...base, unidadeLimite: "dias_para_pagamento" }, "30")
+    expect(prazo.aprovar.habilitada).toBe(false)
+  })
+
+  it("negar só com regra vedada", () => {
+    const vedada = estadoDecisaoAutomatica({ ...base, reembolsavel: "vedado" }, "")
+    expect(vedada.negar.habilitada).toBe(true)
+    expect(vedada.dica).toBeNull()
+
+    const reembolsavel = estadoDecisaoAutomatica(base, "500,00")
+    expect(reembolsavel.negar.habilitada).toBe(false)
+    expect(reembolsavel.negar.dica).toBe(DICA_NEGACAO_AUTOMATICA)
+  })
+
+  it("exceção não sustenta decisão automática nenhuma e mostra a dica", () => {
+    const e = estadoDecisaoAutomatica({ ...base, reembolsavel: "excecao" }, "500,00")
+    expect(e.aprovar.habilitada).toBe(false)
+    expect(e.negar.habilitada).toBe(false)
+    expect(e.dica).toBe(DICA_APROVACAO_AUTOMATICA)
+  })
+})
+
+describe("rebaixarDecisaoAutomatica", () => {
+  it("trocar reembolsavel de 'sim' para 'vedado' derruba 'aprovar' para 'nenhuma'", () => {
+    const marcada: RegraExtraida = {
+      ...regra("x", "governanca-do-processo"),
+      decisaoAutomatica: "aprovar",
+    }
+    expect(rebaixarDecisaoAutomatica({ ...marcada, reembolsavel: "vedado" }, "500,00")).toEqual({
+      decisaoAutomatica: "nenhuma",
+    })
+  })
+
+  it("zerar o valor derruba 'aprovar'", () => {
+    const marcada: RegraExtraida = {
+      ...regra("x", "governanca-do-processo"),
+      decisaoAutomatica: "aprovar",
+    }
+    expect(rebaixarDecisaoAutomatica(marcada, "")).toEqual({ decisaoAutomatica: "nenhuma" })
+    expect(rebaixarDecisaoAutomatica(marcada, "500,00")).toEqual({})
+  })
+
+  it("regra sem marcação nunca é patcheada", () => {
+    expect(rebaixarDecisaoAutomatica(regra("x", "governanca-do-processo"), "")).toEqual({})
+  })
+
+  it("'negar' sobrevive enquanto a regra continuar vedada", () => {
+    const vedada: RegraExtraida = {
+      ...regra("x", "governanca-do-processo"),
+      reembolsavel: "vedado",
+      decisaoAutomatica: "negar",
+    }
+    expect(rebaixarDecisaoAutomatica(vedada, "")).toEqual({})
+    expect(rebaixarDecisaoAutomatica({ ...vedada, reembolsavel: "sim" }, "")).toEqual({
+      decisaoAutomatica: "nenhuma",
+    })
+  })
+})
+
+describe("semAutorizacaoDeAprovacao", () => {
+  it("política sem teto nenhum: true (é o estado da política real hoje)", () => {
+    expect(semAutorizacaoDeAprovacao(regrasPoliticaSchema.parse({}))).toBe(true)
+  })
+
+  it("teto global ou teto por categoria: false", () => {
+    expect(
+      semAutorizacaoDeAprovacao(regrasPoliticaSchema.parse({ aprovacaoAutomaticaAte: 200 })),
+    ).toBe(false)
+    expect(
+      semAutorizacaoDeAprovacao(
+        regrasPoliticaSchema.parse({ aprovacaoAutomaticaPorCategoria: { alimentacao: 70 } }),
+      ),
+    ).toBe(false)
+  })
+
+  it("teto de negação sozinho não é autorização de aprovação", () => {
+    expect(semAutorizacaoDeAprovacao(regrasPoliticaSchema.parse({ negacaoAcimaDe: 5000 }))).toBe(
+      true,
+    )
   })
 })

@@ -165,6 +165,8 @@ function idUnico(bruto: unknown, indice: number, usados: Set<string>): string {
 /**
  * Alcance proposto pelo LLM. Só vira escopo "categoria" com categoria conhecida —
  * o gestor confirma no checkbox do card antes de a política ser salva/ativada (D-013).
+ * Mesmo promovida, a regra continua com `decisaoAutomatica: "nenhuma"`: alcance diz
+ * SOBRE O QUE a regra fala, nunca o que o agente pode fazer sozinho.
  * NÃO confundir com o campo `escopo` (nacional|internacional) do JSON do modelo.
  */
 function escopoDe(r: RegraLLM, categoria: CategoriaDespesa | null): EscopoRegra {
@@ -195,6 +197,11 @@ export function regrasExtraidasDe(regras: RegraLLM[]): RegraExtraida[] {
       moeda: moedaDe(r),
       unidadeLimite: unidadeDe(r),
       exigeComprovante: r.exige_comprovante === true,
+      // Nenhum prompt pede estes dois campos e nenhum parser os lê do JSON do modelo:
+      // exigir nota fiscal e autorizar decisão automática são declarações do GESTOR,
+      // feitas no card da regra. O LLM é estruturalmente incapaz de autorizá-las (D-013).
+      exigeDocumentoFiscal: false,
+      decisaoAutomatica: "nenhuma",
     });
   });
   return out;

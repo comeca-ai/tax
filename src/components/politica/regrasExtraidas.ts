@@ -1,8 +1,10 @@
 import {
   TEMAS_POLITICA,
   UNIDADES_LIMITE_TEMPORAIS,
+  type DecisaoAutomaticaRegra,
   type RegraExtraida,
   type ReembolsavelRegra,
+  type RegrasPolitica,
   type TemaPolitica,
   type UnidadeLimite,
   type UnidadeLimiteTemporal,
@@ -62,6 +64,9 @@ export function novaRegra(tema: TemaPolitica, descricao: string): RegraExtraida 
     moeda: "BRL",
     unidadeLimite: null,
     exigeComprovante: false,
+    exigeDocumentoFiscal: false,
+    // Regra nasce sem autorizar nada: só o gestor marca decisão automática (D-013).
+    decisaoAutomatica: "nenhuma",
   }
 }
 
@@ -184,4 +189,80 @@ export function estadoEscopo(r: RegraExtraida, valorDigitado: string): EstadoEsc
     dica: habilitado ? null : "Escolha uma categoria para aplicar a regra à categoria inteira.",
     aviso: marcado && parseNumeroPt(valorDigitado) > 0 && temporal ? AVISO_TETO_TEMPORAL : null,
   }
+}
+
+export const DECISAO_AUTOMATICA_LABELS: Record<DecisaoAutomaticaRegra, string> = {
+  nenhuma: "Só o gestor decide (padrão)",
+  aprovar: "O agente pode aprovar sozinho",
+  negar: "O agente pode negar sozinho",
+}
+
+/** Rótulo curto do chip no card de leitura; "nenhuma" não vira chip. */
+export const DECISAO_AUTOMATICA_CHIP: Record<DecisaoAutomaticaRegra, string | null> = {
+  nenhuma: null,
+  aprovar: "Agente aprova sozinho",
+  negar: "Agente nega sozinho",
+}
+
+export const DICA_APROVACAO_AUTOMATICA =
+  "Marque a regra como reembolsável e informe um valor em reais para o agente poder aprovar sozinho."
+export const DICA_NEGACAO_AUTOMATICA = "Só regra vedada pode autorizar negação automática."
+
+export interface OpcaoDecisaoAutomatica {
+  habilitada: boolean
+  /** Por que está desabilitada (nunca `title`: mobile não tem hover). */
+  dica: string | null
+}
+
+export interface EstadoDecisaoAutomatica {
+  valor: DecisaoAutomaticaRegra
+  aprovar: OpcaoDecisaoAutomatica
+  negar: OpcaoDecisaoAutomatica
+  /** Dica a exibir: só quando NENHUMA decisão automática é possível para esta regra. */
+  dica: string | null
+}
+
+/**
+ * Estado do seletor "Decisão automática" no card de edição.
+ * Aprovar exige regra reembolsável com valor em reais (P-5: nenhuma aprovação sem teto);
+ * negar exige regra vedada. Fora disso a regra é documentação e o gestor decide.
+ */
+export function estadoDecisaoAutomatica(
+  r: RegraExtraida,
+  valorDigitado: string,
+): EstadoDecisaoAutomatica {
+  const naoMonetaria =
+    r.unidadeLimite === "percentual" || (r.unidadeLimite?.startsWith("dias_") ?? false)
+  const podeAprovar =
+    r.reembolsavel === "sim" && parseNumeroPt(valorDigitado) > 0 && !naoMonetaria
+  const podeNegar = r.reembolsavel === "vedado"
+  return {
+    valor: r.decisaoAutomatica,
+    aprovar: { habilitada: podeAprovar, dica: podeAprovar ? null : DICA_APROVACAO_AUTOMATICA },
+    negar: { habilitada: podeNegar, dica: podeNegar ? null : DICA_NEGACAO_AUTOMATICA },
+    dica: podeAprovar || podeNegar ? null : DICA_APROVACAO_AUTOMATICA,
+  }
+}
+
+/**
+ * Patch que rebaixa `decisaoAutomatica` para "nenhuma" quando a regra deixa de
+ * poder sustentá-la (mesmo padrão de `categoria: null → escopo: "item"`).
+ */
+export function rebaixarDecisaoAutomatica(
+  r: RegraExtraida,
+  valorDigitado: string,
+): Partial<Pick<RegraExtraida, "decisaoAutomatica">> {
+  const e = estadoDecisaoAutomatica(r, valorDigitado)
+  const sustentada =
+    (r.decisaoAutomatica === "aprovar" && e.aprovar.habilitada) ||
+    (r.decisaoAutomatica === "negar" && e.negar.habilitada)
+  return r.decisaoAutomatica === "nenhuma" || sustentada ? {} : { decisaoAutomatica: "nenhuma" }
+}
+
+/** Política que não autoriza NENHUMA aprovação automática — nem global, nem por categoria. */
+export function semAutorizacaoDeAprovacao(regras: RegrasPolitica): boolean {
+  return (
+    regras.aprovacaoAutomaticaAte == null &&
+    Object.values(regras.aprovacaoAutomaticaPorCategoria ?? {}).every((v) => v == null)
+  )
 }

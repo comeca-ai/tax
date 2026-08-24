@@ -5,6 +5,7 @@ import {
   UNIDADES_LIMITE_TEMPORAIS,
   type CategoriaDespesa,
   type CategoriaRegraCitada,
+  type LacunaPolitica,
   type RegraExtraida,
   type RegrasPolitica,
   type UnidadeLimiteTemporal,
@@ -15,9 +16,13 @@ import {
  * das regras estruturadas extraídas do documento (v1.7).
  *
  * As regras extraídas são a única fonte editável pelo gestor; limites por
- * categoria, exigências e tetos gerais nascem delas aqui, no servidor. Teto
- * geral só existe quando uma regra de governança o define explicitamente
- * (D-013) — sem regra, `null` e a despesa segue para revisão humana.
+ * categoria, exigências e tetos gerais nascem delas aqui, no servidor.
+ *
+ * v1.8 — a política é a única fonte: NENHUM parâmetro nasce de texto livre. Decisão
+ * automática (aprovar/negar) existe só onde o gestor marcou `decisaoAutomatica` no
+ * card da regra (D-013). Onde a política não define — vedado convivendo com
+ * permissivo, vedado sem marcação, marcação sem valor — o agente não decide: a
+ * derivação produz uma LACUNA nomeada e a despesa vai para revisão dizendo o que falta.
  *
  * Funções puras, sem I/O — mesmo padrão de `decidirReembolso()`.
  */
@@ -26,34 +31,46 @@ export type ParametrosDerivados = Pick<
   RegrasPolitica,
   | "limitesPorCategoria"
   | "tetosTemporaisPorCategoria"
+  | "limitesCitados"
   | "categoriasVedadas"
   | "categoriasExcecao"
   | "exigeVeiculoCadastrado"
   | "exigeEvidencia"
   | "aprovacaoAutomaticaAte"
+  | "aprovacaoAutomaticaAteRegraId"
+  | "aprovacaoAutomaticaPorCategoria"
   | "revisaoHumanaAcimaDe"
+  | "revisaoHumanaAcimaDeRegraId"
   | "negacaoAcimaDe"
+  | "negacaoAcimaDeRegraId"
   | "exigeDocumentoFiscal"
   | "regraDocumentoFiscalId"
+  | "lacunas"
 >;
-
-/** Ids de regra que exigem documento fiscal (comprovantes de pagamento não aceitos). */
-const IDS_REGRA_DOCUMENTO_FISCAL = new Set(["comprovantes-nao-aceitos"]);
-
-const REGEX_VEICULO = /ve[íi]culo\s+(cadastrado|pr[óo]prio|da\s+empresa)|carro\s+pr[óo]prio/i;
-// Único sinal textual aceito para aprovação automática: a política precisa escrever isso
-// com todas as letras. Os demais tetos vêm do campo estruturado `reembolsavel`, que o
-// gestor vê e edita no card — nada é inferido de texto livre (D-013).
-const REGEX_APROVACAO_AUTOMATICA = /aprova[çc][ãa]o\s+autom[áa]tica|reembolso\s+autom[áa]tico/i;
-
-function textoDe(r: RegraExtraida): string {
-  return `${r.descricao} ${r.condicao ?? ""}`;
-}
 
 /** Unidades que não são dinheiro (percentual, prazos) — nunca viram teto em reais. */
 function limiteNaoMonetario(r: RegraExtraida): boolean {
   const u = r.unidadeLimite ?? "";
   return u === "percentual" || u.startsWith("dias_");
+}
+
+/** Teto em reais aplicável: valor presente, em BRL e não percentual/prazo. */
+function temValorEmReais(r: RegraExtraida): boolean {
+  return r.valorLimite !== null && r.moeda === "BRL" && !limiteNaoMonetario(r);
+}
+
+/**
+ * Regra de MENOR valorLimite (empate: a primeira da lista).
+ * Duas regras com tetos diferentes não são conflito: são duas regras, e aplicar as duas
+ * significa que o menor teto governa — acima dele, revisão. Não é eleger vencedora.
+ */
+function menorTeto(regras: RegraExtraida[]): RegraExtraida | null {
+  let escolhida: RegraExtraida | null = null;
+  for (const r of regras) {
+    if (r.valorLimite === null) continue;
+    if (escolhida === null || r.valorLimite < (escolhida.valorLimite as number)) escolhida = r;
+  }
+  return escolhida;
 }
 
 /** Descrição encurtada para o motivo lido em tooltip/mobile. */
@@ -67,35 +84,52 @@ function citar(categoria: CategoriaDespesa, r: RegraExtraida, motivo: string): C
 
 /** Parâmetros do agente derivados das regras extraídas (ver regras no cabeçalho). */
 export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados {
+  const lacunas: LacunaPolitica[] = [];
+
   // 1. Limite da categoria: SÓ de regra que o gestor marcou com escopo "categoria".
   // Uma regra de escopo "item" descreve um sub-item ("Lavanderia em viagens — R$ 30/dia")
   // e nunca vira teto da categoria: era o bug que negava um hotel de R$ 691,17 citando
   // um limite de lavanderia de R$ 30.
+  // Havendo várias, APLICAM-SE TODAS: o menor teto governa e é ele que a decisão cita.
   const limitesPorCategoria: Partial<Record<CategoriaDespesa, number | null>> = {};
-  // Teto por período (diária, viagem, evento): um mesmo comprovante pode cobrir vários,
-  // então acima dele o pior desfecho é revisão humana, nunca negação automática (D-013).
+  const limitesCitados: CategoriaRegraCitada[] = [];
+  // Teto por período (diária, viagem, evento): rótulo do motivo ("R$ 400,00 por dia").
+  // Desde a v1.8 não muda mais o desfecho — estourar teto de categoria é sempre revisão.
   const tetosTemporaisPorCategoria: Partial<Record<CategoriaDespesa, UnidadeLimiteTemporal>> = {};
+  // 1b. Teto de aprovação automática POR categoria: só de regra que o gestor marcou
+  // "o agente pode aprovar sozinho" (D-013 — nenhum texto livre autoriza aprovação).
+  const aprovacaoAutomaticaPorCategoria: Partial<Record<CategoriaDespesa, number>> = {};
   for (const cat of CATEGORIAS_DESPESA) {
+    const rotulo = CATEGORIA_DESPESA_ROTULO[cat];
     const promovidas = regras.filter(
       (r) =>
         r.categoria === cat &&
         r.escopo === "categoria" &&
         r.reembolsavel === "sim" &&
-        r.moeda === "BRL" &&
-        !limiteNaoMonetario(r) &&
-        r.valorLimite !== null,
+        temValorEmReais(r),
     );
-    if (!promovidas.length) continue;
-    const teto = Math.max(...promovidas.map((r) => r.valorLimite as number));
-    limitesPorCategoria[cat] = teto;
-    // Desempate conservador: se entre as regras que atingem o máximo houver alguma com
-    // unidade temporal, a categoria é marcada como temporal — pior desfecho vira revisão.
-    const temporal = promovidas.find(
-      (r) =>
-        r.valorLimite === teto &&
-        UNIDADES_LIMITE_TEMPORAIS.includes(r.unidadeLimite as UnidadeLimiteTemporal),
+    const teto = menorTeto(promovidas);
+    if (teto !== null) {
+      const valor = teto.valorLimite as number;
+      limitesPorCategoria[cat] = valor;
+      const unidade = UNIDADES_LIMITE_TEMPORAIS.includes(teto.unidadeLimite as UnidadeLimiteTemporal)
+        ? (teto.unidadeLimite as UnidadeLimiteTemporal)
+        : null;
+      if (unidade) tetosTemporaisPorCategoria[cat] = unidade;
+      limitesCitados.push(
+        citar(
+          cat,
+          teto,
+          `Teto de ${rotulo} na política: R$ ${valor}${unidade ? ` por ${unidade}` : ""} — regra: "${curto(teto.descricao)}".`,
+        ),
+      );
+    }
+    const tetoAprovacao = menorTeto(
+      promovidas.filter((r) => r.decisaoAutomatica === "aprovar"),
     );
-    if (temporal) tetosTemporaisPorCategoria[cat] = temporal.unidadeLimite as UnidadeLimiteTemporal;
+    if (tetoAprovacao !== null) {
+      aprovacaoAutomaticaPorCategoria[cat] = tetoAprovacao.valorLimite as number;
+    }
   }
 
   // 2. Evidência: regra sem categoria exige em todas; com categoria, só nela
@@ -103,64 +137,54 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
     regras.some((r) => r.exigeComprovante && (r.categoria === null || r.categoria === cat)),
   );
 
-  // 3. Veículo cadastrado: só faz sentido para combustível
-  const exigeVeiculo = regras.some(
-    (r) =>
-      (r.categoria === "combustivel" || (r.categoria === null && r.tema === "transporte-e-deslocamento")) &&
-      REGEX_VEICULO.test(textoDe(r)),
-  );
-  const exigeVeiculoCadastrado: CategoriaDespesa[] = exigeVeiculo ? ["combustivel"] : [];
+  // 3. Veículo cadastrado: a regex que o inferia de texto livre morreu na v1.8 e o
+  // checkbox por regra ficou adiado (decisão do dono P-3). Sem campo estruturado, a
+  // exigência não existe — nada é suposto a partir da descrição da regra.
+  const exigeVeiculoCadastrado: CategoriaDespesa[] = [];
 
-  // 4. Tetos gerais: só de regras de governança, sem categoria, em BRL e com valor monetário.
-  // Classificação determinística pelo campo `reembolsavel` (visível no card do gestor):
-  //   vedado  → teto de negação (acima do valor, nega)
-  //   excecao → revisão humana (acima do valor, precisa de aprovação superior)
-  //   sim     → aprovação automática SOMENTE se o texto disser "aprovação automática"/
-  //             "reembolso automático"; senão a regra não vira teto (D-013: sem regra
-  //             explícita, nada é aprovado automaticamente).
-  let aprovacaoAutomaticaAte: number | null = null;
-  let revisaoHumanaAcimaDe: number | null = null;
-  let negacaoAcimaDe: number | null = null;
-  const candidatas = regras.filter(
-    (r) =>
-      r.tema === "governanca-do-processo" &&
-      r.categoria === null &&
-      r.moeda === "BRL" &&
-      r.valorLimite !== null &&
-      !limiteNaoMonetario(r),
+  // 4. Tetos gerais (regra sem categoria, em BRL e com valor monetário).
+  //    aprovar / negar → SÓ com a marcação `decisaoAutomatica` do gestor: é a única
+  //      porta para decisão automática (D-013). Nenhum texto livre autoriza.
+  //    revisão humana → não precisa de marcação: o desfecho é a AUSÊNCIA de decisão,
+  //      e continua nascendo da regra de governança marcada como exceção.
+  //    Havendo várias, aplicam-se todas ⇒ o menor valor governa e é o citado.
+  const semCategoriaEmReais = regras.filter((r) => r.categoria === null && temValorEmReais(r));
+  const regraAprovacao = menorTeto(
+    semCategoriaEmReais.filter((r) => r.decisaoAutomatica === "aprovar"),
   );
-  for (const r of candidatas) {
-    if (r.valorLimite === null) continue;
-    const valor = r.valorLimite;
-    if (r.reembolsavel === "vedado") {
-      negacaoAcimaDe = negacaoAcimaDe === null ? valor : Math.max(negacaoAcimaDe, valor);
-    } else if (r.reembolsavel === "excecao") {
-      revisaoHumanaAcimaDe = revisaoHumanaAcimaDe === null ? valor : Math.min(revisaoHumanaAcimaDe, valor);
-    } else if (REGEX_APROVACAO_AUTOMATICA.test(textoDe(r))) {
-      aprovacaoAutomaticaAte = aprovacaoAutomaticaAte === null ? valor : Math.min(aprovacaoAutomaticaAte, valor);
-    }
+  const regraNegacao = menorTeto(semCategoriaEmReais.filter((r) => r.decisaoAutomatica === "negar"));
+  const regraRevisao = menorTeto(
+    semCategoriaEmReais.filter(
+      (r) => r.tema === "governanca-do-processo" && r.reembolsavel === "excecao",
+    ),
+  );
+
+  // 4b. Marcação sem valor aplicável: o gestor autorizou, mas não deu teto em reais.
+  // A regra não vira teto (P-5: nenhuma aprovação automática sem limite declarado) e
+  // a lacuna é nomeada para o gestor saber o que falta.
+  for (const r of regras) {
+    if (r.decisaoAutomatica !== "aprovar" || temValorEmReais(r)) continue;
+    lacunas.push({
+      tipo: "marcacao-sem-valor",
+      categoria: r.categoria,
+      regraIds: [r.id],
+      motivo: `A regra "${curto(r.descricao)}" está marcada para o agente aprovar sozinho, mas não tem limite em reais — o agente não pode aplicá-la.`,
+    });
   }
 
-  // 5. Exigência de documento fiscal: regra de governança VEDADA com id conhecido.
-  // Match determinístico por id (decisão do dono: sem regex em texto livre da política).
-  const regraDoc = regras.find(
-    (r) =>
-      r.tema === "governanca-do-processo" &&
-      r.reembolsavel === "vedado" &&
-      IDS_REGRA_DOCUMENTO_FISCAL.has(r.id),
-  );
+  // 5. Exigência de documento fiscal: declaração estruturada do gestor no card
+  // ("só aceito nota fiscal ou recibo"). O match pelo id `comprovantes-nao-aceitos`,
+  // que nenhum prompt pedia, morreu na v1.8 (decisão do dono P-2).
+  const regraDoc = regras.find((r) => r.exigeDocumentoFiscal);
 
-  // 6. Vedação e exceção POR CATEGORIA.
-  //    (1) regra vedada com escopo "categoria" veta sempre (override explícito do gestor);
-  //    (2) sem esse override, a categoria só é vedada se NÃO houver nenhuma regra "sim" nela;
-  //    (3) coexistindo "vedado" e "sim", a categoria vai para EXCEÇÃO (revisão humana citando
-  //        a regra), nunca negação automática.
-  //    NÃO "simplificar" para «qualquer regra vedada veta a categoria»: numa política real,
-  //    uber tem 1 "sim" (aplicativos de transporte) + 1 "vedado" (gorjetas para motoristas) e
-  //    hospedagem tem 5 "sim", 2 "excecao" e 6 "vedado" (itens pessoais, bagagem, dependentes).
-  //    Pela regra literal o agente negaria 100% das despesas de Uber e de hospedagem por causa
-  //    de sub-itens — o mesmo erro de "sub-item vira categoria" que este arquivo existe para
-  //    corrigir, espelhado.
+  // 6. Vedação e exceção POR CATEGORIA — só o que a política DECLARA:
+  //    (1) categoria vedada ⇒ regra vedada marcada "negar" com escopo "categoria";
+  //    (2) categoria em exceção ⇒ regra "excecao" com escopo "categoria";
+  //    (3) todo o resto (vedado sem marcação, vedado convivendo com permissivo) é
+  //        LACUNA: o agente não decide e diz o que falta na política.
+  //    Numa política real uber tem 1 "sim" (aplicativos) + 1 "vedado" (gorjetas) e
+  //    hospedagem tem 5 "sim", 2 "excecao" e 6 "vedado" (itens pessoais, bagagem,
+  //    dependentes) — inferir vedação daí negaria 100% dessas despesas por sub-item.
   const categoriasVedadas: CategoriaRegraCitada[] = [];
   const categoriasExcecao: CategoriaRegraCitada[] = [];
   for (const cat of CATEGORIAS_DESPESA) {
@@ -168,9 +192,11 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
     if (daCategoria.length === 0) continue;
     const rotulo = CATEGORIA_DESPESA_ROTULO[cat];
     const vedadas = daCategoria.filter((r) => r.reembolsavel === "vedado");
-    const temReembolsavel = daCategoria.some((r) => r.reembolsavel === "sim");
+    const permissiva = daCategoria.find((r) => r.reembolsavel === "sim") ?? null;
 
-    const vetoDeCategoria = vedadas.find((r) => r.escopo === "categoria");
+    const vetoDeCategoria = vedadas.find(
+      (r) => r.decisaoAutomatica === "negar" && r.escopo === "categoria",
+    );
     if (vetoDeCategoria) {
       categoriasVedadas.push(
         citar(
@@ -181,17 +207,8 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
       );
       continue;
     }
-    if (vedadas.length > 0 && !temReembolsavel) {
-      categoriasVedadas.push(
-        citar(
-          cat,
-          vedadas[0],
-          `Categoria ${rotulo} vedada pela política — regra: "${curto(vedadas[0].descricao)}"; a política não tem nenhuma regra reembolsável nesta categoria.`,
-        ),
-      );
-      continue;
-    }
-    const excecao = daCategoria.find((r) => r.reembolsavel === "excecao");
+
+    const excecao = daCategoria.find((r) => r.reembolsavel === "excecao" && r.escopo === "categoria");
     if (excecao) {
       categoriasExcecao.push(
         citar(
@@ -200,31 +217,44 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
           `Categoria ${rotulo} exige aprovação superior na política — regra: "${curto(excecao.descricao)}".`,
         ),
       );
-      continue;
     }
-    if (vedadas.length > 0) {
-      categoriasExcecao.push(
-        citar(
-          cat,
-          vedadas[0],
-          `Categoria ${rotulo} tem regra vedada que pode se aplicar — regra: "${curto(vedadas[0].descricao)}". Como a política também reembolsa ${rotulo}, a despesa vai para revisão humana.`,
-        ),
-      );
+
+    if (vedadas.length === 0) continue;
+    if (permissiva) {
+      lacunas.push({
+        tipo: "conflito-vedado-permissivo",
+        categoria: cat,
+        regraIds: [vedadas[0].id, permissiva.id],
+        motivo: `A política tem regra vedada e regra permissiva para ${rotulo} e não diz qual prevalece — regras: "${curto(vedadas[0].descricao)}" e "${curto(permissiva.descricao)}". A despesa vai para revisão do gestor.`,
+      });
+    } else {
+      lacunas.push({
+        tipo: "so-vedado-sem-marcacao",
+        categoria: cat,
+        regraIds: [vedadas[0].id],
+        motivo: `A política só tem regra vedada para ${rotulo} — regra: "${curto(vedadas[0].descricao)}" — e nenhuma está marcada como negação automática. A despesa vai para revisão do gestor.`,
+      });
     }
   }
 
   return {
     limitesPorCategoria,
     tetosTemporaisPorCategoria,
+    limitesCitados,
     categoriasVedadas,
     categoriasExcecao,
     exigeVeiculoCadastrado,
     exigeEvidencia,
-    aprovacaoAutomaticaAte,
-    revisaoHumanaAcimaDe,
-    negacaoAcimaDe,
+    aprovacaoAutomaticaAte: regraAprovacao?.valorLimite ?? null,
+    aprovacaoAutomaticaAteRegraId: regraAprovacao?.id ?? null,
+    aprovacaoAutomaticaPorCategoria,
+    revisaoHumanaAcimaDe: regraRevisao?.valorLimite ?? null,
+    revisaoHumanaAcimaDeRegraId: regraRevisao?.id ?? null,
+    negacaoAcimaDe: regraNegacao?.valorLimite ?? null,
+    negacaoAcimaDeRegraId: regraNegacao?.id ?? null,
     exigeDocumentoFiscal: regraDoc !== undefined,
     regraDocumentoFiscalId: regraDoc?.id ?? null,
+    lacunas,
   };
 }
 

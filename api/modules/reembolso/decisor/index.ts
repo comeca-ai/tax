@@ -54,8 +54,18 @@ export type DecisaoReembolso = {
   categoria: CategoriaDespesa | null;
 };
 
-/** Tipos que não são documento fiscal — extrato, Pix/cartão e afins. */
+/**
+ * Tipos que não são documento fiscal — extrato e Pix/cartão.
+ * "outro" NÃO entra (v1.8): é o balde de incerteza do prompt de visão ("qualquer outra
+ * coisa → outro"), e tratá-lo como não fiscal rejeitava NFC-e de maquininha.
+ */
 const TIPOS_NAO_FISCAIS: ReadonlySet<TipoDocumento> = new Set([
+  "extrato_conta",
+  "comprovante_pagamento",
+]);
+
+/** Tipos sem lastro fiscal evidente — viram ressalva quando a política nada declara (v1.8). */
+const TIPOS_SEM_LASTRO_FISCAL: ReadonlySet<TipoDocumento> = new Set([
   "extrato_conta",
   "comprovante_pagamento",
   "outro",
@@ -95,6 +105,19 @@ export function decidirReembolso(
       "CNPJ do emitente não identificado no comprovante — confira na evidência anexada.",
     );
   }
+  // Tipo de documento sem lastro fiscal e política silenciosa: o agente não supõe que
+  // o comprovante serve nem que não serve — declara o que viu e segue as regras de valor.
+  const tipoDoc = extracao.tipoDocumento ?? null;
+  if (
+    tipoDoc &&
+    TIPOS_SEM_LASTRO_FISCAL.has(tipoDoc) &&
+    regrasPolitica &&
+    !regrasPolitica.exigeDocumentoFiscal
+  ) {
+    ressalvas.push(
+      `Documento enviado parece ser ${TIPO_DOCUMENTO_LABELS[tipoDoc]}; sua política não declara se esse tipo de comprovante é aceito.`,
+    );
+  }
   const confianca: ConfiancaExtracao =
     ressalvas.length > 0 && extracao.confiancaExtracao === "alta"
       ? "media"
@@ -115,12 +138,11 @@ export function decidirReembolso(
   }
 
   // ── 0.5 Comprovante não fiscal (extrato/Pix/cartão) — regra da política ──
-  const tipoDoc = extracao.tipoDocumento ?? null;
   if (regrasPolitica.exigeDocumentoFiscal && tipoDoc && TIPOS_NAO_FISCAIS.has(tipoDoc)) {
     const regraDoc =
       regrasPolitica.regrasExtraidas.find((r) => r.id === regrasPolitica.regraDocumentoFiscalId) ?? null;
     const rotulo = TIPO_DOCUMENTO_LABELS[tipoDoc];
-    const idRegra = regraDoc?.id ?? regrasPolitica.regraDocumentoFiscalId ?? "comprovantes-nao-aceitos";
+    const idRegra = regraDoc?.id ?? regrasPolitica.regraDocumentoFiscalId ?? "documento-fiscal-exigido";
     if (extracao.confiancaTipo === "alta") {
       const versao = contexto.politicaVersao != null ? ` (v${contexto.politicaVersao})` : "";
       return {

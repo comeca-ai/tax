@@ -363,6 +363,18 @@ export type ReembolsavelRegra = (typeof REEMBOLSAVEL_REGRA)[number];
 export const ESCOPOS_REGRA = ["item", "categoria"] as const;
 export type EscopoRegra = (typeof ESCOPOS_REGRA)[number];
 
+/**
+ * O que ESTA regra autoriza o agente a fazer sozinho (v1.8).
+ *  - "nenhuma" → a regra é documentação: pode gerar teto/exceção (revisão), NUNCA
+ *                aprovação nem negação automática. Default de tudo que já existe.
+ *  - "aprovar" → só com reembolsavel "sim" + valorLimite em BRL não-percentual/não-prazo.
+ *  - "negar"   → só com reembolsavel "vedado".
+ * NENHUM prompt de LLM pede este campo e nenhum parser o preenche: só o gestor,
+ * no card. É a única porta para decisão automática (D-013).
+ */
+export const DECISOES_AUTOMATICAS_REGRA = ["nenhuma", "aprovar", "negar"] as const;
+export type DecisaoAutomaticaRegra = (typeof DECISOES_AUTOMATICAS_REGRA)[number];
+
 /** Tamanho máximo de `descricao` e `condicao` de uma regra (espelhado no `maxLength` do card de edição). */
 export const REGRA_TEXTO_MAX = 300;
 
@@ -379,6 +391,13 @@ export const regraExtraidaSchema = z.object({
   moeda: z.string().trim().toUpperCase().length(3).default("BRL"),
   unidadeLimite: z.enum(UNIDADES_LIMITE).nullable().default(null),
   exigeComprovante: z.boolean().default(false),
+  /**
+   * Declaração do gestor: esta regra só aceita nota fiscal ou recibo — comprovante de
+   * pagamento (Pix, cartão, extrato) não serve. Substitui o match pelo id
+   * `comprovantes-nao-aceitos`, que nenhum prompt pedia (decisão do dono P-2, v1.8).
+   */
+  exigeDocumentoFiscal: z.boolean().default(false),
+  decisaoAutomatica: z.enum(DECISOES_AUTOMATICAS_REGRA).default("nenhuma"),
 });
 export type RegraExtraida = z.infer<typeof regraExtraidaSchema>;
 
@@ -391,6 +410,24 @@ export const categoriaRegraCitadaSchema = z.object({
   motivo: z.string().trim().min(1).max(400),
 });
 export type CategoriaRegraCitada = z.infer<typeof categoriaRegraCitadaSchema>;
+
+/** Ponto em que a política NÃO define e o agente, por isso, não decide (v1.8). */
+export const LACUNA_TIPOS = [
+  "conflito-vedado-permissivo", // vedado + sim na mesma categoria, sem marcação do gestor
+  "so-vedado-sem-marcacao", // só regra vedada na categoria, nenhuma marcada como "negar"
+  "marcacao-sem-valor", // regra marcada "aprovar" sem valor monetário aplicável
+] as const;
+export type LacunaTipo = (typeof LACUNA_TIPOS)[number];
+
+export const lacunaPoliticaSchema = z.object({
+  tipo: z.enum(LACUNA_TIPOS),
+  /** null = vale para toda despesa; categoria = só nela. */
+  categoria: z.enum(CATEGORIAS_DESPESA).nullable().default(null),
+  regraIds: z.array(z.string().min(1).max(80)).max(20).default([]),
+  /** Frase PT-BR pronta para o veredito — nomeia a lacuna. */
+  motivo: z.string().trim().min(1).max(400),
+});
+export type LacunaPolitica = z.infer<typeof lacunaPoliticaSchema>;
 
 /**
  * JSON de regras da política — contrato estável, versionado junto à política
@@ -419,6 +456,18 @@ export const regrasPoliticaSchema = z.object({
   exigeEvidencia: z.array(z.enum(CATEGORIAS_DESPESA)).default([]),
   /** Aprovação automática até este valor (R$); null = sem teto configurado */
   aprovacaoAutomaticaAte: z.number().min(0).nullable().default(null),
+  /** Teto de aprovação automática POR categoria (R$) — só de regra marcada "aprovar" com escopo "categoria" (v1.8) */
+  aprovacaoAutomaticaPorCategoria: z
+    .partialRecord(z.enum(CATEGORIAS_DESPESA), z.number().min(0))
+    .default({}),
+  /** Regras citadas nos tetos por categoria (D-013: todo motivo nomeia a regra) */
+  limitesCitados: z.array(categoriaRegraCitadaSchema).default([]),
+  /** Id da regra que fundamenta cada teto global; null quando o teto não existe */
+  aprovacaoAutomaticaAteRegraId: z.string().max(80).nullable().default(null),
+  revisaoHumanaAcimaDeRegraId: z.string().max(80).nullable().default(null),
+  negacaoAcimaDeRegraId: z.string().max(80).nullable().default(null),
+  /** Onde a política não define — o agente não decide e nomeia a lacuna (v1.8) */
+  lacunas: z.array(lacunaPoliticaSchema).max(60).default([]),
   /** Acima deste valor (R$) vai para revisão humana; null = sem regra */
   revisaoHumanaAcimaDe: z.number().min(0).nullable().default(null),
   /** Acima deste valor (R$) a despesa é negada; null = sem teto de negação */

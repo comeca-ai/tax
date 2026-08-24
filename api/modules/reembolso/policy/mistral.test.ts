@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CATEGORIAS_DESPESA } from "@contracts/types";
-import { avisosQualidade, mapearRuleset } from "./mistral";
+import { avisosQualidade, mapearRuleset, regrasExtraidasDe, type RegraLLM } from "./mistral";
 
 describe("avisosQualidade", () => {
   it("sem bloco de qualidade devolve vazio", () => {
@@ -83,7 +83,7 @@ describe("mapearRuleset", () => {
     expect(regras.regrasExtraidas.map((r) => r.valorLimite)).toEqual([30, 120, 500, 900]);
   });
 
-  it("categoria com regra vedada e regra reembolsável vira exceção, nunca vedação automática", () => {
+  it("categoria com regra vedada e regra reembolsável vira LACUNA, nunca vedação automática", () => {
     const { regras } = mapearRuleset({
       regras: [
         {
@@ -101,7 +101,11 @@ describe("mapearRuleset", () => {
       ],
     });
     expect(regras.categoriasVedadas).toEqual([]);
-    expect(regras.categoriasExcecao.map((c) => c.categoria)).toEqual(["uber"]);
+    expect(regras.categoriasExcecao).toEqual([]);
+    // Vedado convivendo com permissivo é lacuna nomeada: o agente não elege vencedora (v1.8).
+    expect(regras.lacunas.map((l) => `${l.categoria}:${l.tipo}`)).toEqual([
+      "uber:conflito-vedado-permissivo",
+    ]);
   });
 
   it("exige_comprovante em regra sem categoria exige evidência em todas as categorias", () => {
@@ -123,14 +127,15 @@ describe("mapearRuleset", () => {
     expect(camposPendentes).toEqual(["§3: Limite de hospedagem ausente"]);
   });
 
-  it("tetos gerais só nascem de regra de governança explícita", () => {
+  it("nenhum teto de aprovação nasce do documento: só revisão humana, que é ausência de decisão", () => {
     const { regras } = mapearRuleset({
       regras: [
         { tema: "governanca-do-processo", categoria: "outros", descricao: "Aprovação automática até", reembolsavel: "sim", valor_limite: 200 },
         { tema: "governanca-do-processo", categoria: "outros", descricao: "Revisão humana acima de", reembolsavel: "excecao", valor_limite: 1000 },
       ],
     });
-    expect(regras.aprovacaoAutomaticaAte).toBe(200);
+    // O texto "Aprovação automática até" não autoriza nada sem a marcação do gestor (v1.8).
+    expect(regras.aprovacaoAutomaticaAte).toBeNull();
     expect(regras.revisaoHumanaAcimaDe).toBe(1000);
     expect(regras.negacaoAcimaDe).toBeNull();
     expect(mapearRuleset({ regras: [] }).regras.aprovacaoAutomaticaAte).toBeNull();
@@ -166,9 +171,12 @@ describe("mapearRuleset", () => {
         moeda: "BRL",
         unidadeLimite: "dia",
         exigeComprovante: true,
+        exigeDocumentoFiscal: false,
+        decisaoAutomatica: "nenhuma",
       },
     ]);
-    expect(regras.exigeVeiculoCadastrado).toEqual(["combustivel"]);
+    // A regex de "veículo cadastrado" morreu na v1.8: exigência só por campo estruturado (P-3).
+    expect(regras.exigeVeiculoCadastrado).toEqual([]);
     expect(regras.exigeEvidencia).toEqual(["combustivel"]);
   });
 
@@ -200,6 +208,8 @@ describe("mapearRuleset", () => {
         moeda: "BRL",
         unidadeLimite: null,
         exigeComprovante: false,
+        exigeDocumentoFiscal: false,
+        decisaoAutomatica: "nenhuma",
       },
     ]);
   });
@@ -282,5 +292,25 @@ describe("mapearRuleset", () => {
     });
     expect(regras.regrasExtraidas.map((r) => r.id)).toEqual(["almoco", "almoco-2", "almoco-3"]);
     expect(regras.regrasExtraidas.map((r) => r.descricao)).toEqual(["A", "B", "C"]);
+  });
+});
+
+describe("regrasExtraidasDe — o LLM nunca autoriza decisão automática (D-013)", () => {
+  it("campos inventados pelo modelo para decidir sozinho são ignorados", () => {
+    const regras = regrasExtraidasDe([
+      {
+        id: "alcada-do-gestor",
+        tema: "governanca-do-processo",
+        categoria: "outros",
+        alcance: "categoria",
+        descricao: "Aprovação automática até o valor de alçada",
+        reembolsavel: "sim",
+        valor_limite: 500,
+        decisao_automatica: "aprovar",
+        exige_documento_fiscal: true,
+      } as RegraLLM,
+    ]);
+    expect(regras[0].decisaoAutomatica).toBe("nenhuma");
+    expect(regras[0].exigeDocumentoFiscal).toBe(false);
   });
 });

@@ -4,6 +4,84 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.8.0] — 2026-08-24
+
+**A política é a única fonte.** Não existe tolerância, não existe hierarquia
+suposta: decisão automática (aprovar ou negar) só existe onde o gestor marcou,
+no card da regra, um campo estruturado. Todo o resto — texto livre, ausência de
+campo, empate entre regras — é lacuna, e lacuna vai para revisão humana
+**nomeando o que falta** (D-013).
+
+### Adicionado
+- **Decisão automática por regra** (`decisaoAutomatica`: `nenhuma` | `aprovar` |
+  `negar`, default `nenhuma`): seletor no card de edição
+  ("Só o gestor decide (padrão)" / "O agente pode aprovar sozinho" /
+  "O agente pode negar sozinho") e chip no card de leitura. `aprovar` exige regra
+  reembolsável com valor em reais; `negar` exige regra vedada. Trocar
+  `reembolsavel`, a unidade ou zerar o valor rebaixa a marcação para `nenhuma` no
+  mesmo patch. **Nenhum prompt de LLM pede este campo e nenhum parser o preenche**:
+  é a única porta para decisão automática
+- **Teto de aprovação automática por categoria**
+  (`aprovacaoAutomaticaPorCategoria`): de regra marcada `aprovar` com escopo
+  `categoria`. Global e por categoria aplicam-se juntos — o valor precisa caber
+  em todos os tetos aplicáveis
+- **Lacunas da política** (`lacunas`): `conflito-vedado-permissivo` (vedado e
+  permissivo na mesma categoria, sem marcação), `so-vedado-sem-marcacao` e
+  `marcacao-sem-valor` (marcada `aprovar` sem limite em reais). Cada lacuna vira
+  revisão humana com frase própria, exibida no resumo em
+  "O que a política não define"
+- **Exigência de nota fiscal como declaração do gestor**
+  (`exigeDocumentoFiscal` na regra): checkbox "Só aceito nota fiscal ou recibo"
+  no card. Substitui o match pelo id `comprovantes-nao-aceitos`, que nenhum
+  prompt pedia e que a política real nunca teve
+- **Regras citadas nas decisões**: `limitesCitados`,
+  `aprovacaoAutomaticaAteRegraId`, `revisaoHumanaAcimaDeRegraId` e
+  `negacaoAcimaDeRegraId` — todo motivo nomeia a regra que o produziu
+- Bloco **"O agente decide sozinho"** no resumo da política (primeiro da lista) e
+  faixa de aviso em `/app/politica` quando a política ativa não autoriza nenhuma
+  aprovação automática, com botão "Revisar regras"
+
+### Alterado
+- **Fim da tolerância de 1,5×**: valor acima do limite da categoria vai
+  **sempre** para revisão do gestor, nunca é negado — o número 1,5 nunca esteve
+  escrito em política nenhuma. Fecha de passagem o caso da unidade `mes`, que
+  negava nota única acima de 1,5×
+- **Teto da categoria passa a ser o MENOR** entre as regras de escopo
+  `categoria` (antes o maior): aplicam-se todas as regras, o menor teto governa
+- `categoriasVedadas` só nasce de regra vedada **marcada `negar`** com escopo
+  `categoria`; `categoriasExcecao` só de regra `excecao` com escopo `categoria`.
+  Regra vedada não marcada não veda mais nada
+- `aprovacaoAutomaticaAte` e `negacaoAcimaDe` só nascem da marcação do gestor;
+  `revisaoHumanaAcimaDe` continua vindo de regra de governança `excecao` (o
+  desfecho é a ausência de decisão) e passa a usar o menor valor
+- `politica.get` e `politica.ativa` devolvem as regras **consolidadas**: o card
+  da política ativa e o motor passam a dizer a mesma coisa
+- `"outro"` sai do conjunto de tipos não fiscais do decisor — é o balde de
+  incerteza do OCR de visão, e tratá-lo como não fiscal rejeitava NFC-e de
+  maquininha. Tipo sem lastro fiscal com política silenciosa vira **ressalva**,
+  não bloqueio
+
+### Removido
+- Regex de texto livre que autorizava aprovação automática
+  (`aprovação automática` / `reembolso automático`) e regex de veículo
+  (`veículo cadastrado`/`carro próprio`) — com ela, `exigeVeiculoCadastrado`
+  derivado passa a `[]` (na política real já era `[]`; checkbox por regra fica
+  para uma próxima leva)
+- Inferência de vedação por ausência de regra reembolsável na categoria
+- Match por id `comprovantes-nao-aceitos`
+
+### Migrações
+Nenhuma. Todos os campos novos vivem no JSON de `politicas_reembolso.regras` e
+chegam por `default` do zod — políticas gravadas parseiam sem tocar no banco.
+A migração **0007** (`notas_fiscais.tipo_documento`, `confianca_tipo`) continua
+pendente de aplicação: `npm run db:migrate` → `docker compose build` →
+`docker compose up -d`, nessa ordem.
+
+### Nota de operação
+Políticas já ativas ficam em **100% revisão** até o gestor reeditar e marcar as
+regras que autorizam o agente a aprovar sozinho — nenhuma marcação é inventada
+por nós. A faixa em `/app/politica` avisa e leva ao passo 2.
+
 ## [Unreleased] — convergência da branch `feat/policy-llm-gemini` sobre a base 1.7.0 (versão definida no merge em `master`)
 
 **Política da empresa: tudo nasce do documento.** O gestor vê o texto que o

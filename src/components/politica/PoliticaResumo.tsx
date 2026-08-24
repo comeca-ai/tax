@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react"
 import {
+  Bot,
   CarFront,
   ChevronsDownUp,
   ChevronsUpDown,
+  CircleAlert,
   CircleCheck,
   CircleX,
   Paperclip,
@@ -101,15 +103,23 @@ function ChipValor({ rotulo, valor, tone }: { rotulo: string; valor: number; ton
 export default function PoliticaResumo({ regras, className }: PoliticaResumoProps) {
   const limites = (Object.entries(regras.limitesPorCategoria ?? {}) as [CategoriaDespesa, number | null][])
     .filter(([, valor]) => valor != null)
-  const temLimiares =
+  const aprovaPorCategoria = (
+    Object.entries(regras.aprovacaoAutomaticaPorCategoria ?? {}) as [CategoriaDespesa, number | undefined][]
+  ).filter(([, valor]) => valor != null)
+  /** O que o agente pode decidir SOZINHO — só o que a política declarou (D-013). */
+  const decideSozinho =
     regras.aprovacaoAutomaticaAte != null ||
-    regras.revisaoHumanaAcimaDe != null ||
-    regras.negacaoAcimaDe != null
+    aprovaPorCategoria.length > 0 ||
+    regras.negacaoAcimaDe != null ||
+    regras.categoriasVedadas.length > 0
+  const lacunas = regras.lacunas ?? []
   const temParametros =
     limites.length > 0 ||
     regras.exigeVeiculoCadastrado.length > 0 ||
     regras.exigeEvidencia.length > 0 ||
-    temLimiares
+    regras.revisaoHumanaAcimaDe != null ||
+    lacunas.length > 0 ||
+    decideSozinho
   const semRegras = !temParametros && regras.observacoes.length === 0
   const estruturadas = regras.regrasExtraidas.length > 0
 
@@ -132,6 +142,33 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
   /** Parâmetros derivados (só os que têm conteúdo), na mesma ordem nos dois ramos. */
   function blocosParametros(): React.ReactNode[] {
     const blocos: React.ReactNode[] = []
+    // Primeiro bloco, sempre presente: responde "o agente aprova alguma coisa sozinho?".
+    // Silêncio aqui parecia funcionamento normal — agora a ausência é dita com todas as letras.
+    blocos.push(
+      <Linha key="decide" icone={Bot} titulo="O agente decide sozinho">
+        {decideSozinho ? (
+          <>
+            {regras.aprovacaoAutomaticaAte != null && (
+              <ChipValor rotulo="aprova até" valor={regras.aprovacaoAutomaticaAte} tone="alta" />
+            )}
+            {aprovaPorCategoria.map(([categoria, valor]) => (
+              <ChipCategoria key={`aprova-${categoria}`} categoria={categoria} extra={`aprova até ${formatBRL(valor!)}`} />
+            ))}
+            {regras.negacaoAcimaDe != null && (
+              <ChipValor rotulo="nega acima de" valor={regras.negacaoAcimaDe} tone="vedado" />
+            )}
+            {regras.categoriasVedadas.map((c) => (
+              <ChipCategoria key={`nega-${c.categoria}`} categoria={c.categoria} extra="nega sempre" />
+            ))}
+          </>
+        ) : (
+          <p className="text-[12px] leading-relaxed text-text-500">
+            Nada — sua política não define quando o agente pode aprovar sozinho; enquanto isso, tudo
+            vai para sua revisão.
+          </p>
+        )}
+      </Linha>,
+    )
     if (limites.length > 0) {
       blocos.push(
         <Linha
@@ -175,18 +212,28 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
         </Linha>,
       )
     }
-    if (temLimiares) {
+    if (regras.revisaoHumanaAcimaDe != null) {
       blocos.push(
-        <Linha key="decisao" icone={ScanSearch} titulo="Decisão automática">
-          {regras.aprovacaoAutomaticaAte != null && (
-            <ChipValor rotulo="aprova até" valor={regras.aprovacaoAutomaticaAte} tone="alta" />
-          )}
-          {regras.revisaoHumanaAcimaDe != null && (
-            <ChipValor rotulo="revisão humana acima de" valor={regras.revisaoHumanaAcimaDe} tone="media" />
-          )}
-          {regras.negacaoAcimaDe != null && (
-            <ChipValor rotulo="nega acima de" valor={regras.negacaoAcimaDe} tone="vedado" />
-          )}
+        <Linha key="revisao" icone={ScanSearch} titulo="Vai para a sua revisão">
+          <ChipValor rotulo="acima de" valor={regras.revisaoHumanaAcimaDe} tone="media" />
+        </Linha>,
+      )
+    }
+    // Onde a política não define, o agente não decide — e diz o que falta (v1.8).
+    if (lacunas.length > 0) {
+      blocos.push(
+        <Linha key="lacunas" icone={CircleAlert} titulo="O que a política não define">
+          <ul className="flex w-full flex-col gap-1.5">
+            {lacunas.map((lacuna, idx) => (
+              <li
+                key={`${lacuna.tipo}-${lacuna.categoria ?? "todas"}-${idx}`}
+                className="flex items-start gap-2 text-[12px] leading-relaxed text-conf-media-text"
+              >
+                <CircleAlert className="mt-0.5 h-3 w-3 shrink-0 text-conf-media-dot" aria-hidden="true" />
+                {lacuna.motivo}
+              </li>
+            ))}
+          </ul>
         </Linha>,
       )
     }
@@ -217,19 +264,13 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
               Derivado automaticamente das regras — não editável.
             </p>
           </div>
-          {temParametros ? (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {blocosParametros().map((bloco, idx) => (
-                <div key={idx} className="rounded-lg border border-line bg-paper px-3 py-2.5">
-                  {bloco}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="rounded-lg border border-dashed border-line bg-paper px-3 py-2.5 font-mono text-[12px] text-text-500">
-              Nenhum limite numérico — toda despesa vai para revisão humana.
-            </p>
-          )}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {blocosParametros().map((bloco, idx) => (
+              <div key={idx} className="rounded-lg border border-line bg-paper px-3 py-2.5">
+                {bloco}
+              </div>
+            ))}
+          </div>
         </div>
 
         {grupos.length > 0 && (

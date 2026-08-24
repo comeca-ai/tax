@@ -11,6 +11,7 @@ import {
   Power,
   PowerOff,
   ShieldCheck,
+  TriangleAlert,
 } from "lucide-react"
 import { Link } from "react-router"
 import { toast } from "sonner"
@@ -37,6 +38,7 @@ import {
   regrasFromForm,
   type RegrasForm,
 } from "@/components/politica/regrasForm"
+import { semAutorizacaoDeAprovacao } from "@/components/politica/regrasExtraidas"
 import { cn } from "@/lib/utils"
 
 const PASSOS = [
@@ -216,8 +218,8 @@ export default function Politica() {
     }
   }
 
-  /** Rascunho no histórico → reabre no passo 2 para revisão/edição. */
-  async function revisarRascunho(id: number) {
+  /** Política (rascunho ou ativa) → reabre no passo 2 para revisão/edição das regras. */
+  async function revisarPolitica(id: number) {
     try {
       const politica = await utils.politica.get.fetch({ id })
       const regras = regrasPoliticaSchema.parse(politica.regras ?? {})
@@ -472,6 +474,31 @@ export default function Politica() {
         </div>
       ) : (
         <>
+          {/* Política ativa que não autoriza NENHUMA aprovação automática: o silêncio
+              parecia funcionamento normal — a faixa diz o que está acontecendo e o que fazer. */}
+          {ativa && regrasAtivas && semAutorizacaoDeAprovacao(regrasAtivas) && (
+            <div className="flex flex-col gap-3 rounded-xl border border-conf-media-dot/25 bg-conf-media-bg px-4 py-3.5 sm:flex-row sm:items-center">
+              <TriangleAlert className="h-4 w-4 shrink-0 text-conf-media-text" aria-hidden="true" />
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <p className="text-[13px] font-semibold text-conf-media-text">
+                  Sua política não define quando o agente pode aprovar sozinho
+                </p>
+                <p className="text-[12px] leading-relaxed text-conf-media-text/90">
+                  Enquanto isso, toda despesa vai para a sua revisão. Abra as regras, marque as que
+                  autorizam o agente a aprovar sozinho e ative a política de novo.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void revisarPolitica(ativa.id)}
+                className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg bg-conf-media-text px-3 text-[12px] font-semibold text-white transition hover:opacity-90 sm:h-9"
+              >
+                <PencilLine className="h-3.5 w-3.5" />
+                Revisar regras
+              </button>
+            </div>
+          )}
+
           {/* Card de status */}
           {ativa && regrasAtivas ? (
             <div className="flex flex-col gap-5 rounded-xl border border-line bg-surface p-5 shadow-card">
@@ -568,7 +595,7 @@ export default function Politica() {
                   {versao.status === "rascunho" && (
                     <button
                       type="button"
-                      onClick={() => void revisarRascunho(versao.id)}
+                      onClick={() => void revisarPolitica(versao.id)}
                       className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[12px] font-semibold text-text-900 transition hover:bg-paper"
                     >
                       <PencilLine className="h-3.5 w-3.5" />

@@ -38,6 +38,37 @@ export async function assertEmpresaAcesso(
   return empresa;
 }
 
+/**
+ * Garante que o usuário pode DECIDIR sobre a empresa — não só operá-la (v1.8).
+ * Mais restrita que `assertEmpresaAcesso`, para o que autoriza gasto automático:
+ * marcar `decisaoAutomatica` numa regra e ativar a política.
+ *
+ * Passa quem é:
+ *  - **admin da empresa**: o usuário que criou a conta da empresa (`empresas.usuarioId`).
+ *    Decisão do dono (24/08): quem cria a conta é o admin daquela empresa e é ele quem
+ *    define o que o agente aprova sozinho;
+ *  - **admin da plataforma** (`usuarios.perfil === "admin"`): suporte.
+ *
+ * Barra o `revisor`, que existe para revisar despesa e passava em qualquer empresa —
+ * redefinir o que o agente aprova sozinho nunca foi papel dele.
+ */
+export async function assertAdminDaEmpresa(
+  ctx: TrpcContext,
+  empresaId: number,
+): Promise<typeof empresas.$inferSelect> {
+  const empresa = await assertEmpresaAcesso(ctx, empresaId);
+  const ehAdminDaPlataforma = ctx.usuario?.perfil === "admin";
+  const ehAdminDaEmpresa = empresa.usuarioId === ctx.usuario?.id;
+  if (!ehAdminDaPlataforma && !ehAdminDaEmpresa) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message:
+        "Só o administrador da empresa pode alterar as regras e ativar a política de reembolso.",
+    });
+  }
+  return empresa;
+}
+
 /** RF-04: trilha imutável — apenas INSERT, nunca UPDATE/DELETE. */
 export async function registrarLog(
   db: Db,
