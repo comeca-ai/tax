@@ -296,7 +296,7 @@ export const politicaRouter = createRouter({
         };
       }
 
-      const regras = regrasPoliticaSchema.parse(politica.regras ?? {});
+      const regras = consolidarRegras(regrasPoliticaSchema.parse(politica.regras ?? {}));
       const resultado = avaliarDespesa(
         { categoria: input.categoria, valorNota: input.valorNota },
         regras,

@@ -173,6 +173,10 @@ export type OcrExtracao = {
   camposPendentes: string[];
   provedor: string;
   avisos: string[];
+  /** Tipo de documento detectado pela IA de visão (v1.8); ausente/null no heurístico e em dados antigos */
+  tipoDocumento?: TipoDocumento | null;
+  /** Confiança da IA na classificação do tipo (não confundir com confiancaExtracao dos campos) */
+  confiancaTipo?: ConfiancaExtracao | null;
 };
 
 /** Linha de cálculo de um tributo (RF-03) — memorial de cálculo. */
@@ -254,6 +258,24 @@ export type StatusPolitica = (typeof STATUS_POLITICA)[number];
 export const CONFIANCAS_EXTRACAO = ["alta", "media", "baixa"] as const;
 export type ConfiancaExtracao = (typeof CONFIANCAS_EXTRACAO)[number];
 
+/** Tipo de documento detectado pelo OCR de visão (v1.8): o LLM só relata; quem julga é o decisor (D-013). */
+export const TIPOS_DOCUMENTO = [
+  "nota_fiscal",
+  "recibo",
+  "extrato_conta",
+  "comprovante_pagamento",
+  "outro",
+] as const;
+export type TipoDocumento = (typeof TIPOS_DOCUMENTO)[number];
+
+export const TIPO_DOCUMENTO_LABELS: Record<TipoDocumento, string> = {
+  nota_fiscal: "nota fiscal",
+  recibo: "recibo",
+  extrato_conta: "extrato de conta",
+  comprovante_pagamento: "comprovante de pagamento",
+  outro: "documento não fiscal",
+};
+
 /** Labels PT-BR para UI. */
 export const DECISAO_POLITICA_LABELS: Record<DecisaoPolitica, string> = {
   aprovado: "Aprovado pela política",
@@ -271,6 +293,16 @@ export const CONFIANCA_EXTRACAO_LABELS: Record<ConfiancaExtracao, string> = {
   alta: "Alta",
   media: "Média",
   baixa: "Baixa",
+};
+
+/** Rótulo PT-BR da categoria usado nas frases do servidor (agente, decisor, derivação). */
+export const CATEGORIA_DESPESA_ROTULO: Record<CategoriaDespesa, string> = {
+  combustivel: "combustível",
+  alimentacao: "alimentação",
+  hospedagem: "hospedagem",
+  pedagio: "pedágio",
+  uber: "Uber/app",
+  taxi: "táxi",
 };
 
 /** Grandes temas de uma política de reembolso (slug, título) — ordem de exibição. */
@@ -309,8 +341,27 @@ export const UNIDADES_LIMITE = [
   "dias_para_pagamento",
 ] as const;
 export type UnidadeLimite = (typeof UNIDADES_LIMITE)[number];
+
+/**
+ * Unidades em que o teto é por período: um único comprovante pode cobrir mais de um
+ * (3 diárias numa nota de hotel). Por isso o pior desfecho vira revisão, nunca negação (D-013).
+ * "mes" NÃO entra: nota mensal única é caso raro e o teto mensal exige acumulado, não existe aqui.
+ */
+export const UNIDADES_LIMITE_TEMPORAIS = ["dia", "viagem", "evento"] as const;
+export type UnidadeLimiteTemporal = (typeof UNIDADES_LIMITE_TEMPORAIS)[number];
+
 export const REEMBOLSAVEL_REGRA = ["sim", "excecao", "vedado"] as const;
 export type ReembolsavelRegra = (typeof REEMBOLSAVEL_REGRA)[number];
+
+/**
+ * Alcance de uma regra dentro da categoria (v1.8).
+ *  - "item"      → sub-item da categoria (ex.: "Lavanderia em viagens — R$ 30/dia").
+ *                  NUNCA vira teto, vedação ou exceção da categoria inteira.
+ *  - "categoria" → o gestor marcou explicitamente que a regra vale para a categoria toda.
+ * Default "item": promover uma regra é ato consciente do gestor.
+ */
+export const ESCOPOS_REGRA = ["item", "categoria"] as const;
+export type EscopoRegra = (typeof ESCOPOS_REGRA)[number];
 
 /** Tamanho máximo de `descricao` e `condicao` de uma regra (espelhado no `maxLength` do card de edição). */
 export const REGRA_TEXTO_MAX = 300;
@@ -320,6 +371,7 @@ export const regraExtraidaSchema = z.object({
   id: z.string().min(1).max(80),
   tema: z.enum(TEMAS_POLITICA_SLUGS),
   categoria: z.enum(CATEGORIAS_DESPESA).nullable().default(null),
+  escopo: z.enum(ESCOPOS_REGRA).default("item"),
   descricao: z.string().trim().min(1).max(REGRA_TEXTO_MAX),
   condicao: z.string().trim().max(REGRA_TEXTO_MAX).nullable().default(null),
   reembolsavel: z.enum(REEMBOLSAVEL_REGRA).default("sim"),
@@ -330,6 +382,16 @@ export const regraExtraidaSchema = z.object({
 });
 export type RegraExtraida = z.infer<typeof regraExtraidaSchema>;
 
+/** Categoria marcada pela política + a regra que a marcou. Toda decisão cita a regra (D-013). */
+export const categoriaRegraCitadaSchema = z.object({
+  categoria: z.enum(CATEGORIAS_DESPESA),
+  regraId: z.string().min(1).max(80),
+  descricao: z.string().trim().min(1).max(REGRA_TEXTO_MAX),
+  /** Frase PT-BR pronta para o veredito — quem deriva sabe o porquê; o agente só cita. */
+  motivo: z.string().trim().min(1).max(400),
+});
+export type CategoriaRegraCitada = z.infer<typeof categoriaRegraCitadaSchema>;
+
 /**
  * JSON de regras da política — contrato estável, versionado junto à política
  * (campo `regras` de politicas_reembolso). Valores monetários em R$.
@@ -339,6 +401,18 @@ export const regrasPoliticaSchema = z.object({
   limitesPorCategoria: z
     .partialRecord(z.enum(CATEGORIAS_DESPESA), z.number().min(0).nullable())
     .default({}),
+  /**
+   * Categoria → unidade do teto, quando o teto veio de regra com unidade temporal (v1.8).
+   * Presença da chave = teto por período: acima dele o pior desfecho é REVISÃO, nunca negação (D-013).
+   * Ausência = comportamento atual (acima de 1,5x nega). Política antiga chega {} e não muda de comportamento.
+   */
+  tetosTemporaisPorCategoria: z
+    .partialRecord(z.enum(CATEGORIAS_DESPESA), z.enum(UNIDADES_LIMITE_TEMPORAIS))
+    .default({}),
+  /** Categorias negadas automaticamente, com a regra que vedou (derivado das regras extraídas) */
+  categoriasVedadas: z.array(categoriaRegraCitadaSchema).default([]),
+  /** Categorias que exigem revisão humana (aprovação superior), com a regra citada (derivado) */
+  categoriasExcecao: z.array(categoriaRegraCitadaSchema).default([]),
   /** Categorias que exigem veículo cadastrado na empresa */
   exigeVeiculoCadastrado: z.array(z.enum(CATEGORIAS_DESPESA)).default([]),
   /** Categorias que exigem evidência documental anexada */
@@ -349,6 +423,10 @@ export const regrasPoliticaSchema = z.object({
   revisaoHumanaAcimaDe: z.number().min(0).nullable().default(null),
   /** Acima deste valor (R$) a despesa é negada; null = sem teto de negação */
   negacaoAcimaDe: z.number().min(0).nullable().default(null),
+  /** Política exige nota fiscal/recibo como comprovante (derivado da regra de governança vedada — v1.8) */
+  exigeDocumentoFiscal: z.boolean().default(false),
+  /** Id da regra extraída que fundamenta a exigência (para citação na negação); null = não exige */
+  regraDocumentoFiscalId: z.string().max(80).nullable().default(null),
   /** Observações em texto livre extraídas do documento da política */
   observacoes: z.array(z.string()).default([]),
   /** Regras estruturadas (v1.7 do agente). Única fonte editável; os campos acima são derivados delas no servidor. Ausente = política antiga. */

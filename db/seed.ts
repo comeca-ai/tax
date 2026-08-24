@@ -10,7 +10,7 @@ import {
 } from "./schema";
 import { hashSenha } from "../api/auth/password";
 import { VERSAO_REGRA } from "../api/modules/fiscal/engine/params";
-import type { RegrasPolitica } from "@contracts/types";
+import { regrasPoliticaSchema, type RegrasPolitica } from "@contracts/types";
 
 /**
  * Seed — Tax Engine (reembolsa.ia.br):
@@ -288,7 +288,9 @@ async function seed() {
       "8. REVISÃO HUMANA: despesas acima de R$ 2.000,00 exigem revisão humana do financeiro.",
       "9. NEGAÇÃO: despesas acima de R$ 5.000,00 não são reembolsadas.",
     ].join("\n");
-    const regrasDemo: RegrasPolitica = {
+    // Parse (em vez de literal tipado): os defaults do schema preenchem os campos
+    // derivados novos — o seed não quebra a cada campo acrescentado ao contrato.
+    const regrasDemo: RegrasPolitica = regrasPoliticaSchema.parse({
       limitesPorCategoria: {
         alimentacao: 120,
         hospedagem: 450,
@@ -308,7 +310,7 @@ async function seed() {
       ],
       // Política demo no formato antigo (sem regras estruturadas): parâmetros acima valem como estão
       regrasExtraidas: [],
-    };
+    });
     await db.insert(politicasReembolso).values({
       empresaId,
       arquivoNome: "politica-reembolso-demo.txt",

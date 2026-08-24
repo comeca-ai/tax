@@ -5,6 +5,7 @@ import {
   UNIDADES_LIMITE,
   regrasPoliticaSchema,
   type CategoriaDespesa,
+  type EscopoRegra,
   type PolicyExtracao,
   type RegraExtraida,
   type RegrasPolitica,
@@ -54,6 +55,7 @@ Organize o resultado pelos GRANDES TEMAS abaixo. Use exatamente estes nove temas
 Regras de preenchimento:
 - Toda regra recebe "tema" com o slug de um dos nove temas.
 - Toda regra recebe "categoria" com um destes valores: alimentacao, transporte, hospedagem, km, saude, educacao, outros.
+- "alcance" diz se a regra vale para a CATEGORIA INTEIRA ou para um SUB-ITEM dela. Use "categoria" apenas quando a regra define o limite, a vedacao ou a permissao geral daquele tipo de despesa (ex.: "Hospedagem: ate R$ 400 por diaria"). Use "item" para sub-itens e acessorios (ex.: lavanderia, frigobar, gorjeta, estacionamento do hotel). Na duvida, use "item".
 - "reembolsavel" so aceita: "sim" (reembolsavel dentro da regra), "excecao" (apenas com aprovacao superior) ou "vedado" (nunca reembolsavel).
 - Cada limite monetario vira uma regra propria. "valor_limite" e numero puro, sem simbolo e sem separador de milhar.
 - Nao invente valores. Se a politica nao definir limite, use null e registre o caso em "ambiguidades".
@@ -65,11 +67,11 @@ Responda APENAS com um JSON valido, COMPACTO (sem markdown, sem comentarios, sem
 {
   "politica": { "titulo": string, "vigencia": string ou null, "moeda_padrao": string },
   "qualidade_extracao": { "legivel": boolean, "confianca": numero entre 0 e 1, "paginas_com_problema": [numeros], "observacoes": string },
-  "regras": [ { "id": string kebab-case, "tema": string, "categoria": string, "descricao": string, "condicao": string ou null, "reembolsavel": "sim"|"excecao"|"vedado", "valor_limite": numero ou null, "moeda": string ou null, "unidade_limite": "dia"|"mes"|"viagem"|"evento"|"percentual"|"dias_antecedencia"|"dias_para_pagamento" ou null, "exige_comprovante": boolean } ],
+  "regras": [ { "id": string kebab-case, "tema": string, "categoria": string, "alcance": "categoria"|"item", "descricao": string, "condicao": string ou null, "reembolsavel": "sim"|"excecao"|"vedado", "valor_limite": numero ou null, "moeda": string ou null, "unidade_limite": "dia"|"mes"|"viagem"|"evento"|"percentual"|"dias_antecedencia"|"dias_para_pagamento" ou null, "exige_comprovante": boolean } ],
   "ambiguidades": [ { "id": string kebab-case, "severidade": "alta"|"media"|"baixa", "local": string, "descricao": string } ]
 }`;
 
-type RegraLLM = {
+export type RegraLLM = {
   id?: string;
   tema?: string;
   categoria?: string;
@@ -80,6 +82,9 @@ type RegraLLM = {
   moeda?: string | null;
   unidade_limite?: string | null;
   limite?: { valor?: number | null; moeda?: string | null; unidade?: string | null } | null;
+  /** Alcance proposto pelo modelo: "categoria" | "item". NÃO confundir com `escopo` (abaixo). */
+  alcance?: string;
+  /** Campo do JSON do modelo: nacional|internacional|ambos. Nada a ver com o `escopo` do contrato. */
   escopo?: string;
   exige_comprovante?: boolean;
   aprovacao_minima?: string | null;
@@ -157,18 +162,29 @@ function idUnico(bruto: unknown, indice: number, usados: Set<string>): string {
   return id;
 }
 
+/**
+ * Alcance proposto pelo LLM. Só vira escopo "categoria" com categoria conhecida —
+ * o gestor confirma no checkbox do card antes de a política ser salva/ativada (D-013).
+ * NÃO confundir com o campo `escopo` (nacional|internacional) do JSON do modelo.
+ */
+function escopoDe(r: RegraLLM, categoria: CategoriaDespesa | null): EscopoRegra {
+  return categoria !== null && r.alcance === "categoria" ? "categoria" : "item";
+}
+
 /** Sanea cada regra do LLM no contrato `RegraExtraida` (lixo parcial nunca derruba o upload). */
-function regrasExtraidasDe(regras: RegraLLM[]): RegraExtraida[] {
+export function regrasExtraidasDe(regras: RegraLLM[]): RegraExtraida[] {
   const usados = new Set<string>();
   const out: RegraExtraida[] = [];
   regras.forEach((r, i) => {
     if (out.length >= 500) return; // teto do contrato (regrasExtraidas.max(500))
     const descricao = texto300(r.descricao);
     if (!descricao) return;
+    const categoria = categoriaApp(r);
     out.push({
       id: idUnico(r.id, i, usados),
       tema: typeof r.tema === "string" && TEMAS_VALIDOS.has(r.tema) ? (r.tema as TemaPolitica) : "governanca-do-processo",
-      categoria: categoriaApp(r),
+      categoria,
+      escopo: escopoDe(r, categoria),
       descricao,
       condicao: texto300(r.condicao),
       reembolsavel:

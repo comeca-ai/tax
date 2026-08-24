@@ -150,6 +150,9 @@ export const notasFiscais = mysqlTable("notas_fiscais", {
   // Extração automática (v1.7.0, D-014): o que o OCR/visão detectou — ninguém digita
   categoriaSugerida: varchar("categoria_sugerida", { length: 20 }),
   litros: double("litros"),
+  // Classificação do documento pela IA de visão (v1.8) — o decisor usa para negar comprovante não fiscal
+  tipoDocumento: varchar("tipo_documento", { length: 30 }),
+  confiancaTipo: varchar("confianca_tipo", { length: 10 }),
   // Upload na plataforma: arquivo original guardado inline (MVP, sem storage externo)
   arquivoNome: varchar("arquivo_nome", { length: 255 }),
   arquivoMime: varchar("arquivo_mime", { length: 100 }),

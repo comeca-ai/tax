@@ -1,10 +1,10 @@
 import {
-  CATEGORIAS_DESPESA,
   regrasPoliticaSchema,
-  type CategoriaDespesa,
   type PolicyExtracao,
   type RegrasPolitica,
 } from "@contracts/types";
+import { consolidarRegras } from "./derivar";
+import { regrasExtraidasDe, type RegraLLM } from "./mistral";
 import type { ArquivoPolitica, PolicyParser } from "./parser";
 
 /**
@@ -23,18 +23,6 @@ import type { ArquivoPolitica, PolicyParser } from "./parser";
  * (heurístico) com aviso — o upload nunca quebra por indisponibilidade do LLM.
  */
 
-const TEMAS = [
-  ["alimentacao", "Alimentação"],
-  ["transporte-e-deslocamento", "Transporte e deslocamento"],
-  ["hospedagem-e-viagem", "Hospedagem e viagem"],
-  ["saude", "Saúde"],
-  ["educacao-e-desenvolvimento", "Educação e desenvolvimento"],
-  ["tecnologia-e-escritorio", "Tecnologia e escritório"],
-  ["eventos-e-relacionamento", "Eventos e relacionamento"],
-  ["mudanca-e-transferencia", "Mudança e transferência"],
-  ["governanca-do-processo", "Governança do processo"],
-] as const;
-
 const PROMPT_EXTRACAO = `Voce e um analista senior de politicas corporativas de reembolso de despesas.
 Leia o documento anexo (politica de reembolso de uma empresa) e extraia TODAS as regras de reembolso.
 
@@ -52,6 +40,7 @@ Organize o resultado pelos GRANDES TEMAS abaixo. Use exatamente estes nove temas
 Regras de preenchimento:
 - Toda regra recebe "tema" com o slug de um dos nove temas.
 - Toda regra recebe "categoria" com um destes valores: alimentacao, transporte, hospedagem, km, saude, educacao, outros.
+- "alcance" diz se a regra vale para a CATEGORIA INTEIRA ou para um SUB-ITEM dela. Use "categoria" apenas quando a regra define o limite, a vedacao ou a permissao geral daquele tipo de despesa (ex.: "Hospedagem: ate R$ 400 por diaria"). Use "item" para sub-itens e acessorios (ex.: lavanderia, frigobar, gorjeta, estacionamento do hotel). Na duvida, use "item".
 - "reembolsavel" so aceita: "sim" (reembolsavel dentro da regra), "excecao" (apenas com aprovacao superior) ou "vedado" (nunca reembolsavel).
 - Cada limite monetario vira uma regra propria. "valor_limite" e numero puro, sem simbolo e sem separador de milhar.
 - Nao invente valores. Se a politica nao definir limite, use null e registre o caso em "ambiguidades".
@@ -64,28 +53,9 @@ Responda APENAS com um JSON valido (sem markdown, sem comentarios), exatamente n
   "politica": { "titulo": string, "vigencia": string ou null, "moeda_padrao": string },
   "qualidade_extracao": { "legivel": boolean, "confianca": numero entre 0 e 1, "paginas_com_problema": [numeros], "observacoes": string },
   "temas": [ { "tema": string, "titulo": string, "total_regras": numero, "reembolsaveis": numero, "excecoes": numero, "vedadas": numero, "regras": [ids] } ],
-  "regras": [ { "id": string kebab-case, "tema": string, "categoria": string, "descricao": string, "condicao": string ou null, "reembolsavel": "sim"|"excecao"|"vedado", "valor_limite": numero ou null, "moeda": string ou null, "unidade_limite": "dia"|"mes"|"viagem"|"evento"|"percentual"|"dias_antecedencia"|"dias_para_pagamento" ou null, "escopo": "nacional"|"internacional"|"ambos", "exige_comprovante": boolean, "aprovacao_minima": string ou null, "prazo_envio_dias": numero ou null, "base_documental": string } ],
+  "regras": [ { "id": string kebab-case, "tema": string, "categoria": string, "alcance": "categoria"|"item", "descricao": string, "condicao": string ou null, "reembolsavel": "sim"|"excecao"|"vedado", "valor_limite": numero ou null, "moeda": string ou null, "unidade_limite": "dia"|"mes"|"viagem"|"evento"|"percentual"|"dias_antecedencia"|"dias_para_pagamento" ou null, "escopo": "nacional"|"internacional"|"ambos", "exige_comprovante": boolean, "aprovacao_minima": string ou null, "prazo_envio_dias": numero ou null, "base_documental": string } ],
   "ambiguidades": [ { "id": string kebab-case, "severidade": "alta"|"media"|"baixa", "local": string, "descricao": string, "impacto": string } ]
 }`;
-
-type RegraLLM = {
-  id?: string;
-  tema?: string;
-  categoria?: string;
-  descricao?: string;
-  condicao?: string | null;
-  reembolsavel?: string;
-  valor_limite?: number | null;
-  moeda?: string | null;
-  unidade_limite?: string | null;
-  limite?: { valor?: number | null; moeda?: string | null; unidade?: string | null } | null;
-  escopo?: string;
-  exige_comprovante?: boolean;
-  aprovacao_minima?: string | null;
-  prazo_envio_dias?: number | null;
-  base_documental?: string;
-  referencia?: string;
-};
 
 type RulesetLLM = {
   politica?: { titulo?: string; vigencia?: string | null; moeda_padrao?: string };
@@ -94,43 +64,11 @@ type RulesetLLM = {
   ambiguidades?: { severidade?: string; local?: string; descricao?: string; impacto?: string }[];
 };
 
-const TEMA_TITULO = new Map<string, string>(TEMAS.map(([slug, titulo]) => [slug, titulo]));
-
-/** Mapeia uma regra do ruleset para a categoria de despesa do app, se houver. */
-function categoriaApp(r: RegraLLM): CategoriaDespesa | null {
-  const texto = `${r.id ?? ""} ${r.descricao ?? ""}`.toLowerCase();
-  if (r.categoria === "alimentacao") return "alimentacao";
-  if (r.categoria === "hospedagem") return "hospedagem";
-  if (r.categoria === "transporte" || r.categoria === "km") {
-    if (/combust|abastec|gasolina|etanol|diesel/.test(texto)) return "combustivel";
-    if (/ped[aá]gio/.test(texto)) return "pedagio";
-    if (/t[aá]xi/.test(texto)) return "taxi";
-    if (/uber|99|aplicativo/.test(texto)) return "uber";
-    return null;
-  }
-  return null;
-}
-
-function valorLimite(r: RegraLLM): number | null {
-  const direto = typeof r.valor_limite === "number" ? r.valor_limite : null;
-  const objeto = typeof r.limite?.valor === "number" ? r.limite.valor : null;
-  const v = direto ?? objeto;
-  return v !== null && Number.isFinite(v) && v >= 0 ? v : null;
-}
-
-function moedaDe(r: RegraLLM): string {
-  return (r.moeda ?? r.limite?.moeda ?? "BRL").toUpperCase();
-}
-
-function fmtValor(r: RegraLLM): string {
-  const v = valorLimite(r);
-  if (v === null) return "";
-  const unidade = r.unidade_limite ?? r.limite?.unidade ?? null;
-  const sufixo = unidade && !unidade.startsWith("dias_") ? `/${unidade}` : "";
-  return ` — até ${moedaDe(r) === "BRL" ? "R$" : moedaDe(r)} ${v}${sufixo}`;
-}
-
-/** Converte o ruleset temático do LLM no contrato estável RegrasPolitica. */
+/**
+ * Converte o ruleset temático do LLM no contrato estável RegrasPolitica.
+ * As regras extraídas são a única fonte: limites, exigências, vedações e observações
+ * saem de `consolidarRegras()` — o mesmo caminho do parser Mistral (v1.8).
+ */
 export function mapearRuleset(ruleset: RulesetLLM): {
   regras: RegrasPolitica;
   camposPendentes: string[];
@@ -139,39 +77,7 @@ export function mapearRuleset(ruleset: RulesetLLM): {
   const regras = Array.isArray(ruleset.regras) ? ruleset.regras : [];
   const ambiguidades = Array.isArray(ruleset.ambiguidades) ? ruleset.ambiguidades : [];
 
-  // Tetos por categoria: maior limite diário (BRL) entre regras "sim" da categoria.
-  const limites: Partial<Record<CategoriaDespesa, number | null>> = {};
-  for (const cat of CATEGORIAS_DESPESA) {
-    const valores = regras
-      .filter((r) => categoriaApp(r) === cat && r.reembolsavel === "sim" && moedaDe(r) === "BRL")
-      .map((r) => valorLimite(r))
-      .filter((v): v is number => v !== null);
-    if (valores.length) limites[cat] = Math.max(...valores);
-  }
-
-  // Evidência: a política exige NF/recibo em tudo que reembolsa.
-  const exigeEvidencia = regras.some((r) => r.exige_comprovante)
-    ? [...CATEGORIAS_DESPESA]
-    : [];
-
-  // Observações tematizadas — é daqui que sai a visão por grandes temas.
-  const porTema = new Map<string, string[]>();
-  for (const [slug] of TEMAS) porTema.set(slug, []);
-  for (const r of regras) {
-    if (!r.descricao) continue;
-    const slug = r.tema && TEMA_TITULO.has(r.tema) ? r.tema : "governanca-do-processo";
-    const marcador =
-      r.reembolsavel === "vedado" ? "VEDADO: " : r.reembolsavel === "excecao" ? "EXCEÇÃO (aprovação superior): " : "";
-    const condicao = r.condicao ? ` (${r.condicao})` : "";
-    porTema.get(slug)!.push(`${marcador}${r.descricao}${fmtValor(r)}${condicao}`);
-  }
-  const observacoes: string[] = [];
-  for (const [slug, titulo] of TEMAS) {
-    const linhas = porTema.get(slug) ?? [];
-    if (!linhas.length) continue;
-    observacoes.push(`— ${titulo} —`);
-    for (const linha of linhas) observacoes.push(linha);
-  }
+  const regrasExtraidas = regrasExtraidasDe(regras);
 
   const camposPendentes = [
     "aprovacaoAutomaticaAte (política não define teto de aprovação automática)",
@@ -191,15 +97,7 @@ export function mapearRuleset(ruleset: RulesetLLM): {
   ].join("\n");
 
   return {
-    regras: regrasPoliticaSchema.parse({
-      limitesPorCategoria: limites,
-      exigeVeiculoCadastrado: [],
-      exigeEvidencia,
-      aprovacaoAutomaticaAte: null,
-      revisaoHumanaAcimaDe: null,
-      negacaoAcimaDe: null,
-      observacoes,
-    }),
+    regras: consolidarRegras(regrasPoliticaSchema.parse({ regrasExtraidas })),
     camposPendentes,
     resumo,
   };

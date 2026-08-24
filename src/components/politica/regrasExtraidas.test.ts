@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest"
 import { TEMAS_POLITICA, type RegraExtraida } from "@contracts/types"
 import { formatBRL } from "@/lib/format"
 import {
+  AVISO_TETO_TEMPORAL,
   adicionarRegra,
   agruparPorTema,
   contarRegras,
+  estadoEscopo,
   editarRegra,
   formatarLimite,
   gerarId,
@@ -44,6 +46,7 @@ describe("novaRegra / gerarId", () => {
       tema: "saude",
       descricao: "Plano odontológico",
       categoria: null,
+      escopo: "item",
       condicao: null,
       reembolsavel: "sim",
       valorLimite: null,
@@ -202,5 +205,54 @@ describe("formatarLimite", () => {
     expect(resumoValor(regra("x", "alimentacao", { valorLimite: 80, unidadeLimite: "dia" }))).toBe(
       `até ${formatBRL(80)}/dia`,
     )
+  })
+})
+
+describe("estadoEscopo", () => {
+  it("sem categoria: desabilitado, desmarcado e com dica visível", () => {
+    const e = estadoEscopo(regra("x", "hospedagem-e-viagem"), "")
+    expect(e.habilitado).toBe(false)
+    expect(e.marcado).toBe(false)
+    expect(e.dica).toBe("Escolha uma categoria para aplicar a regra à categoria inteira.")
+    expect(e.aviso).toBeNull()
+  })
+
+  it("com categoria e escopo item: habilitado, desmarcado, sem dica", () => {
+    const e = estadoEscopo(regra("x", "hospedagem-e-viagem", { categoria: "hospedagem" }), "400,00")
+    expect(e.habilitado).toBe(true)
+    expect(e.marcado).toBe(false)
+    expect(e.dica).toBeNull()
+    expect(e.aviso).toBeNull()
+  })
+
+  it("marcado com unidade 'dia' e valor > 0 mostra o aviso de teto temporal", () => {
+    const e = estadoEscopo(
+      regra("x", "hospedagem-e-viagem", { categoria: "hospedagem", escopo: "categoria", unidadeLimite: "dia" }),
+      "400,00",
+    )
+    expect(e.marcado).toBe(true)
+    expect(e.aviso).toBe(AVISO_TETO_TEMPORAL)
+  })
+
+  it("marcado sem unidade, ou com valor vazio, não mostra aviso", () => {
+    const semUnidade = estadoEscopo(
+      regra("x", "hospedagem-e-viagem", { categoria: "hospedagem", escopo: "categoria" }),
+      "400,00",
+    )
+    expect(semUnidade.aviso).toBeNull()
+    const semValor = estadoEscopo(
+      regra("x", "hospedagem-e-viagem", { categoria: "hospedagem", escopo: "categoria", unidadeLimite: "dia" }),
+      "",
+    )
+    expect(semValor.aviso).toBeNull()
+  })
+
+  it("unidade 'mes' não é teto por período — sem aviso", () => {
+    const e = estadoEscopo(
+      regra("x", "hospedagem-e-viagem", { categoria: "hospedagem", escopo: "categoria", unidadeLimite: "mes" }),
+      "400,00",
+    )
+    expect(e.marcado).toBe(true)
+    expect(e.aviso).toBeNull()
   })
 })

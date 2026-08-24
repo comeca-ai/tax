@@ -1,8 +1,9 @@
-import type {
-  CategoriaDespesa,
-  RegraAplicada,
-  RegrasPolitica,
-  ResultadoPolitica,
+import {
+  CATEGORIA_DESPESA_ROTULO,
+  type CategoriaDespesa,
+  type RegraAplicada,
+  type RegrasPolitica,
+  type ResultadoPolitica,
 } from "@contracts/types";
 
 /**
@@ -31,24 +32,18 @@ export function fmtBRL(valor: number): string {
   });
 }
 
-const CATEGORIA_LABELS: Record<CategoriaDespesa, string> = {
-  combustivel: "combustível",
-  alimentacao: "alimentação",
-  hospedagem: "hospedagem",
-  pedagio: "pedágio",
-  uber: "Uber/app",
-  taxi: "táxi",
-};
-
 /**
  * Avalia uma despesa contra as regras da política ativa.
  * Ordem das regras (primeira negação encerra; revisões acumulam):
- * 1. valorNota > negacaoAcimaDe → negado
- * 2. limite da categoria: > 1,5× → negado; > limite (≤1,5×) → revisão humana
- * 3. valorNota > revisaoHumanaAcimaDe → revisão humana
- * 4. categoria exige veículo cadastrado e não há → revisão humana
- * 5. categoria exige evidência e não há → revisão humana
- * 6. valorNota ≤ aprovacaoAutomaticaAte e nada falhou → aprovado
+ * 1. categoria em categoriasVedadas → negado citando a regra
+ * 2. valorNota > negacaoAcimaDe → negado
+ * 3. categoria em categoriasExcecao → revisão humana citando a regra
+ * 4. limite da categoria: > 1,5× → negado; > limite (≤1,5×) → revisão humana.
+ *    Teto por período (tetosTemporaisPorCategoria) nunca nega: acima dele, revisão.
+ * 5. valorNota > revisaoHumanaAcimaDe → revisão humana
+ * 6. categoria exige veículo cadastrado e não há → revisão humana
+ * 7. categoria exige evidência e não há → revisão humana
+ * 8. valorNota ≤ aprovacaoAutomaticaAte e nada falhou → aprovado
  *    (sem teto configurado → default conservador: revisão humana)
  */
 export function avaliarDespesa(
@@ -61,7 +56,19 @@ export function avaliarDespesa(
   const motivos: string[] = [];
   let precisaRevisao = false;
 
-  // ── 1. Teto absoluto de negação ──────────────────────────────────────────
+  // ── 1. Categoria vedada pela política ────────────────────────────────────
+  const vedada = regras.categoriasVedadas.find((c) => c.categoria === categoria);
+  if (vedada) {
+    regrasAplicadas.push({
+      regra: "categoriaVedada",
+      resultado: "falhou",
+      detalhe: `Regra "${vedada.descricao}" (${vedada.regraId})`,
+    });
+    motivos.push(vedada.motivo);
+    return { decisao: "negado", motivos, regrasAplicadas };
+  }
+
+  // ── 2. Teto absoluto de negação ──────────────────────────────────────────
   if (regras.negacaoAcimaDe != null) {
     const falhou = valorNota > regras.negacaoAcimaDe;
     regrasAplicadas.push({
@@ -79,41 +86,62 @@ export function avaliarDespesa(
     }
   }
 
-  // ── 2. Limite da categoria (1,5× = tolerância antes da negação) ─────────
+  // ── 3. Categoria em exceção: aprovação superior → revisão humana ─────────
+  const excecao = regras.categoriasExcecao.find((c) => c.categoria === categoria);
+  if (excecao) {
+    regrasAplicadas.push({
+      regra: "categoriaExcecao",
+      resultado: "revisar",
+      detalhe: `Regra "${excecao.descricao}" (${excecao.regraId})`,
+    });
+    motivos.push(excecao.motivo);
+    precisaRevisao = true;
+  }
+
+  // ── 4. Limite da categoria (1,5× = tolerância antes da negação) ─────────
+  // Quando o teto veio de regra com unidade temporal (diária, viagem, evento), um mesmo
+  // comprovante pode cobrir vários períodos: estourar o teto vira revisão do gestor, nunca
+  // negação automática (D-013). Sem unidade, segue a tolerância de 1,5× de sempre.
   const limite = regras.limitesPorCategoria[categoria];
   if (limite != null) {
-    const label = CATEGORIA_LABELS[categoria];
-    if (valorNota > limite * 1.5) {
-      regrasAplicadas.push({
-        regra: "limitePorCategoria",
-        resultado: "falhou",
-        detalhe: `R$ ${fmtBRL(valorNota)} supera 1,5× o limite de ${label} (R$ ${fmtBRL(limite)})`,
-      });
-      motivos.push(
-        `Valor de ${label} acima de 1,5× o limite da política: R$ ${fmtBRL(valorNota)} > R$ ${fmtBRL(limite * 1.5)} (limite R$ ${fmtBRL(limite)}).`,
-      );
-      return { decisao: "negado", motivos, regrasAplicadas };
-    }
+    const unidade = regras.tetosTemporaisPorCategoria[categoria] ?? null;
+    const label = CATEGORIA_DESPESA_ROTULO[categoria];
+    const tetoTxt = `R$ ${fmtBRL(limite)}${unidade ? ` por ${unidade}` : ""}`;
     if (valorNota > limite) {
+      if (!unidade && valorNota > limite * 1.5) {
+        regrasAplicadas.push({
+          regra: "limitePorCategoria",
+          resultado: "falhou",
+          detalhe: `R$ ${fmtBRL(valorNota)} supera 1,5× o limite de ${label} (R$ ${fmtBRL(limite)})`,
+        });
+        motivos.push(
+          `Valor de ${label} acima de 1,5× o limite da política: R$ ${fmtBRL(valorNota)} > R$ ${fmtBRL(limite * 1.5)} (limite R$ ${fmtBRL(limite)}).`,
+        );
+        return { decisao: "negado", motivos, regrasAplicadas };
+      }
       regrasAplicadas.push({
         regra: "limitePorCategoria",
         resultado: "revisar",
-        detalhe: `R$ ${fmtBRL(valorNota)} acima do limite de ${label} (R$ ${fmtBRL(limite)}), dentro da tolerância de 1,5×`,
+        detalhe: unidade
+          ? `R$ ${fmtBRL(valorNota)} acima do teto de ${label} (${tetoTxt}); teto por período — revisão humana, sem negação automática`
+          : `R$ ${fmtBRL(valorNota)} acima do limite de ${label} (${tetoTxt}), dentro da tolerância de 1,5×`,
       });
       motivos.push(
-        `Valor de ${label} acima do limite da política: R$ ${fmtBRL(valorNota)} > R$ ${fmtBRL(limite)}.`,
+        unidade
+          ? `Valor de ${label} acima do teto da política (${tetoTxt}): R$ ${fmtBRL(valorNota)}. Como o teto é por ${unidade} e o comprovante pode cobrir mais de um, a despesa vai para revisão do gestor em vez de ser negada.`
+          : `Valor de ${label} acima do limite da política: R$ ${fmtBRL(valorNota)} > R$ ${fmtBRL(limite)}.`,
       );
       precisaRevisao = true;
     } else {
       regrasAplicadas.push({
         regra: "limitePorCategoria",
         resultado: "passou",
-        detalhe: `R$ ${fmtBRL(valorNota)} dentro do limite de ${label} (R$ ${fmtBRL(limite)})`,
+        detalhe: `R$ ${fmtBRL(valorNota)} dentro do limite de ${label} (${tetoTxt})`,
       });
     }
   }
 
-  // ── 3. Faixa de revisão humana por valor ─────────────────────────────────
+  // ── 5. Faixa de revisão humana por valor ─────────────────────────────────
   if (regras.revisaoHumanaAcimaDe != null) {
     const revisar = valorNota > regras.revisaoHumanaAcimaDe;
     regrasAplicadas.push({
@@ -131,43 +159,43 @@ export function avaliarDespesa(
     }
   }
 
-  // ── 4. Exigência de veículo cadastrado ───────────────────────────────────
+  // ── 6. Exigência de veículo cadastrado ───────────────────────────────────
   if (regras.exigeVeiculoCadastrado.includes(categoria)) {
     const revisar = !contexto.temVeiculo;
     regrasAplicadas.push({
       regra: "exigeVeiculoCadastrado",
       resultado: revisar ? "revisar" : "passou",
       detalhe: revisar
-        ? `Categoria ${CATEGORIA_LABELS[categoria]} exige veículo cadastrado e nenhum foi vinculado`
+        ? `Categoria ${CATEGORIA_DESPESA_ROTULO[categoria]} exige veículo cadastrado e nenhum foi vinculado`
         : "Veículo cadastrado vinculado à despesa",
     });
     if (revisar) {
       motivos.push(
-        `Categoria ${CATEGORIA_LABELS[categoria]} exige veículo cadastrado na política e a despesa não tem veículo vinculado.`,
+        `Categoria ${CATEGORIA_DESPESA_ROTULO[categoria]} exige veículo cadastrado na política e a despesa não tem veículo vinculado.`,
       );
       precisaRevisao = true;
     }
   }
 
-  // ── 5. Exigência de evidência documental ─────────────────────────────────
+  // ── 7. Exigência de evidência documental ─────────────────────────────────
   if (regras.exigeEvidencia.includes(categoria)) {
     const revisar = !contexto.temEvidencia;
     regrasAplicadas.push({
       regra: "exigeEvidencia",
       resultado: revisar ? "revisar" : "passou",
       detalhe: revisar
-        ? `Categoria ${CATEGORIA_LABELS[categoria]} exige evidência documental e nenhuma foi anexada`
+        ? `Categoria ${CATEGORIA_DESPESA_ROTULO[categoria]} exige evidência documental e nenhuma foi anexada`
         : "Evidência documental anexada",
     });
     if (revisar) {
       motivos.push(
-        `Categoria ${CATEGORIA_LABELS[categoria]} exige evidência documental na política e a despesa não tem evidência anexada.`,
+        `Categoria ${CATEGORIA_DESPESA_ROTULO[categoria]} exige evidência documental na política e a despesa não tem evidência anexada.`,
       );
       precisaRevisao = true;
     }
   }
 
-  // ── 6. Aprovação automática (ou default conservador) ─────────────────────
+  // ── 8. Aprovação automática (ou default conservador) ─────────────────────
   if (precisaRevisao) {
     return { decisao: "revisao_humana", motivos, regrasAplicadas };
   }

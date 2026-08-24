@@ -21,6 +21,7 @@ import {
   uploadNotaInput,
   type ResultadoPolitica,
   type StatusDespesa,
+  type TipoDocumento,
 } from "@contracts/types";
 import {
   processarDespesa,
@@ -28,7 +29,8 @@ import {
 } from "../modules/fiscal/engine";
 import { getOcrProvider } from "../modules/fiscal/ocr";
 import { avaliarDespesa } from "../modules/reembolso/policy/agent";
-import { decidirReembolso } from "../modules/reembolso/decisor";
+import { consolidarRegras } from "../modules/reembolso/policy/derivar";
+import { confiancaDaNota, decidirReembolso } from "../modules/reembolso/decisor";
 import { assertEmpresaAcesso, registrarLog } from "./_shared";
 
 export const despesasRouter = createRouter({
@@ -61,6 +63,8 @@ export const despesasRouter = createRouter({
           dataFatoGerador: extracao.dataFatoGerador,
           categoriaSugerida: extracao.categoriaSugerida,
           litros: extracao.litros,
+          tipoDocumento: extracao.tipoDocumento ?? null,
+          confiancaTipo: extracao.confiancaTipo ?? null,
           arquivoNome: input.arquivoNome,
           arquivoMime: input.arquivoMime,
           arquivoBase64: input.arquivoBase64,
@@ -226,7 +230,12 @@ export const despesasRouter = createRouter({
       let politicaResultado: ResultadoPolitica | null = null;
       let statusFinal: StatusDespesa = resultado.statusSugerido;
       if (politicaAtiva) {
-        const regrasPolitica = regrasPoliticaSchema.parse(politicaAtiva.regras ?? {});
+        // Os parâmetros do agente nascem das regras extraídas SEMPRE na leitura:
+        // políticas gravadas antes desta versão têm limites derivados pela semântica
+        // antiga (sub-item virava teto da categoria). Consolidar aqui corrige sem migração.
+        const regrasPolitica = consolidarRegras(
+          regrasPoliticaSchema.parse(politicaAtiva.regras ?? {}),
+        );
         politicaResultado = avaliarDespesa(
           { categoria: input.categoria, valorNota: input.valorNota },
           regrasPolitica,
@@ -386,12 +395,25 @@ export const despesasRouter = createRouter({
         .orderBy(desc(politicasReembolso.versao))
         .limit(1);
       const politicaAtiva = politicaRows[0] ?? null;
+      // Os parâmetros do agente nascem das regras extraídas SEMPRE na leitura:
+      // políticas gravadas antes desta versão têm limites derivados pela semântica antiga
+      // (sub-item virava teto da categoria) e não trazem `exigeDocumentoFiscal` no JSON.
+      // Consolidar aqui corrige as duas coisas sem migração de dados.
       const regrasPolitica = politicaAtiva
-        ? regrasPoliticaSchema.parse(politicaAtiva.regras ?? {})
+        ? consolidarRegras(regrasPoliticaSchema.parse(politicaAtiva.regras ?? {}))
         : null;
 
-      // Veículo (opcional — só faz sentido para combustível)
-      let temVeiculo = false;
+      // "temVeiculo" = a EMPRESA tem veículo cadastrado. Sem casamento de placa
+      // nesta versão — o OCR não extrai placa.
+      const veiculosDaEmpresa = await db
+        .select({ id: veiculos.id })
+        .from(veiculos)
+        .where(eq(veiculos.empresaId, input.empresaId))
+        .limit(1);
+      const temVeiculo = veiculosDaEmpresa.length > 0;
+
+      // O veiculoId recebido só é gravado se pertencer à empresa.
+      let veiculoId: number | null = null;
       if (input.veiculoId) {
         const v = await db
           .select({ id: veiculos.id })
@@ -400,7 +422,7 @@ export const despesasRouter = createRouter({
             and(eq(veiculos.id, input.veiculoId), eq(veiculos.empresaId, input.empresaId)),
           )
           .limit(1);
-        temVeiculo = v.length > 0;
+        veiculoId = v[0]?.id ?? null;
       }
 
       // ── Decisor de reembolso (função pura — módulo reembolso) ──────────
@@ -410,11 +432,13 @@ export const despesasRouter = createRouter({
           valor: nota.valor,
           dataFatoGerador: nota.dataFatoGerador,
           cnpjEmitente: nota.cnpjEmitente,
-          confiancaExtracao: nota.valor != null && nota.cnpjEmitente ? "alta" : "baixa",
+          confiancaExtracao: confiancaDaNota(nota),
           camposPendentes: [],
+          tipoDocumento: (nota.tipoDocumento as TipoDocumento | null) ?? null,
+          confiancaTipo: (nota.confiancaTipo as "alta" | "media" | "baixa" | null) ?? null,
         },
         regrasPolitica,
-        { temVeiculo },
+        { temVeiculo, politicaVersao: politicaAtiva?.versao ?? null },
       );
 
       const statusFinal: StatusDespesa =
@@ -474,10 +498,17 @@ export const despesasRouter = createRouter({
           ].join("\n")
         : null;
 
+      // Ressalvas entram no motivo como linha própria: separam "por que decidi"
+      // de "o que você confere" nas superfícies que já existem (tooltip, drawer).
+      const linhasMotivo = [
+        ...decisao.motivos,
+        ...decisao.ressalvas.map((r) => `Ressalva: ${r}`),
+      ];
+
       const insert = await db.insert(despesas).values({
         empresaId: input.empresaId,
         notaFiscalId: input.notaFiscalId,
-        veiculoId: input.veiculoId ?? null,
+        veiculoId,
         categoria: decisao.categoria,
         kmComercial: 0,
         kmNaoComercial: 0,
@@ -488,14 +519,14 @@ export const despesasRouter = createRouter({
         status: statusFinal,
         memorial,
         motivoRevisao:
-          decisao.decisao === "revisao_manual" ? decisao.motivos.join("\n") : null,
+          decisao.decisao === "revisao_manual" ? linhasMotivo.join("\n") : null,
         politicaDecisao:
           decisao.decisao === "revisao_manual"
             ? "revisao_humana"
             : decisao.decisao === "negado"
               ? "negado"
               : "aprovado",
-        politicaMotivo: decisao.motivos.join("\n"),
+        politicaMotivo: linhasMotivo.join("\n"),
         politicaVersaoAplicada: politicaAtiva?.versao ?? null,
       });
       const despesaId = Number(insert[0].insertId);
@@ -530,6 +561,8 @@ export const despesasRouter = createRouter({
         detalhes: JSON.stringify({
           decisao: decisao.decisao,
           motivos: decisao.motivos,
+          ressalvas: decisao.ressalvas,
+          confianca: decisao.confianca,
           regrasAplicadas: decisao.regrasAplicadas,
           politicaId: politicaAtiva?.id ?? null,
         }),
@@ -540,6 +573,8 @@ export const despesasRouter = createRouter({
         despesaId,
         decisao: decisao.decisao,
         motivos: decisao.motivos,
+        ressalvas: decisao.ressalvas,
+        confianca: decisao.confianca,
         regrasAplicadas: decisao.regrasAplicadas,
         politicaVersao: politicaAtiva?.versao ?? null,
         categoria: decisao.categoria,

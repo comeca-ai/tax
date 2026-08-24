@@ -1,10 +1,13 @@
 import {
   TEMAS_POLITICA,
+  UNIDADES_LIMITE_TEMPORAIS,
   type RegraExtraida,
   type ReembolsavelRegra,
   type TemaPolitica,
   type UnidadeLimite,
+  type UnidadeLimiteTemporal,
 } from "@contracts/types"
+import { parseNumeroPt } from "@/components/despesas/wizard/types"
 import { formatBRL } from "@/lib/format"
 
 /** Lógica pura dos cards de regras extraídas (passo "Revisar regras"). */
@@ -50,6 +53,8 @@ export function novaRegra(tema: TemaPolitica, descricao: string): RegraExtraida 
     id: gerarId(),
     tema,
     categoria: null,
+    // Regra nasce como sub-item: promover para a categoria inteira é ato do gestor (D-013).
+    escopo: "item",
     descricao,
     condicao: null,
     reembolsavel: "sim",
@@ -151,4 +156,32 @@ export function formatarLimite(r: RegraExtraida): string | null {
   if (u === "dias_antecedencia" || u === "dias_para_pagamento") return `${r.valorLimite} ${UNIDADE_LABELS[u]}`
   const valor = r.moeda === "BRL" ? formatBRL(r.valorLimite) : `${r.moeda} ${r.valorLimite}`
   return u ? `até ${valor} ${UNIDADE_LABELS[u]}` : `até ${valor}`
+}
+
+/** Aviso mostrado quando o gestor promove uma regra cujo teto é por período. */
+export const AVISO_TETO_TEMPORAL =
+  "Este teto será comparado com o valor total de cada comprovante. Como a nota pode cobrir vários dias, despesas acima dele vão para a sua revisão em vez de serem negadas."
+
+export interface EstadoEscopo {
+  habilitado: boolean
+  marcado: boolean
+  /** Texto visível ao lado do rótulo quando o checkbox está desabilitado (nunca `title`: mobile não tem hover). */
+  dica: string | null
+  /** Aviso de teto por período; null quando não se aplica. */
+  aviso: string | null
+}
+
+/** Estado do checkbox "Vale para a categoria inteira" no card de edição. */
+export function estadoEscopo(r: RegraExtraida, valorDigitado: string): EstadoEscopo {
+  const habilitado = r.categoria !== null
+  const marcado = habilitado && r.escopo === "categoria"
+  const temporal =
+    r.unidadeLimite !== null &&
+    UNIDADES_LIMITE_TEMPORAIS.includes(r.unidadeLimite as UnidadeLimiteTemporal)
+  return {
+    habilitado,
+    marcado,
+    dica: habilitado ? null : "Escolha uma categoria para aplicar a regra à categoria inteira.",
+    aviso: marcado && parseNumeroPt(valorDigitado) > 0 && temporal ? AVISO_TETO_TEMPORAL : null,
+  }
 }

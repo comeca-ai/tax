@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils"
 import { agruparObservacoes } from "./observacoes"
 import {
   REEMBOLSAVEL_LABELS_CURTO,
+  UNIDADE_LABELS,
   agruparPorTema,
   contarRegras,
   formatarLimite,
@@ -39,10 +40,13 @@ function Linha({
   icone: Icone,
   titulo,
   children,
+  rodape,
 }: {
   icone: typeof CircleCheck
   titulo: string
   children: React.ReactNode
+  /** Nota de rodapé do bloco, abaixo dos chips (fora do flex-wrap). */
+  rodape?: string
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -51,6 +55,7 @@ function Linha({
         {titulo}
       </span>
       <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+      {rodape && <p className="text-[11px] leading-relaxed text-text-500">{rodape}</p>}
     </div>
   )
 }
@@ -129,10 +134,26 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
     const blocos: React.ReactNode[] = []
     if (limites.length > 0) {
       blocos.push(
-        <Linha key="teto" icone={CircleX} titulo="Teto por categoria">
-          {limites.map(([categoria, valor]) => (
-            <ChipCategoria key={categoria} categoria={categoria} extra={`até ${formatBRL(valor!)}`} />
-          ))}
+        <Linha
+          key="teto"
+          icone={CircleX}
+          titulo="Teto por categoria"
+          rodape={
+            limites.some(([categoria]) => regras.tetosTemporaisPorCategoria?.[categoria])
+              ? "Teto por período: acima dele a despesa vai para a sua revisão, nunca é negada automaticamente."
+              : undefined
+          }
+        >
+          {limites.map(([categoria, valor]) => {
+            const unidade = regras.tetosTemporaisPorCategoria?.[categoria]
+            return (
+              <ChipCategoria
+                key={categoria}
+                categoria={categoria}
+                extra={`até ${formatBRL(valor!)}${unidade ? ` ${UNIDADE_LABELS[unidade]}` : ""}`}
+              />
+            )
+          })}
         </Linha>,
       )
     }

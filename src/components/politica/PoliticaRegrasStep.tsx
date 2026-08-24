@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ArrowLeft, Check, CircleAlert, Paperclip, Pencil, Plus, Save, X } from "lucide-react"
+import { ArrowLeft, Check, CircleAlert, Layers, Paperclip, Pencil, Plus, Save, X } from "lucide-react"
 import {
   REEMBOLSAVEL_REGRA,
   REGRA_TEXTO_MAX,
@@ -30,6 +30,7 @@ import {
   adicionarRegra,
   agruparPorTema,
   editarRegra,
+  estadoEscopo,
   novaRegra,
   removerRegra,
   resumoValor,
@@ -252,6 +253,12 @@ export default function PoliticaRegrasStep({
             ) : (
               <span className={cn(CHIP, "text-text-500")}>Sem categoria</span>
             )}
+            {regra.escopo === "categoria" && (
+              <span className={cn(CHIP, "text-text-900")}>
+                <Layers className="h-3 w-3 text-text-500" aria-hidden="true" />
+                Vale para a categoria
+              </span>
+            )}
             {valor && <span className={cn(CHIP, "font-mono tabular text-text-900")}>{valor}</span>}
             {regra.exigeComprovante && (
               <span className={cn(CHIP, "text-text-900")}>
@@ -286,6 +293,8 @@ export default function PoliticaRegrasStep({
   function cardEdicao(rascunho: RascunhoRegra) {
     const r = rascunho.regra
     const podeSalvar = r.descricao.trim() !== "" && textoDentroDoLimite(r.descricao, r.condicao)
+    const escopo = estadoEscopo(r, rascunho.valor)
+    const dicaEscopoId = `escopo-dica-${rascunho.id}`
     return (
       <li key={rascunho.id} className="flex flex-col gap-2 rounded-lg border border-brand-500 bg-paper px-3 py-2">
         <textarea
@@ -328,7 +337,12 @@ export default function PoliticaRegrasStep({
             aria-label="Categoria"
             value={r.categoria ?? ""}
             onChange={(e) =>
-              setRascunho({ categoria: e.target.value === "" ? null : (e.target.value as CategoriaDespesa) })
+              // Sem categoria não há o que promover: o escopo volta a "item" no mesmo patch.
+              setRascunho(
+                e.target.value === ""
+                  ? { categoria: null, escopo: "item" }
+                  : { categoria: e.target.value as CategoriaDespesa },
+              )
             }
             className={cn(INPUT_BASE, "font-sans")}
           >
@@ -376,7 +390,7 @@ export default function PoliticaRegrasStep({
           </select>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <label className="flex items-center gap-2 text-[12px] text-text-900">
+          <label className="flex min-h-11 items-center gap-2 text-[12px] text-text-900 sm:min-h-0">
             <Checkbox
               checked={r.exigeComprovante}
               onCheckedChange={(v) => setRascunho({ exigeComprovante: v === true })}
@@ -384,7 +398,32 @@ export default function PoliticaRegrasStep({
             />
             Exige comprovante
           </label>
-          <div className="flex items-center gap-2">
+          <label
+            className={cn(
+              "flex min-h-11 items-center gap-2 text-[12px] sm:min-h-0",
+              escopo.habilitado ? "text-text-900" : "text-text-500",
+            )}
+          >
+            <Checkbox
+              checked={escopo.marcado}
+              disabled={!escopo.habilitado}
+              onCheckedChange={(v) => setRascunho({ escopo: v === true ? "categoria" : "item" })}
+              aria-label="Vale para a categoria inteira"
+              aria-describedby={escopo.dica ? dicaEscopoId : undefined}
+            />
+            Vale para a categoria inteira
+            {escopo.dica && (
+              <span id={dicaEscopoId} className="text-[11px] text-text-500">
+                {escopo.dica}
+              </span>
+            )}
+          </label>
+          {escopo.aviso && (
+            <p className="order-1 w-full text-[11px] leading-relaxed text-text-500 sm:order-3">
+              {escopo.aviso}
+            </p>
+          )}
+          <div className="order-2 flex items-center gap-2">
             <button
               type="button"
               onClick={() => setEditando(null)}
@@ -431,7 +470,7 @@ export default function PoliticaRegrasStep({
           {/* Regras estruturadas por tema (fonte dos parâmetros do agente) */}
           <SecaoRegras
             titulo="Regras da política"
-            descricao="Tudo que o agente aplica nasce destas regras. Edite valores, categorias e condições; remova o que não vale; acrescente o que faltou. Ao cadastrar regras aqui, limites e tetos antigos desta política são substituídos pelos derivados."
+            descricao="Tudo que o agente aplica nasce destas regras. Edite valores, categorias e condições; remova o que não vale; acrescente o que faltou. Ao cadastrar regras aqui, limites e tetos antigos desta política são substituídos pelos derivados. Marque “Vale para a categoria inteira” nas regras que definem o limite geral do tipo de despesa; sub-itens (lavanderia, frigobar, gorjeta) ficam desmarcados."
             pendente={pendente("regrasExtraidas")}
           >
             {comItens.length > 0 ? (

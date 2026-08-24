@@ -54,8 +54,9 @@ services:
       POLICY_PROVIDER: ${POLICY_PROVIDER:-heuristico}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OCR_GEMINI_MODEL: ${OCR_GEMINI_MODEL:-gemini-2.5-flash}
-      # OCR de visão para notas fiscais (v1.7.0): OCR_PROVIDER=visao usa
-      # OpenAI com fallback Gemini; default heuristico (XML/texto, gratuito)
+      # OCR de visão para notas fiscais (v1.8): OCR_PROVIDER=visao usa
+      # Mistral OCR com fallback OpenAI; default heuristico (XML/texto, gratuito).
+      # A 1ª tentativa reaproveita MISTRAL_API_KEY/MISTRAL_OCR_MODEL já declarados acima.
       OCR_PROVIDER: ${OCR_PROVIDER:-heuristico}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OCR_OPENAI_MODEL: ${OCR_OPENAI_MODEL:-gpt-4o-mini}

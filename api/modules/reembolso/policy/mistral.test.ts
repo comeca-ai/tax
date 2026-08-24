@@ -69,7 +69,7 @@ describe("mapearRuleset", () => {
     expect(regras.observacoes).toEqual(["— Governança do processo —", "Regra X"]);
   });
 
-  it("limite da categoria é o máximo dos limites BRL reembolsáveis", () => {
+  it("regra extraída é sub-item: nenhum valor do documento vira teto da categoria", () => {
     const { regras } = mapearRuleset({
       regras: [
         { categoria: "alimentacao", descricao: "Café", reembolsavel: "sim", valor_limite: 30 },
@@ -78,7 +78,30 @@ describe("mapearRuleset", () => {
         { categoria: "alimentacao", descricao: "USD", reembolsavel: "sim", valor_limite: 900, moeda: "USD" },
       ],
     });
-    expect(regras.limitesPorCategoria.alimentacao).toBe(120);
+    // Promover um sub-item a teto da categoria é ato consciente do gestor (escopo "categoria").
+    expect(regras.limitesPorCategoria).toEqual({});
+    expect(regras.regrasExtraidas.map((r) => r.valorLimite)).toEqual([30, 120, 500, 900]);
+  });
+
+  it("categoria com regra vedada e regra reembolsável vira exceção, nunca vedação automática", () => {
+    const { regras } = mapearRuleset({
+      regras: [
+        {
+          id: "aplicativos-de-transporte",
+          categoria: "transporte",
+          descricao: "Aplicativos de transporte (Uber, 99, etc.)",
+          reembolsavel: "sim",
+        },
+        {
+          id: "gorjetas-motoristas",
+          categoria: "transporte",
+          descricao: "Gorjetas para motoristas de aplicativos de mobilidade urbana",
+          reembolsavel: "vedado",
+        },
+      ],
+    });
+    expect(regras.categoriasVedadas).toEqual([]);
+    expect(regras.categoriasExcecao.map((c) => c.categoria)).toEqual(["uber"]);
   });
 
   it("exige_comprovante em regra sem categoria exige evidência em todas as categorias", () => {
@@ -135,6 +158,7 @@ describe("mapearRuleset", () => {
         id: "combustivel-veiculo",
         tema: "transporte-e-deslocamento",
         categoria: "combustivel",
+        escopo: "item",
         descricao: "Combustível com veículo próprio",
         condicao: "km comercial",
         reembolsavel: "sim",
@@ -168,6 +192,7 @@ describe("mapearRuleset", () => {
         id: "regra-1",
         tema: "governanca-do-processo",
         categoria: null,
+        escopo: "item",
         descricao: "Regra X",
         condicao: null,
         reembolsavel: "sim",
@@ -177,6 +202,73 @@ describe("mapearRuleset", () => {
         exigeComprovante: false,
       },
     ]);
+  });
+
+  it("o `escopo` do JSON do modelo (nacional|internacional) não vira escopo do contrato", () => {
+    const { regras } = mapearRuleset({
+      regras: [
+        {
+          id: "diaria-internacional",
+          tema: "hospedagem-e-viagem",
+          categoria: "hospedagem",
+          descricao: "Diária em viagem internacional",
+          reembolsavel: "sim",
+          escopo: "internacional",
+        },
+      ],
+    });
+    expect(regras.regrasExtraidas[0].escopo).toBe("item");
+  });
+
+  it("alcance 'categoria' com categoria reconhecida vira escopo 'categoria'", () => {
+    const { regras } = mapearRuleset({
+      regras: [
+        {
+          id: "diaria-de-hotel",
+          tema: "hospedagem-e-viagem",
+          categoria: "hospedagem",
+          alcance: "categoria",
+          descricao: "Hospedagem: até R$ 400 por diária",
+          reembolsavel: "sim",
+          valor_limite: 400,
+          unidade_limite: "dia",
+        },
+      ],
+    });
+    expect(regras.regrasExtraidas[0].escopo).toBe("categoria");
+    // Promovida pelo LLM e confirmada pelo gestor no card: já vira teto derivado.
+    expect(regras.limitesPorCategoria).toEqual({ hospedagem: 400 });
+    expect(regras.tetosTemporaisPorCategoria).toEqual({ hospedagem: "dia" });
+  });
+
+  it("alcance 'categoria' sem categoria reconhecida continua 'item'", () => {
+    const { regras } = mapearRuleset({
+      regras: [
+        {
+          id: "material-de-escritorio",
+          tema: "tecnologia-e-escritorio",
+          categoria: "outros",
+          alcance: "categoria",
+          descricao: "Material de escritório",
+          reembolsavel: "sim",
+          valor_limite: 200,
+        },
+      ],
+    });
+    expect(regras.regrasExtraidas[0].categoria).toBeNull();
+    expect(regras.regrasExtraidas[0].escopo).toBe("item");
+    expect(regras.limitesPorCategoria).toEqual({});
+  });
+
+  it("alcance ausente ou com lixo vira 'item'", () => {
+    const { regras } = mapearRuleset({
+      regras: [
+        { id: "a", categoria: "alimentacao", descricao: "Sem alcance", reembolsavel: "sim" },
+        { id: "b", categoria: "alimentacao", alcance: "CATEGORIA", descricao: "Caixa alta", reembolsavel: "sim" },
+        { id: "c", categoria: "alimentacao", alcance: "talvez", descricao: "Lixo", reembolsavel: "sim" },
+      ],
+    });
+    expect(regras.regrasExtraidas.map((r) => r.escopo)).toEqual(["item", "item", "item"]);
   });
 
   it("ids duplicados ganham sufixo; regra sem descricao é descartada", () => {

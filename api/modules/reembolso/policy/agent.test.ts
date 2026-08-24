@@ -27,6 +27,147 @@ const SEM_TETO: RegrasPolitica = regrasPoliticaSchema.parse({
   limitesPorCategoria: { alimentacao: 120 },
 });
 
+/** Política que marcou hospedagem como vedada e Uber como exceção (derivado em `derivar.ts`). */
+const REGRAS_MARCADAS: RegrasPolitica = regrasPoliticaSchema.parse({
+  ...REGRAS_DEMO,
+  categoriasVedadas: [
+    {
+      categoria: "hospedagem",
+      regraId: "hospedagem-de-dependentes",
+      descricao: "Hospedagem de acompanhantes e dependentes",
+      motivo:
+        'Categoria hospedagem vedada pela política — regra: "Hospedagem de acompanhantes e dependentes".',
+    },
+  ],
+  categoriasExcecao: [
+    {
+      categoria: "uber",
+      regraId: "gorjetas-motoristas-aplicativo",
+      descricao: "Gorjetas para motoristas de aplicativos de mobilidade urbana",
+      motivo:
+        'Categoria Uber/app exige aprovação superior na política — regra: "Gorjetas para motoristas de aplicativos de mobilidade urbana".',
+    },
+  ],
+});
+
+/** Teto de hospedagem promovido pelo gestor com unidade por diária (Decisão 1 do dono). */
+const TETO_TEMPORAL: RegrasPolitica = regrasPoliticaSchema.parse({
+  limitesPorCategoria: { hospedagem: 400 },
+  tetosTemporaisPorCategoria: { hospedagem: "dia" },
+  aprovacaoAutomaticaAte: 2000,
+});
+
+/** Mesmo teto, sem unidade: comportamento clássico (acima de 1,5× nega). */
+const TETO_POR_NOTA: RegrasPolitica = regrasPoliticaSchema.parse({
+  limitesPorCategoria: { hospedagem: 400 },
+  aprovacaoAutomaticaAte: 2000,
+});
+
+describe("avaliarDespesa — teto por período nunca nega (D-013)", () => {
+  it("(a) teto de R$ 400 por dia + comprovante de R$ 1.200 → revisão humana, nunca negado", () => {
+    const r = avaliarDespesa(
+      { categoria: "hospedagem", valorNota: 1200 },
+      TETO_TEMPORAL,
+      { temVeiculo: false, temEvidencia: true },
+    );
+    expect(r.decisao).not.toBe("negado");
+    expect(r.decisao).toBe("revisao_humana");
+    expect(r.motivos[0]).toBe(
+      "Valor de hospedagem acima do teto da política (R$ 400,00 por dia): R$ 1.200,00. Como o teto é por dia e o comprovante pode cobrir mais de um, a despesa vai para revisão do gestor em vez de ser negada.",
+    );
+    expect(r.regrasAplicadas.find((a) => a.regra === "limitePorCategoria")).toEqual({
+      regra: "limitePorCategoria",
+      resultado: "revisar",
+      detalhe:
+        "R$ 1.200,00 acima do teto de hospedagem (R$ 400,00 por dia); teto por período — revisão humana, sem negação automática",
+    });
+  });
+
+  it("(b) mesmo teto SEM unidade temporal + R$ 1.200 → negado (1,5× de R$ 400)", () => {
+    const r = avaliarDespesa(
+      { categoria: "hospedagem", valorNota: 1200 },
+      TETO_POR_NOTA,
+      { temVeiculo: false, temEvidencia: true },
+    );
+    expect(r.decisao).toBe("negado");
+    expect(r.regrasAplicadas.find((a) => a.regra === "limitePorCategoria")?.resultado).toBe("falhou");
+  });
+
+  it("(c) R$ 300 dentro do teto → aprovado nos dois casos", () => {
+    for (const regras of [TETO_TEMPORAL, TETO_POR_NOTA]) {
+      const r = avaliarDespesa(
+        { categoria: "hospedagem", valorNota: 300 },
+        regras,
+        { temVeiculo: false, temEvidencia: true },
+      );
+      expect(r.decisao).toBe("aprovado");
+    }
+  });
+
+  it("teto temporal estourado dentro de 1,5× também vai para revisão, citando a unidade", () => {
+    const r = avaliarDespesa(
+      { categoria: "hospedagem", valorNota: 500 },
+      TETO_TEMPORAL,
+      { temVeiculo: false, temEvidencia: true },
+    );
+    expect(r.decisao).toBe("revisao_humana");
+    expect(r.motivos[0]).toContain("R$ 400,00 por dia");
+  });
+});
+
+describe("avaliarDespesa — categoria vedada e categoria em exceção", () => {
+  it("categoria vedada → negado citando a regra da política", () => {
+    const r = avaliarDespesa(
+      { categoria: "hospedagem", valorNota: 300 },
+      REGRAS_MARCADAS,
+      { temVeiculo: true, temEvidencia: true },
+    );
+    expect(r.decisao).toBe("negado");
+    expect(r.regrasAplicadas).toHaveLength(1);
+    expect(r.regrasAplicadas[0]).toMatchObject({
+      regra: "categoriaVedada",
+      resultado: "falhou",
+      detalhe: 'Regra "Hospedagem de acompanhantes e dependentes" (hospedagem-de-dependentes)',
+    });
+    expect(r.motivos[0]).toContain("Hospedagem de acompanhantes e dependentes");
+  });
+
+  it("vedação vence o teto de negação: valor baixo, categoria vedada → negado pela vedação", () => {
+    const r = avaliarDespesa(
+      { categoria: "hospedagem", valorNota: 10 },
+      REGRAS_MARCADAS,
+      { temVeiculo: true, temEvidencia: true },
+    );
+    expect(r.decisao).toBe("negado");
+    expect(r.regrasAplicadas[0].regra).toBe("categoriaVedada");
+  });
+
+  it("categoria em exceção, dentro do limite e do teto de aprovação → revisão humana", () => {
+    const r = avaliarDespesa(
+      { categoria: "uber", valorNota: 40 }, // ≤ limite 80 e ≤ aprovacaoAutomaticaAte 200
+      REGRAS_MARCADAS,
+      { temVeiculo: true, temEvidencia: true },
+    );
+    expect(r.decisao).toBe("revisao_humana");
+    expect(r.regrasAplicadas.find((a) => a.regra === "categoriaExcecao")).toMatchObject({
+      resultado: "revisar",
+      detalhe:
+        'Regra "Gorjetas para motoristas de aplicativos de mobilidade urbana" (gorjetas-motoristas-aplicativo)',
+    });
+    expect(r.motivos[0]).toContain("aprovação superior");
+  });
+
+  it("categoria não marcada continua aprovando como antes", () => {
+    const r = avaliarDespesa(
+      { categoria: "alimentacao", valorNota: 120 },
+      REGRAS_MARCADAS,
+      { temVeiculo: false, temEvidencia: true },
+    );
+    expect(r.decisao).toBe("aprovado");
+    expect(r.regrasAplicadas.some((a) => a.regra.startsWith("categoria"))).toBe(false);
+  });
+});
+
 describe("avaliarDespesa — agente de política de reembolso", () => {
   it("nega despesa acima do teto absoluto (negacaoAcimaDe)", () => {
     const r = avaliarDespesa(

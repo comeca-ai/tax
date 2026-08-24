@@ -10,6 +10,33 @@ versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 OCR leu e ajusta as regras extraídas antes de ativar.
 
 ### Adicionado
+- **Escopo da regra (`item` | `categoria`)**: o gestor marca no card
+  "Vale para a categoria inteira" quais regras definem o limite geral do tipo de
+  despesa; sub-itens (lavanderia, frigobar, gorjeta) ficam desmarcados. O LLM
+  propõe o alcance (campo `alcance` no prompt do Mistral e do Gemini), o gestor
+  confirma antes de salvar (D-013). Card de leitura ganha o chip
+  "Vale para a categoria"
+- **Teto por período** (`tetosTemporaisPorCategoria`): teto promovido com unidade
+  `dia`/`viagem`/`evento` nunca gera negação automática — como um comprovante pode
+  cobrir vários períodos, o pior desfecho é revisão do gestor. Resumo da política
+  mostra "até R$ 400,00 por dia" e a nota de rodapé correspondente
+- **OCR de comprovantes de despesa via Mistral**: Mistral OCR (annotation JSON)
+  como primeira tentativa, OpenAI de fallback; Gemini sai da cadeia de despesas
+  (o parser de política segue com ele). Sem variável nova: reaproveita
+  `MISTRAL_API_KEY` e `MISTRAL_OCR_MODEL`, já lidas pelo parser de política
+- **Classificação do tipo de documento** (`tipoDocumento`/`confiancaTipo`) na
+  extração de visão e em `notas_fiscais` (migração 0007)
+- **Negação automática de comprovante não fiscal** (extrato, Pix, cartão)
+  citando a regra `comprovantes-nao-aceitos` e a versão da política, com
+  orientação de reenvio; dúvida sobre o tipo cai em revisão do gestor (D-013)
+- `CATEGORIA_DESPESA_ROTULO` compartilhado no contrato (agente, decisor e
+  derivação passam a usar o mesmo mapa)
+- `ressalvas[]` e `confianca` no retorno de `despesas.processarAutomatica` e no
+  JSON do log `reembolso_decisao`; as ressalvas entram em `politicaMotivo`/
+  `motivoRevisao` como linha `Ressalva: …` e aparecem no veredito do Envio rápido
+  e da Nova despesa
+- Fixture `politica13.fixture.ts`: espelho estrutural de uma política real de
+  70 regras, usado como regressão da derivação
 - **Parser de política via LLM** (provider plugável, mesmo padrão do OCR):
   `mistral` (OCR `mistral-ocr-latest` + chat `json_object`) e `gemini`
   (leitura nativa de PDF/imagem). Seleção por `POLICY_PROVIDER`
@@ -38,6 +65,32 @@ OCR leu e ajusta as regras extraídas antes de ativar.
   (vitest passa a coletar `src/**/*.test.ts`)
 
 ### Corrigido
+- **Sub-item deixou de virar teto da categoria.** O limite por categoria só nasce
+  de regra marcada com `escopo: "categoria"`; regra de escopo `"item"` (o default)
+  descreve um sub-item e nunca vira teto, vedação ou exceção da categoria inteira.
+  Era o que negava um extrato de hotel de R$ 691,17 citando "limite de hospedagem
+  R$ 30,00" — valor que vinha da regra "Lavanderia em viagens nacionais"
+- **Vedação e exceção por categoria** (`categoriasVedadas`/`categoriasExcecao`,
+  derivadas das regras extraídas): regra vedada com escopo de categoria veta;
+  sem esse marcador, a categoria só é vedada quando não há nenhuma regra
+  reembolsável nela; convivendo "vedado" e "sim", a despesa vai para revisão
+  humana citando a regra — nunca negação automática. O agente ganha os passos
+  `categoriaVedada` (nega e encerra) e `categoriaExcecao` (revisão humana)
+- **CNPJ ausente deixou de bloquear a decisão**: vira ressalva
+  ("CNPJ do emitente não identificado no comprovante — confira na evidência
+  anexada.") e rebaixa a confiança de alta para média. O decisor só devolve por
+  extração incompleta quando falta valor ou data (D-014: ninguém preenche nada).
+  `confiancaDaNota()` passa a considerar valor + data + categoria
+- `despesas.processar`, `despesas.processarAutomatica` e `politica.testar`
+  consolidam as regras **na leitura**: políticas gravadas com a semântica antiga
+  passam a ser aplicadas corretamente sem migração, e o simulador mostra
+  exatamente o que o agente aplica
+- `processarAutomatica`: "tem veículo" passa a ser "a empresa tem veículo
+  cadastrado" (um `SELECT ... LIMIT 1`), e o `veiculoId` recebido só é gravado se
+  pertencer à empresa — fecha um vazamento cross-tenant latente
+- **Parser Gemini alinhado ao Mistral**: `mapearRuleset()` deixa de calcular
+  `limitesPorCategoria` pela semântica antiga e passa a produzir `regrasExtraidas`
+  + `consolidarRegras()`, como o provider Mistral
 - Parser Mistral: política com dezenas de regras estourava `max_tokens` (8 000) e
   devolvia JSON cortado → caía no heurístico. Agora: teto 32 000 tokens, detecção
   de `finish_reason=length`/JSON inválido com nova tentativa compacta, prompt
