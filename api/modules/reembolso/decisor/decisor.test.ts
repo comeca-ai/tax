@@ -21,6 +21,7 @@ const regras: RegrasPolitica = {
   exigeEvidencia: [],
   exigeDocumentoFiscal: true,
   regraDocumentoFiscalId: "comprovantes-nao-aceitos",
+  exigeDocumentoFiscalPorCategoria: [],
   lacunas: [],
   observacoes: [],
   regrasExtraidas: [
@@ -134,8 +135,11 @@ describe("decidirReembolso (D-013/D-014)", () => {
       { temVeiculo: false },
     );
     expect(r.decisao).toBe("revisao_manual");
-    // A política real não declara nada para hospedagem: a revisão nomeia a lacuna.
-    expect(r.motivos.join(" ")).toContain("regra vedada e regra permissiva para hospedagem");
+    // A política real não declara NADA que o agente possa aprovar sozinho — é essa
+    // ausência que a revisão nomeia. As 6 regras vedadas de sub-item de hospedagem
+    // deixaram de travar a categoria (B-3, v1.8).
+    expect(r.motivos.join(" ")).toContain("não declara nenhuma regra que autorize");
+    expect(r.motivos.join(" ")).not.toContain("regra vedada e regra permissiva");
     expect(r.motivos.join(" ")).not.toContain("CNPJ");
     expect(r.motivos.join(" ")).not.toContain("limite de hospedagem");
     expect(r.motivos.join(" ")).not.toContain("1,5");
@@ -162,7 +166,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
       { temVeiculo: false },
     );
     expect(r.decisao).toBe("revisao_manual");
-    expect(r.motivos.join(" ")).toContain("só tem regra vedada para Uber/app");
+    expect(r.motivos.join(" ")).toContain("só tem 1 regra vedada para Uber/app");
     expect(r.motivos.join(" ")).not.toContain("negado");
   });
 
@@ -250,7 +254,9 @@ describe("decidirReembolso (D-013/D-014)", () => {
     );
     expect(r.decisao).toBe("negado");
     const texto = r.motivos.join(" ");
-    expect(texto).toContain("comprovantes-nao-aceitos");
+    // O motivo cita a DESCRIÇÃO da regra; o id fica só na trilha de máquina.
+    expect(texto).toContain("Comprovantes de pagamento (Pix, cartão, extrato) não são aceitos");
+    expect(texto).not.toContain("comprovantes-nao-aceitos");
     expect(texto).toContain("(v2)");
     expect(texto).toContain("apresentar nota fiscal ou recibo do prestador");
     expect(texto).toContain("reenvie a despesa");
@@ -312,6 +318,41 @@ describe("decidirReembolso (D-013/D-014)", () => {
     );
     expect(r.decisao).not.toBe("negado");
     expect(r.decisao).toBe("aprovado");
+  });
+
+  it("I-1: exigência de nota fiscal de UMA categoria não alcança as outras", () => {
+    const soHospedagem = consolidarRegras(
+      regrasPoliticaSchema.parse({
+        regrasExtraidas: [
+          {
+            id: "nf-hospedagem",
+            tema: "hospedagem-e-viagem",
+            categoria: "hospedagem",
+            descricao: "Hospedagem só é reembolsada com nota fiscal do hotel",
+            reembolsavel: "sim",
+            escopo: "categoria",
+            valorLimite: 400,
+            exigeDocumentoFiscal: true,
+            decisaoAutomatica: "aprovar",
+          },
+        ],
+      }),
+    );
+    const extrato = { tipoDocumento: "extrato_conta" as const, confiancaTipo: "alta" as const };
+
+    const alimentacao = decidirReembolso({ ...base, ...extrato }, soHospedagem, {
+      temVeiculo: false,
+    });
+    expect(alimentacao.decisao).not.toBe("negado");
+    expect(alimentacao.motivos.join(" ")).not.toContain("Hospedagem só é reembolsada");
+
+    const hospedagem = decidirReembolso(
+      { ...base, ...extrato, categoriaSugerida: "hospedagem", valor: 300 },
+      soHospedagem,
+      { temVeiculo: false },
+    );
+    expect(hospedagem.decisao).toBe("negado");
+    expect(hospedagem.motivos.join(" ")).toContain("Hospedagem só é reembolsada com nota fiscal");
   });
 
   it("tipo sem lastro fiscal e política silenciosa: vira ressalva e não bloqueia", () => {

@@ -4,7 +4,12 @@ import { formatBRL } from "@/lib/format"
 import {
   AVISO_TETO_TEMPORAL,
   DICA_APROVACAO_AUTOMATICA,
+  DICA_APROVACAO_ESCOPO,
+  DICA_APROVACAO_MOEDA,
   DICA_NEGACAO_AUTOMATICA,
+  DICA_NEGACAO_COM_VALOR,
+  DICA_NEGACAO_ESCOPO,
+  DICA_NEGACAO_VALOR_GERAL,
   adicionarRegra,
   agruparPorTema,
   contarRegras,
@@ -273,12 +278,11 @@ describe("estadoDecisaoAutomatica", () => {
   it("aprovar só com reembolsável + valor em reais", () => {
     const comValor = estadoDecisaoAutomatica(base, "500,00")
     expect(comValor.aprovar.habilitada).toBe(true)
-    expect(comValor.dica).toBeNull()
+    expect(comValor.aprovar.dica).toBeNull()
 
     const semValor = estadoDecisaoAutomatica(base, "")
     expect(semValor.aprovar.habilitada).toBe(false)
     expect(semValor.aprovar.dica).toBe(DICA_APROVACAO_AUTOMATICA)
-    expect(semValor.dica).toBe(DICA_APROVACAO_AUTOMATICA)
 
     const percentual = estadoDecisaoAutomatica(
       { ...base, unidadeLimite: "percentual" },
@@ -290,21 +294,67 @@ describe("estadoDecisaoAutomatica", () => {
     expect(prazo.aprovar.habilitada).toBe(false)
   })
 
-  it("negar só com regra vedada", () => {
-    const vedada = estadoDecisaoAutomatica({ ...base, reembolsavel: "vedado" }, "")
-    expect(vedada.negar.habilitada).toBe(true)
-    expect(vedada.dica).toBeNull()
+  it("B-6: moeda estrangeira não habilita aprovar — o servidor só deriva teto em reais", () => {
+    const e = estadoDecisaoAutomatica({ ...base, moeda: "USD" }, "200,00")
+    expect(e.aprovar.habilitada).toBe(false)
+    expect(e.aprovar.dica).toBe(DICA_APROVACAO_MOEDA)
+  })
 
+  it("B-4: regra com categoria só aprova sozinha depois de promovida à categoria inteira", () => {
+    const subItem = estadoDecisaoAutomatica({ ...base, categoria: "alimentacao" }, "70,00")
+    expect(subItem.aprovar.habilitada).toBe(false)
+    expect(subItem.aprovar.dica).toBe(DICA_APROVACAO_ESCOPO)
+
+    const promovida = estadoDecisaoAutomatica(
+      { ...base, categoria: "alimentacao", escopo: "categoria" },
+      "70,00",
+    )
+    expect(promovida.aprovar.habilitada).toBe(true)
+  })
+
+  it("negar só com regra vedada", () => {
     const reembolsavel = estadoDecisaoAutomatica(base, "500,00")
     expect(reembolsavel.negar.habilitada).toBe(false)
     expect(reembolsavel.negar.dica).toBe(DICA_NEGACAO_AUTOMATICA)
   })
 
-  it("exceção não sustenta decisão automática nenhuma e mostra a dica", () => {
+  it("B-2: sem categoria, negar é teto GERAL — exige valor e o rótulo declara o alcance", () => {
+    const vedada = { ...base, reembolsavel: "vedado" as const }
+    const semValor = estadoDecisaoAutomatica(vedada, "")
+    expect(semValor.negar.habilitada).toBe(false)
+    expect(semValor.negar.dica).toBe(DICA_NEGACAO_VALOR_GERAL)
+
+    const comValor = estadoDecisaoAutomatica(vedada, "5.000,00")
+    expect(comValor.negar.habilitada).toBe(true)
+    expect(comValor.negar.rotulo).toBe("O agente pode negar qualquer despesa acima deste valor")
+  })
+
+  it("B-1: regra vedada COM valor não pode negar sozinha; sem valor e promovida, pode", () => {
+    const vedadaDaCategoria = {
+      ...base,
+      categoria: "hospedagem" as const,
+      escopo: "categoria" as const,
+      reembolsavel: "vedado" as const,
+    }
+    const comValor = estadoDecisaoAutomatica(vedadaDaCategoria, "800,00")
+    expect(comValor.negar.habilitada).toBe(false)
+    expect(comValor.negar.dica).toBe(DICA_NEGACAO_COM_VALOR)
+
+    const semValor = estadoDecisaoAutomatica(vedadaDaCategoria, "")
+    expect(semValor.negar.habilitada).toBe(true)
+    expect(semValor.negar.rotulo).toBe("O agente pode negar sozinho todas as despesas de Hospedagem")
+
+    const subItem = estadoDecisaoAutomatica({ ...vedadaDaCategoria, escopo: "item" }, "")
+    expect(subItem.negar.habilitada).toBe(false)
+    expect(subItem.negar.dica).toBe(DICA_NEGACAO_ESCOPO)
+  })
+
+  it("exceção não sustenta decisão automática nenhuma e as duas dicas ficam visíveis", () => {
     const e = estadoDecisaoAutomatica({ ...base, reembolsavel: "excecao" }, "500,00")
     expect(e.aprovar.habilitada).toBe(false)
     expect(e.negar.habilitada).toBe(false)
-    expect(e.dica).toBe(DICA_APROVACAO_AUTOMATICA)
+    expect(e.aprovar.dica).toBe(DICA_APROVACAO_AUTOMATICA)
+    expect(e.negar.dica).toBe(DICA_NEGACAO_AUTOMATICA)
   })
 })
 
@@ -332,14 +382,47 @@ describe("rebaixarDecisaoAutomatica", () => {
     expect(rebaixarDecisaoAutomatica(regra("x", "governanca-do-processo"), "")).toEqual({})
   })
 
-  it("'negar' sobrevive enquanto a regra continuar vedada", () => {
+  it("'negar' sobrevive enquanto a regra continuar sustentando o alcance da marcação", () => {
     const vedada: RegraExtraida = {
       ...regra("x", "governanca-do-processo"),
       reembolsavel: "vedado",
       decisaoAutomatica: "negar",
     }
-    expect(rebaixarDecisaoAutomatica(vedada, "")).toEqual({})
-    expect(rebaixarDecisaoAutomatica({ ...vedada, reembolsavel: "sim" }, "")).toEqual({
+    // Sem categoria a marcação é teto GERAL: sem valor ela não alcança nada.
+    expect(rebaixarDecisaoAutomatica(vedada, "")).toEqual({ decisaoAutomatica: "nenhuma" })
+    expect(rebaixarDecisaoAutomatica(vedada, "5.000,00")).toEqual({})
+    expect(rebaixarDecisaoAutomatica({ ...vedada, reembolsavel: "sim" }, "5.000,00")).toEqual({
+      decisaoAutomatica: "nenhuma",
+    })
+  })
+
+  it("B-2: apagar a categoria de uma regra que nega a categoria derruba a marcação", () => {
+    const negaHospedagem: RegraExtraida = {
+      ...regra("x", "hospedagem-e-viagem"),
+      categoria: "hospedagem",
+      escopo: "categoria",
+      reembolsavel: "vedado",
+      decisaoAutomatica: "negar",
+    }
+    expect(rebaixarDecisaoAutomatica(negaHospedagem, "")).toEqual({})
+    // É o patch que o `<select>` de categoria emite: sem categoria, "nega tudo".
+    expect(
+      rebaixarDecisaoAutomatica({ ...negaHospedagem, categoria: null, escopo: "item" }, ""),
+    ).toEqual({ decisaoAutomatica: "nenhuma" })
+  })
+
+  it("B-1/B-4: digitar um valor derruba a negação de categoria; desmarcar o escopo também", () => {
+    const negaHospedagem: RegraExtraida = {
+      ...regra("x", "hospedagem-e-viagem"),
+      categoria: "hospedagem",
+      escopo: "categoria",
+      reembolsavel: "vedado",
+      decisaoAutomatica: "negar",
+    }
+    expect(rebaixarDecisaoAutomatica(negaHospedagem, "800,00")).toEqual({
+      decisaoAutomatica: "nenhuma",
+    })
+    expect(rebaixarDecisaoAutomatica({ ...negaHospedagem, escopo: "item" }, "")).toEqual({
       decisaoAutomatica: "nenhuma",
     })
   })

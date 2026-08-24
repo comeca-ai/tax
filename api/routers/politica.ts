@@ -17,6 +17,10 @@ import { getPolicyParser } from "../modules/reembolso/policy/parser";
 import { consolidarRegras } from "../modules/reembolso/policy/derivar";
 import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "../modules/reembolso/policy/texto";
 import { avaliarDespesa } from "../modules/reembolso/policy/agent";
+import {
+  POLITICA_ATIVA_IMUTAVEL,
+  politicaEditavel,
+} from "../modules/reembolso/policy/versao";
 import { assertAdminDaEmpresa, assertEmpresaAcesso, registrarLog } from "./_shared";
 
 /**
@@ -151,6 +155,45 @@ export const politicaRouter = createRouter({
       };
     }),
 
+  /**
+   * Clona uma política como RASCUNHO — é assim que se edita a política em vigor (RF-07).
+   * A versão ativa continua valendo, com as regras que decidiram cada despesa até aqui;
+   * a cópia só passa a valer no "Ativar política", que atribui a versão nova.
+   */
+  duplicar: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const politica = await buscarPoliticaOuFalhar(input.id);
+      await assertAdminDaEmpresa(ctx, politica.empresaId);
+      const db = getDb();
+
+      const result = await db.insert(politicasReembolso).values({
+        empresaId: politica.empresaId,
+        arquivoNome: politica.arquivoNome,
+        arquivoPath: politica.arquivoPath,
+        textoExtraido: politica.textoExtraido,
+        regras: regrasPoliticaSchema.parse(politica.regras ?? {}),
+        status: "rascunho",
+        // Rascunho não tem versão: `ativar` atribui max(versao)+1 na ativação.
+        versao: 1,
+        confiancaExtracao: politica.confiancaExtracao,
+        camposPendentes: (politica.camposPendentes as string[] | null) ?? [],
+        createdById: ctx.usuario.id,
+      });
+      const politicaId = Number(result[0].insertId);
+
+      await registrarLog(db, {
+        usuarioId: ctx.usuario.id,
+        empresaId: politica.empresaId,
+        acao: "politica.duplicar",
+        entidade: "politica_reembolso",
+        entidadeId: politicaId,
+        detalhes: `Rascunho criado a partir da política ${politica.id} (v${politica.versao}, ${politica.status}).`,
+      });
+
+      return { politicaId };
+    }),
+
   /** Edição manual das regras extraídas (preenchimento assistido). */
   updateRegras: protectedProcedure
     .input(politicaUpdateRegrasInput)
@@ -159,9 +202,17 @@ export const politicaRouter = createRouter({
       // Editar regra é declarar o que o agente pode aprovar ou negar sozinho: só o
       // admin da empresa (ou o suporte da plataforma) decide isso (P-4, v1.8).
       await assertAdminDaEmpresa(ctx, politica.empresaId);
+      // RF-07: a política em vigor é imutável. Gravar em cima dela fazia as marcações
+      // valerem no "Salvar regras" — antes do simulador, antes de "Ativar política" — e
+      // duas configurações diferentes conviviam sob a mesma versão, sem que
+      // `politicaVersaoAplicada` identificasse qual regra decidiu o quê.
+      if (!politicaEditavel(politica.status)) {
+        throw new TRPCError({ code: "CONFLICT", message: POLITICA_ATIVA_IMUTAVEL });
+      }
       const db = getDb();
-      // Limites, exigências e tetos nascem das regras extraídas (servidor é a fonte)
-      const regras = consolidarRegras(input.regras);
+      // Limites, exigências e tetos nascem das regras extraídas (servidor é a fonte).
+      // "edicao": lista vazia é declaração do gestor — apagar tudo zera os parâmetros.
+      const regras = consolidarRegras(input.regras, "edicao");
 
       await db
         .update(politicasReembolso)
@@ -237,7 +288,9 @@ export const politicaRouter = createRouter({
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       const politica = await buscarPoliticaOuFalhar(input.id);
-      await assertEmpresaAcesso(ctx, politica.empresaId);
+      // Suspender a avaliação automática é decisão sobre a empresa, não operação de
+      // revisão: mesmo portão do updateRegras e do ativar (P-4, v1.8).
+      await assertAdminDaEmpresa(ctx, politica.empresaId);
       const db = getDb();
 
       await db

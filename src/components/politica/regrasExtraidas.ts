@@ -9,6 +9,7 @@ import {
   type UnidadeLimite,
   type UnidadeLimiteTemporal,
 } from "@contracts/types"
+import { CATEGORIA_META } from "@/components/despesas/meta"
 import { parseNumeroPt } from "@/components/despesas/wizard/types"
 import { formatBRL } from "@/lib/format"
 
@@ -191,11 +192,13 @@ export function estadoEscopo(r: RegraExtraida, valorDigitado: string): EstadoEsc
   }
 }
 
-export const DECISAO_AUTOMATICA_LABELS: Record<DecisaoAutomaticaRegra, string> = {
-  nenhuma: "Só o gestor decide (padrão)",
-  aprovar: "O agente pode aprovar sozinho",
-  negar: "O agente pode negar sozinho",
-}
+/**
+ * Rótulo da opção "sem decisão automática". As outras duas são montadas em
+ * `estadoDecisaoAutomatica`: elas precisam declarar o ALCANCE da marcação — "O agente
+ * pode negar sozinho" numa regra sem categoria significava "negar toda despesa da
+ * empresa" e o gestor não tinha como saber (v1.8).
+ */
+export const ROTULO_SEM_DECISAO_AUTOMATICA = "Só o gestor decide (padrão)"
 
 /** Rótulo curto do chip no card de leitura; "nenhuma" não vira chip. */
 export const DECISAO_AUTOMATICA_CHIP: Record<DecisaoAutomaticaRegra, string | null> = {
@@ -206,10 +209,26 @@ export const DECISAO_AUTOMATICA_CHIP: Record<DecisaoAutomaticaRegra, string | nu
 
 export const DICA_APROVACAO_AUTOMATICA =
   "Marque a regra como reembolsável e informe um valor em reais para o agente poder aprovar sozinho."
+export const DICA_APROVACAO_MOEDA =
+  "O agente só aprova sozinho com limite em reais — esta regra está em outra moeda."
+export const DICA_APROVACAO_ESCOPO =
+  "Marque também “Vale para a categoria inteira” para o agente poder aprovar sozinho as despesas desta categoria."
 export const DICA_NEGACAO_AUTOMATICA = "Só regra vedada pode autorizar negação automática."
+export const DICA_NEGACAO_VALOR_GERAL =
+  "Sem categoria, o agente só nega sozinho acima de um valor em reais — informe o valor, ou escolha a categoria desta regra."
+export const DICA_NEGACAO_COM_VALOR =
+  "Regra com valor não autoriza negação automática: o agente negaria a categoria inteira, em qualquer valor. Para vedar a categoria toda, cadastre uma regra vedada sem valor."
+export const DICA_NEGACAO_ESCOPO =
+  "Marque também “Vale para a categoria inteira” para o agente poder negar sozinho as despesas desta categoria."
+
+/** Aviso ao lado do seletor quando a edição derrubou a marcação (o `<select>` volta sozinho). */
+export const AVISO_DECISAO_REBAIXADA =
+  "A decisão automática voltou para “Só o gestor decide”: a regra deixou de sustentar a marcação anterior."
 
 export interface OpcaoDecisaoAutomatica {
   habilitada: boolean
+  /** Rótulo da opção — declara o ALCANCE (toda despesa da empresa × uma categoria). */
+  rotulo: string
   /** Por que está desabilitada (nunca `title`: mobile não tem hover). */
   dica: string | null
 }
@@ -218,29 +237,54 @@ export interface EstadoDecisaoAutomatica {
   valor: DecisaoAutomaticaRegra
   aprovar: OpcaoDecisaoAutomatica
   negar: OpcaoDecisaoAutomatica
-  /** Dica a exibir: só quando NENHUMA decisão automática é possível para esta regra. */
-  dica: string | null
 }
 
 /**
- * Estado do seletor "Decisão automática" no card de edição.
- * Aprovar exige regra reembolsável com valor em reais (P-5: nenhuma aprovação sem teto);
- * negar exige regra vedada. Fora disso a regra é documentação e o gestor decide.
+ * Estado do seletor "Decisão automática" no card de edição — espelho exato do que o
+ * servidor consegue derivar (`aprovacaoTemEfeito` / `negacaoTemEfeito` em `derivar.ts`).
+ * Habilitar uma opção que a derivação ignora produzia chip verde no card e "nada" no
+ * resumo, sem uma palavra de explicação.
+ *
+ *  - aprovar → regra reembolsável, valor em reais > 0 (P-5: nenhuma aprovação sem teto)
+ *    e alcance declarado: sem categoria, ou "Vale para a categoria inteira".
+ *  - negar   → regra vedada. Sem categoria: valor em reais > 0 (teto geral de negação).
+ *    Com categoria: "Vale para a categoria inteira" e SEM valor — regra vedada com valor
+ *    negaria a categoria inteira em qualquer valor, alcance maior do que ela declara.
  */
 export function estadoDecisaoAutomatica(
   r: RegraExtraida,
   valorDigitado: string,
 ): EstadoDecisaoAutomatica {
+  const rotuloCategoria = r.categoria ? CATEGORIA_META[r.categoria].label : null
   const naoMonetaria =
     r.unidadeLimite === "percentual" || (r.unidadeLimite?.startsWith("dias_") ?? false)
-  const podeAprovar =
-    r.reembolsavel === "sim" && parseNumeroPt(valorDigitado) > 0 && !naoMonetaria
-  const podeNegar = r.reembolsavel === "vedado"
+  const valor = parseNumeroPt(valorDigitado)
+  const temValor = valor > 0 && !naoMonetaria
+  const emReais = r.moeda === "BRL"
+  const promovida = r.escopo === "categoria"
+
+  const rotuloAprovar = rotuloCategoria
+    ? `O agente pode aprovar sozinho as despesas de ${rotuloCategoria}`
+    : "O agente pode aprovar qualquer despesa até este valor"
+  let dicaAprovar: string | null = null
+  if (r.reembolsavel !== "sim" || !temValor) dicaAprovar = DICA_APROVACAO_AUTOMATICA
+  else if (!emReais) dicaAprovar = DICA_APROVACAO_MOEDA
+  else if (rotuloCategoria && !promovida) dicaAprovar = DICA_APROVACAO_ESCOPO
+
+  const rotuloNegar = rotuloCategoria
+    ? `O agente pode negar sozinho todas as despesas de ${rotuloCategoria}`
+    : "O agente pode negar qualquer despesa acima deste valor"
+  let dicaNegar: string | null = null
+  if (r.reembolsavel !== "vedado") dicaNegar = DICA_NEGACAO_AUTOMATICA
+  else if (rotuloCategoria === null) {
+    if (!temValor || !emReais) dicaNegar = DICA_NEGACAO_VALOR_GERAL
+  } else if (valor > 0) dicaNegar = DICA_NEGACAO_COM_VALOR
+  else if (!promovida) dicaNegar = DICA_NEGACAO_ESCOPO
+
   return {
     valor: r.decisaoAutomatica,
-    aprovar: { habilitada: podeAprovar, dica: podeAprovar ? null : DICA_APROVACAO_AUTOMATICA },
-    negar: { habilitada: podeNegar, dica: podeNegar ? null : DICA_NEGACAO_AUTOMATICA },
-    dica: podeAprovar || podeNegar ? null : DICA_APROVACAO_AUTOMATICA,
+    aprovar: { habilitada: dicaAprovar === null, rotulo: rotuloAprovar, dica: dicaAprovar },
+    negar: { habilitada: dicaNegar === null, rotulo: rotuloNegar, dica: dicaNegar },
   }
 }
 

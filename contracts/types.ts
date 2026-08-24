@@ -367,8 +367,13 @@ export type EscopoRegra = (typeof ESCOPOS_REGRA)[number];
  * O que ESTA regra autoriza o agente a fazer sozinho (v1.8).
  *  - "nenhuma" → a regra é documentação: pode gerar teto/exceção (revisão), NUNCA
  *                aprovação nem negação automática. Default de tudo que já existe.
- *  - "aprovar" → só com reembolsavel "sim" + valorLimite em BRL não-percentual/não-prazo.
- *  - "negar"   → só com reembolsavel "vedado".
+ *  - "aprovar" → reembolsavel "sim" + valorLimite > 0 em BRL não-percentual/não-prazo,
+ *                E alcance declarado: sem categoria (teto geral) ou escopo "categoria".
+ *  - "negar"   → reembolsavel "vedado", e o alcance define o que é exigido:
+ *                sem categoria → valorLimite > 0 em BRL (teto geral de negação);
+ *                com categoria → escopo "categoria" e SEM valor (veda a categoria toda).
+ *                Regra vedada COM valor nunca vira vedação de categoria: negaria a
+ *                categoria inteira em qualquer valor, alcance maior do que a regra declara.
  * NENHUM prompt de LLM pede este campo e nenhum parser o preenche: só o gestor,
  * no card. É a única porta para decisão automática (D-013).
  */
@@ -413,11 +418,22 @@ export type CategoriaRegraCitada = z.infer<typeof categoriaRegraCitadaSchema>;
 
 /** Ponto em que a política NÃO define e o agente, por isso, não decide (v1.8). */
 export const LACUNA_TIPOS = [
-  "conflito-vedado-permissivo", // vedado + sim na mesma categoria, sem marcação do gestor
+  "conflito-vedado-permissivo", // regra vedada de CATEGORIA convivendo com regra "sim", sem marcação
   "so-vedado-sem-marcacao", // só regra vedada na categoria, nenhuma marcada como "negar"
   "marcacao-sem-valor", // regra marcada "aprovar" sem valor monetário aplicável
+  "marcacao-sem-efeito", // marcação do gestor que a derivação não consegue aplicar (escopo/valor)
+  "lacunas-demais", // agregado: houve mais lacunas do que o contrato comporta
 ] as const;
 export type LacunaTipo = (typeof LACUNA_TIPOS)[number];
+
+/**
+ * Teto de lacunas gravadas numa política. A derivação NUNCA pode produzir mais do que
+ * isso: o JSON é reparseado a cada leitura (`politica.get`, `politica.ativa`,
+ * `despesas.decidirAutomatico`) e um array maior derrubava a empresa inteira com
+ * `too_big`. Ao truncar, a última entra como "lacunas-demais" — sem categoria, ou seja,
+ * mandando TUDO para revisão: cortar só pode errar para o lado seguro (D-013).
+ */
+export const LACUNAS_MAX = 60;
 
 export const lacunaPoliticaSchema = z.object({
   tipo: z.enum(LACUNA_TIPOS),
@@ -467,15 +483,22 @@ export const regrasPoliticaSchema = z.object({
   revisaoHumanaAcimaDeRegraId: z.string().max(80).nullable().default(null),
   negacaoAcimaDeRegraId: z.string().max(80).nullable().default(null),
   /** Onde a política não define — o agente não decide e nomeia a lacuna (v1.8) */
-  lacunas: z.array(lacunaPoliticaSchema).max(60).default([]),
+  lacunas: z.array(lacunaPoliticaSchema).max(LACUNAS_MAX).default([]),
   /** Acima deste valor (R$) vai para revisão humana; null = sem regra */
   revisaoHumanaAcimaDe: z.number().min(0).nullable().default(null),
   /** Acima deste valor (R$) a despesa é negada; null = sem teto de negação */
   negacaoAcimaDe: z.number().min(0).nullable().default(null),
-  /** Política exige nota fiscal/recibo como comprovante (derivado da regra de governança vedada — v1.8) */
+  /** Política exige nota fiscal/recibo em TODA despesa — só de regra marcada SEM categoria (v1.8) */
   exigeDocumentoFiscal: z.boolean().default(false),
-  /** Id da regra extraída que fundamenta a exigência (para citação na negação); null = não exige */
+  /** Id da regra extraída que fundamenta a exigência geral (para citação na negação); null = não exige */
   regraDocumentoFiscalId: z.string().max(80).nullable().default(null),
+  /**
+   * Exigência de nota fiscal/recibo POR categoria, com a regra que exigiu. Regra de
+   * hospedagem marcada "só aceito nota fiscal" vale em hospedagem e em nenhuma outra:
+   * é a segunda porta de negação automática e o alcance dela nunca pode ser maior do
+   * que o da regra (D-013).
+   */
+  exigeDocumentoFiscalPorCategoria: z.array(categoriaRegraCitadaSchema).default([]),
   /** Observações em texto livre extraídas do documento da política */
   observacoes: z.array(z.string()).default([]),
   /** Regras estruturadas (v1.7 do agente). Única fonte editável; os campos acima são derivados delas no servidor. Ausente = política antiga. */

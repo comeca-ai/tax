@@ -14,22 +14,25 @@ campo, empate entre regras — é lacuna, e lacuna vai para revisão humana
 
 ### Adicionado
 - **Decisão automática por regra** (`decisaoAutomatica`: `nenhuma` | `aprovar` |
-  `negar`, default `nenhuma`): seletor no card de edição
-  ("Só o gestor decide (padrão)" / "O agente pode aprovar sozinho" /
-  "O agente pode negar sozinho") e chip no card de leitura. `aprovar` exige regra
-  reembolsável com valor em reais; `negar` exige regra vedada. Trocar
-  `reembolsavel`, a unidade ou zerar o valor rebaixa a marcação para `nenhuma` no
-  mesmo patch. **Nenhum prompt de LLM pede este campo e nenhum parser o preenche**:
+  `negar`, default `nenhuma`): seletor no card de edição e chip no card de
+  leitura. O rótulo de cada opção declara o **alcance** dela. `aprovar` exige
+  regra reembolsável com valor em reais > 0 e alcance declarado (sem categoria ou
+  escopo `categoria`); `negar` exige regra vedada — sem categoria, valor em reais
+  > 0 (teto geral); com categoria, escopo `categoria` e **sem** valor. Qualquer
+  edição do card rebaixa a marcação que a regra deixou de sustentar, com aviso
+  visível. **Nenhum prompt de LLM pede este campo e nenhum parser o preenche**:
   é a única porta para decisão automática
 - **Teto de aprovação automática por categoria**
   (`aprovacaoAutomaticaPorCategoria`): de regra marcada `aprovar` com escopo
   `categoria`. Global e por categoria aplicam-se juntos — o valor precisa caber
   em todos os tetos aplicáveis
-- **Lacunas da política** (`lacunas`): `conflito-vedado-permissivo` (vedado e
-  permissivo na mesma categoria, sem marcação), `so-vedado-sem-marcacao` e
-  `marcacao-sem-valor` (marcada `aprovar` sem limite em reais). Cada lacuna vira
-  revisão humana com frase própria, exibida no resumo em
-  "O que a política não define"
+- **Lacunas da política** (`lacunas`): `conflito-vedado-permissivo` (regra vedada
+  de **categoria** convivendo com regra permissiva), `so-vedado-sem-marcacao`,
+  `marcacao-sem-valor` (marcada `aprovar` sem limite em reais),
+  `marcacao-sem-efeito` (marcação que a derivação não consegue aplicar) e
+  `lacunas-demais` (agregada, quando o corte é necessário). Cada lacuna vira
+  revisão humana com frase própria — nomeando o que falta **e o que fazer** —
+  exibida no resumo em "O que a política não define"
 - **Exigência de nota fiscal como declaração do gestor**
   (`exigeDocumentoFiscal` na regra): checkbox "Só aceito nota fiscal ou recibo"
   no card. Substitui o match pelo id `comprovantes-nao-aceitos`, que nenhum
@@ -77,10 +80,70 @@ A migração **0007** (`notas_fiscais.tipo_documento`, `confianca_tipo`) continu
 pendente de aplicação: `npm run db:migrate` → `docker compose build` →
 `docker compose up -d`, nessa ordem.
 
+### Correções da leva (QA de código e de tela)
+- **Regra vedada com valor não veda mais a categoria inteira.** "Hospedagem acima
+  de R$ 800 por diária não é reembolsada", marcada `negar` com escopo
+  `categoria`, negava hospedagem de R$ 100 citando os R$ 800. Vedação de
+  categoria passa a exigir regra vedada **sem valor**; no card, a opção de negar
+  fica desabilitada com a dica do porquê e do que fazer
+- **Negação global acidental.** `negacaoAcimaDe` passa a exigir valor em reais
+  **maior que zero** (`valorLimite: 0` negava toda despesa da empresa); apagar a
+  categoria de uma regra marcada — única das edições do card que não rebaixava —
+  passa a derrubar a marcação, e agora **toda** edição do card rebaixa; o rótulo
+  da opção declara o alcance ("O agente pode negar qualquer despesa acima deste
+  valor" × "…todas as despesas de Hospedagem")
+- **Regra vedada de sub-item deixa de travar a categoria.** A lacuna
+  `conflito-vedado-permissivo` só sobe quando a regra vedada tem escopo
+  `categoria`. **Divergência deliberada da spec §3.1 item 7** (decisão do dono,
+  24/08 — a spec tinha um furo aí): frigobar, gorjeta e bebida alcoólica são
+  declarações sobre um sub-item, não discordância sobre a categoria. Na política
+  real, hospedagem (6 vedadas) e Uber (1) iam para revisão **para sempre**, sem
+  gesto na tela capaz de resolver. Os textos das lacunas passam a usar
+  **contagens** em vez de um par arbitrário de regras — que produzia frases
+  falsas como "'Perdas de bagagem' e 'Lavanderia' não dizem qual prevalece" — e
+  a dizer o que fazer para resolver
+- **Marcação sem efeito deixa rastro** (lacuna `marcacao-sem-efeito`): marcar
+  `aprovar` numa regra de categoria com escopo `item` (o default de tudo que o
+  LLM extrai) mostrava chip verde no card e "Nada" no resumo, sem uma palavra. O
+  front passa a exigir `categoria === null || escopo === "categoria"` e o
+  servidor nomeia qualquer marcação que a derivação não consiga aplicar
+- **A política ativa não é mais editada no lugar** (RF-07): `politica.updateRegras`
+  recusa política `ativa` e a tela cria uma **cópia rascunho** (`politica.duplicar`);
+  a versão em vigor continua decidindo até o "Ativar política". Textos ajustados
+  para dizer a verdade ("Regras salvas no rascunho")
+- **Moeda estrangeira**: o card só habilita aprovação automática com limite em
+  reais, com dica própria — antes a UI habilitava e o servidor rejeitava
+- **Teto de lacunas** (`LACUNAS_MAX = 60`): a derivação nunca produz mais lacunas
+  do que o contrato aceita. Passava disso, o reparse estourava (`too_big`) e
+  `politica.get`, `politica.ativa` e a decisão automática caíam para a empresa
+  inteira. Ao cortar, a última vira `lacunas-demais` **sem categoria** — manda
+  tudo para revisão, o lado seguro
+- **`exigeDocumentoFiscal` por categoria** (`exigeDocumentoFiscalPorCategoria`):
+  marcar "só nota fiscal" numa regra de hospedagem negava extrato em alimentação
+  citando a regra de hospedagem. Exigência com categoria vale só nela; sem
+  categoria, na empresa toda
+- **Apagar todas as regras zera os parâmetros**: `consolidarRegras(regras,
+  "edicao")` distingue "política sem regras extraídas" (demo/heurística, fica
+  intocada) de "o gestor apagou as regras" — que antes mantinha o
+  `aprovacaoAutomaticaAte` anterior aprovando despesas que nenhuma regra sustenta
+- **`politica.desativar` passa a exigir admin da empresa** (`assertAdminDaEmpresa`):
+  um revisor de qualquer empresa suspendia a avaliação automática de qualquer
+  empresa
+- **Tela**: o gate P-4 chega ao front (botões de decisão escondidos/desabilitados
+  com o motivo visível, em vez de 403 no fim de 70 regras); aviso visível quando
+  a edição rebaixa a decisão automática; dica de **cada** opção indisponível
+  sempre renderizada (`select` nativo não tem tooltip no celular);
+  `exigeDocumentoFiscal` entra no bloco "O agente decide sozinho"; "Teto por
+  categoria" ganha estado vazio explicado em vez de sumir; rótulo visível dos 4
+  campos do card no mobile e alvo de toque de 44px; contraste da faixa de aviso e
+  `focus-visible` no botão dela; decisões citam a **descrição** da regra, nunca o
+  id cru
+
 ### Nota de operação
 Políticas já ativas ficam em **100% revisão** até o gestor reeditar e marcar as
 regras que autorizam o agente a aprovar sozinho — nenhuma marcação é inventada
-por nós. A faixa em `/app/politica` avisa e leva ao passo 2.
+por nós. A faixa em `/app/politica` avisa e cria a nova versão; a versão ativa
+não é mais alterada no lugar, então a mudança só vale depois de "Ativar política".
 
 ## [Unreleased] — convergência da branch `feat/policy-llm-gemini` sobre a base 1.7.0 (versão definida no merge em `master`)
 

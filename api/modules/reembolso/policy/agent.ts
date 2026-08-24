@@ -232,7 +232,7 @@ export function avaliarDespesa(
       detalhe: "nenhuma regra da política marcada para o agente aprovar sozinho",
     });
     motivos.push(
-      "A política da empresa não declara nenhuma regra que autorize o agente a aprovar sozinho — a despesa foi enviada para revisão do gestor.",
+      "A política da empresa não declara nenhuma regra que autorize o agente a aprovar sozinho — a despesa foi enviada para a sua revisão.",
     );
     return { decisao: "revisao_humana", motivos, regrasAplicadas };
   }

@@ -1,11 +1,13 @@
 import {
   CATEGORIAS_DESPESA,
   CATEGORIA_DESPESA_ROTULO,
+  LACUNAS_MAX,
   TEMAS_POLITICA,
   UNIDADES_LIMITE_TEMPORAIS,
   type CategoriaDespesa,
   type CategoriaRegraCitada,
   type LacunaPolitica,
+  type LacunaTipo,
   type RegraExtraida,
   type RegrasPolitica,
   type UnidadeLimiteTemporal,
@@ -20,9 +22,11 @@ import {
  *
  * v1.8 — a política é a única fonte: NENHUM parâmetro nasce de texto livre. Decisão
  * automática (aprovar/negar) existe só onde o gestor marcou `decisaoAutomatica` no
- * card da regra (D-013). Onde a política não define — vedado convivendo com
- * permissivo, vedado sem marcação, marcação sem valor — o agente não decide: a
- * derivação produz uma LACUNA nomeada e a despesa vai para revisão dizendo o que falta.
+ * card da regra (D-013), e a marcação NUNCA tem alcance maior do que a regra declara.
+ * Onde a política não define — vedado de categoria convivendo com permissivo, vedado
+ * sem marcação, marcação sem valor, marcação que a derivação não consegue aplicar — o
+ * agente não decide: a derivação produz uma LACUNA nomeada, dizendo o que falta e o
+ * que fazer, e a despesa vai para revisão.
  *
  * Funções puras, sem I/O — mesmo padrão de `decidirReembolso()`.
  */
@@ -45,6 +49,7 @@ export type ParametrosDerivados = Pick<
   | "negacaoAcimaDeRegraId"
   | "exigeDocumentoFiscal"
   | "regraDocumentoFiscalId"
+  | "exigeDocumentoFiscalPorCategoria"
   | "lacunas"
 >;
 
@@ -57,6 +62,44 @@ function limiteNaoMonetario(r: RegraExtraida): boolean {
 /** Teto em reais aplicável: valor presente, em BRL e não percentual/prazo. */
 function temValorEmReais(r: RegraExtraida): boolean {
   return r.valorLimite !== null && r.moeda === "BRL" && !limiteNaoMonetario(r);
+}
+
+/**
+ * Valor capaz de fundamentar DECISÃO automática: em reais e MAIOR QUE ZERO.
+ * `valorLimite: 0` marcado "negar" virava `negacaoAcimaDe = 0` e negava toda despesa
+ * da empresa; marcado "aprovar" virava um teto que não aprova nada (v1.8).
+ * Teto de categoria (que só produz revisão) segue aceitando zero — não é decisão.
+ */
+function temValorDeDecisao(r: RegraExtraida): boolean {
+  return temValorEmReais(r) && (r.valorLimite as number) > 0;
+}
+
+/**
+ * A marcação "aprovar" desta regra chega a produzir teto?
+ * Sem categoria vira teto geral; com categoria só quando o gestor promoveu a regra
+ * para a categoria inteira — marcar "aprovar" num sub-item não autoriza nada.
+ */
+function aprovacaoTemEfeito(r: RegraExtraida): boolean {
+  if (!temValorDeDecisao(r)) return false;
+  if (r.categoria === null) return true;
+  return r.escopo === "categoria" && r.reembolsavel === "sim";
+}
+
+/**
+ * A marcação "negar" desta regra chega a produzir negação?
+ * Sem categoria: teto geral de negação, exige valor em reais > 0.
+ * Com categoria: veda a categoria inteira, exige regra vedada, promovida e SEM valor —
+ * regra vedada COM valor ("hospedagem acima de R$ 800 não é reembolsada") negaria
+ * hospedagem de R$ 100, alcance maior do que a regra declara (D-013).
+ */
+function negacaoTemEfeito(r: RegraExtraida): boolean {
+  if (r.categoria === null) return temValorDeDecisao(r);
+  return r.reembolsavel === "vedado" && r.escopo === "categoria" && r.valorLimite === null;
+}
+
+/** "1 regra" · "3 regras" — contagem em vez de eleger um par arbitrário de regras. */
+function plural(n: number, singular: string, pluralForma = `${singular}s`): string {
+  return `${n} ${n === 1 ? singular : pluralForma}`;
 }
 
 /**
@@ -80,6 +123,22 @@ function curto(texto: string, max = 120): string {
 
 function citar(categoria: CategoriaDespesa, r: RegraExtraida, motivo: string): CategoriaRegraCitada {
   return { categoria, regraId: r.id, descricao: r.descricao, motivo };
+}
+
+/** Tamanho do `motivo` no contrato (`lacunaPoliticaSchema` / `categoriaRegraCitadaSchema`). */
+const MOTIVO_MAX = 400;
+
+/**
+ * Lacuna nomeada, com o motivo já dentro do contrato: uma frase montada com duas
+ * descrições longas passava de 400 caracteres e derrubava o reparse da política.
+ */
+function lacuna(
+  tipo: LacunaTipo,
+  categoria: CategoriaDespesa | null,
+  regraIds: string[],
+  motivo: string,
+): LacunaPolitica {
+  return { tipo, categoria, regraIds: regraIds.slice(0, 20), motivo: curto(motivo, MOTIVO_MAX) };
 }
 
 /** Parâmetros do agente derivados das regras extraídas (ver regras no cabeçalho). */
@@ -125,7 +184,7 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
       );
     }
     const tetoAprovacao = menorTeto(
-      promovidas.filter((r) => r.decisaoAutomatica === "aprovar"),
+      promovidas.filter((r) => r.decisaoAutomatica === "aprovar" && temValorDeDecisao(r)),
     );
     if (tetoAprovacao !== null) {
       aprovacaoAutomaticaPorCategoria[cat] = tetoAprovacao.valorLimite as number;
@@ -150,41 +209,142 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
   //    Havendo várias, aplicam-se todas ⇒ o menor valor governa e é o citado.
   const semCategoriaEmReais = regras.filter((r) => r.categoria === null && temValorEmReais(r));
   const regraAprovacao = menorTeto(
-    semCategoriaEmReais.filter((r) => r.decisaoAutomatica === "aprovar"),
+    semCategoriaEmReais.filter((r) => r.decisaoAutomatica === "aprovar" && temValorDeDecisao(r)),
   );
-  const regraNegacao = menorTeto(semCategoriaEmReais.filter((r) => r.decisaoAutomatica === "negar"));
+  const regraNegacao = menorTeto(
+    semCategoriaEmReais.filter((r) => r.decisaoAutomatica === "negar" && temValorDeDecisao(r)),
+  );
   const regraRevisao = menorTeto(
     semCategoriaEmReais.filter(
       (r) => r.tema === "governanca-do-processo" && r.reembolsavel === "excecao",
     ),
   );
 
-  // 4b. Marcação sem valor aplicável: o gestor autorizou, mas não deu teto em reais.
-  // A regra não vira teto (P-5: nenhuma aprovação automática sem limite declarado) e
-  // a lacuna é nomeada para o gestor saber o que falta.
+  // 4b. Marcação que o agente NÃO consegue aplicar. O gestor marcou, a tela mostrou o
+  // chip e a derivação não produziu nada — era o único caminho que sumia sem deixar
+  // rastro. Cada marcação sem efeito vira lacuna nomeada, dizendo o que fazer.
+  //
+  // Categoria cuja tentativa de VEDAÇÃO ficou sem efeito entra no conjunto abaixo: a
+  // lacuna específica já disse o que fazer com aquelas regras vedadas, e repetir em
+  // `so-vedado-sem-marcacao` / `conflito-vedado-permissivo` empilharia o mesmo conselho.
+  const negacaoSemEfeitoPorCategoria = new Set<CategoriaDespesa>();
   for (const r of regras) {
-    if (r.decisaoAutomatica !== "aprovar" || temValorEmReais(r)) continue;
-    lacunas.push({
-      tipo: "marcacao-sem-valor",
-      categoria: r.categoria,
-      regraIds: [r.id],
-      motivo: `A regra "${curto(r.descricao)}" está marcada para o agente aprovar sozinho, mas não tem limite em reais — o agente não pode aplicá-la.`,
-    });
+    if (r.decisaoAutomatica === "nenhuma") continue;
+    const rotulo = r.categoria ? CATEGORIA_DESPESA_ROTULO[r.categoria] : "";
+    const desc = curto(r.descricao);
+
+    if (r.decisaoAutomatica === "aprovar") {
+      if (aprovacaoTemEfeito(r)) continue;
+      // P-5: nenhuma aprovação automática sem limite em reais declarado.
+      if (!temValorDeDecisao(r)) {
+        lacunas.push(
+          lacuna(
+            "marcacao-sem-valor",
+            r.categoria,
+            [r.id],
+            `A regra "${desc}" está marcada para o agente aprovar sozinho, mas não tem limite em reais — o agente não pode aplicá-la.`,
+          ),
+        );
+        continue;
+      }
+      if (r.reembolsavel !== "sim") {
+        lacunas.push(
+          lacuna(
+            "marcacao-sem-efeito",
+            r.categoria,
+            [r.id],
+            `A regra "${desc}" está marcada para o agente aprovar sozinho, mas não está classificada como reembolsável — o agente não aprova nada por causa dela. Classifique-a como reembolsável ou volte para "Só o gestor decide".`,
+          ),
+        );
+        continue;
+      }
+      lacunas.push(
+        lacuna(
+          "marcacao-sem-efeito",
+          r.categoria,
+          [r.id],
+          `A regra "${desc}" está marcada para o agente aprovar sozinho, mas vale só para um sub-item de ${rotulo} — o agente não aprova nada por causa dela. Marque também "Vale para a categoria inteira" para o agente poder aprovar sozinho as despesas de ${rotulo}.`,
+        ),
+      );
+      continue;
+    }
+
+    if (negacaoTemEfeito(r)) continue;
+    if (r.categoria !== null && r.reembolsavel === "vedado") {
+      negacaoSemEfeitoPorCategoria.add(r.categoria);
+    }
+    if (r.categoria === null) {
+      lacunas.push(
+        lacuna(
+          "marcacao-sem-efeito",
+          null,
+          [r.id],
+          `A regra "${desc}" está marcada para o agente negar sozinho, mas não tem categoria nem valor em reais — o agente não nega nada por causa dela. Informe o valor acima do qual a despesa é negada, ou escolha a categoria e marque "Vale para a categoria inteira".`,
+        ),
+      );
+      continue;
+    }
+    if (r.reembolsavel !== "vedado") {
+      lacunas.push(
+        lacuna(
+          "marcacao-sem-efeito",
+          r.categoria,
+          [r.id],
+          `A regra "${desc}" está marcada para o agente negar sozinho, mas não está classificada como vedada — só regra vedada autoriza negação automática. O agente não nega nada por causa dela.`,
+        ),
+      );
+      continue;
+    }
+    if (r.valorLimite !== null) {
+      lacunas.push(
+        lacuna(
+          "marcacao-sem-efeito",
+          r.categoria,
+          [r.id],
+          `A regra "${desc}" veda ${rotulo} a partir de um valor, e o agente não nega a categoria inteira por causa de um limite — negaria também as despesas abaixo dele. Para vedar ${rotulo} por completo, cadastre uma regra vedada SEM valor e marque "Vale para a categoria inteira".`,
+        ),
+      );
+      continue;
+    }
+    lacunas.push(
+      lacuna(
+        "marcacao-sem-efeito",
+        r.categoria,
+        [r.id],
+        `A regra "${desc}" está marcada para o agente negar sozinho, mas vale só para um sub-item de ${rotulo} — o agente não nega a categoria inteira por causa dela. Marque "Vale para a categoria inteira" se a política veda ${rotulo} por completo.`,
+      ),
+    );
   }
 
   // 5. Exigência de documento fiscal: declaração estruturada do gestor no card
   // ("só aceito nota fiscal ou recibo"). O match pelo id `comprovantes-nao-aceitos`,
   // que nenhum prompt pedia, morreu na v1.8 (decisão do dono P-2).
-  const regraDoc = regras.find((r) => r.exigeDocumentoFiscal);
+  // Regra COM categoria exige só naquela categoria: marcar o checkbox numa regra de
+  // hospedagem negava extrato em alimentação citando a regra de hospedagem (v1.8).
+  const regraDoc = regras.find((r) => r.exigeDocumentoFiscal && r.categoria === null);
+  const exigeDocumentoFiscalPorCategoria: CategoriaRegraCitada[] = [];
+  for (const cat of CATEGORIAS_DESPESA) {
+    const r = regras.find((x) => x.exigeDocumentoFiscal && x.categoria === cat);
+    if (!r) continue;
+    exigeDocumentoFiscalPorCategoria.push(
+      citar(
+        cat,
+        r,
+        `A política de ${CATEGORIA_DESPESA_ROTULO[cat]} só aceita nota fiscal ou recibo — regra: "${curto(r.descricao)}".`,
+      ),
+    );
+  }
 
   // 6. Vedação e exceção POR CATEGORIA — só o que a política DECLARA:
-  //    (1) categoria vedada ⇒ regra vedada marcada "negar" com escopo "categoria";
+  //    (1) categoria vedada ⇒ regra vedada, SEM valor, marcada "negar" com escopo
+  //        "categoria" (regra vedada com valor não veda a categoria: ver `negacaoTemEfeito`);
   //    (2) categoria em exceção ⇒ regra "excecao" com escopo "categoria";
-  //    (3) todo o resto (vedado sem marcação, vedado convivendo com permissivo) é
-  //        LACUNA: o agente não decide e diz o que falta na política.
-  //    Numa política real uber tem 1 "sim" (aplicativos) + 1 "vedado" (gorjetas) e
-  //    hospedagem tem 5 "sim", 2 "excecao" e 6 "vedado" (itens pessoais, bagagem,
-  //    dependentes) — inferir vedação daí negaria 100% dessas despesas por sub-item.
+  //    (3) conflito de hierarquia (vedado convivendo com permissivo) é LACUNA — mas só
+  //        quando a regra vedada vale para a CATEGORIA INTEIRA. Regra vedada de escopo
+  //        "item" (frigobar, gorjeta, bebida alcoólica) é declaração sobre um sub-item,
+  //        não discordância sobre a categoria: tratá-la como conflito travava hospedagem
+  //        (6 vedadas de sub-item) e Uber (1) em revisão para sempre, sem gesto na tela
+  //        capaz de resolver. DIVERGE da spec §3.1 item 7 — decisão do dono, 24/08.
   const categoriasVedadas: CategoriaRegraCitada[] = [];
   const categoriasExcecao: CategoriaRegraCitada[] = [];
   for (const cat of CATEGORIAS_DESPESA) {
@@ -192,10 +352,10 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
     if (daCategoria.length === 0) continue;
     const rotulo = CATEGORIA_DESPESA_ROTULO[cat];
     const vedadas = daCategoria.filter((r) => r.reembolsavel === "vedado");
-    const permissiva = daCategoria.find((r) => r.reembolsavel === "sim") ?? null;
+    const permissivas = daCategoria.filter((r) => r.reembolsavel === "sim");
 
     const vetoDeCategoria = vedadas.find(
-      (r) => r.decisaoAutomatica === "negar" && r.escopo === "categoria",
+      (r) => r.decisaoAutomatica === "negar" && negacaoTemEfeito(r),
     );
     if (vetoDeCategoria) {
       categoriasVedadas.push(
@@ -219,23 +379,47 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
       );
     }
 
-    if (vedadas.length === 0) continue;
-    if (permissiva) {
-      lacunas.push({
-        tipo: "conflito-vedado-permissivo",
-        categoria: cat,
-        regraIds: [vedadas[0].id, permissiva.id],
-        motivo: `A política tem regra vedada e regra permissiva para ${rotulo} e não diz qual prevalece — regras: "${curto(vedadas[0].descricao)}" e "${curto(permissiva.descricao)}". A despesa vai para revisão do gestor.`,
-      });
+    if (vedadas.length === 0 || negacaoSemEfeitoPorCategoria.has(cat)) continue;
+    const vedadasDaCategoriaInteira = vedadas.filter((r) => r.escopo === "categoria");
+    if (permissivas.length > 0) {
+      // Só regra vedada promovida à categoria discorda de uma regra que libera.
+      if (vedadasDaCategoriaInteira.length === 0) continue;
+      lacunas.push(
+        lacuna(
+          "conflito-vedado-permissivo",
+          cat,
+          [...vedadasDaCategoriaInteira.map((r) => r.id), ...permissivas.map((r) => r.id)],
+          `Em ${rotulo}, ${plural(vedadasDaCategoriaInteira.length, "regra veda", "regras vedam")} a categoria inteira e ${plural(permissivas.length, "regra a libera", "regras a liberam")} — a política não diz qual prevalece. Deixe uma só: desmarque "Vale para a categoria inteira" na regra vedada, ou remova a regra que libera. Enquanto isso a despesa vai para a sua revisão.`,
+        ),
+      );
     } else {
-      lacunas.push({
-        tipo: "so-vedado-sem-marcacao",
-        categoria: cat,
-        regraIds: [vedadas[0].id],
-        motivo: `A política só tem regra vedada para ${rotulo} — regra: "${curto(vedadas[0].descricao)}" — e nenhuma está marcada como negação automática. A despesa vai para revisão do gestor.`,
-      });
+      lacunas.push(
+        lacuna(
+          "so-vedado-sem-marcacao",
+          cat,
+          vedadas.map((r) => r.id),
+          `A política só tem ${plural(vedadas.length, "regra vedada", "regras vedadas")} para ${rotulo} e nenhuma diz o que é permitido — o agente não aprova nem nega sozinho. Para o agente negar ${rotulo} por completo, cadastre uma regra vedada SEM valor, marque "Vale para a categoria inteira" e "O agente pode negar sozinho". Enquanto isso a despesa vai para a sua revisão.`,
+        ),
+      );
     }
   }
+
+  // 6b. Teto de lacunas: mais do que o contrato aceita derrubava o reparse da política
+  // (`too_big`) e, com ele, `politica.get`, `politica.ativa` e a decisão automática da
+  // empresa inteira. O corte troca a última pela lacuna agregada, SEM categoria — ou
+  // seja, manda tudo para revisão: truncar só pode errar para o lado seguro (D-013).
+  const lacunasGravadas =
+    lacunas.length <= LACUNAS_MAX
+      ? lacunas
+      : [
+          ...lacunas.slice(0, LACUNAS_MAX - 1),
+          lacuna(
+            "lacunas-demais",
+            null,
+            [],
+            `A política tem ${lacunas.length} pontos que o agente não consegue aplicar — mais do que cabe no relatório. Enquanto isso, TODA despesa vai para a sua revisão. Revise as regras marcadas para o agente decidir sozinho e as categorias com regras vedadas.`,
+          ),
+        ];
 
   return {
     limitesPorCategoria,
@@ -254,7 +438,8 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
     negacaoAcimaDeRegraId: regraNegacao?.id ?? null,
     exigeDocumentoFiscal: regraDoc !== undefined,
     regraDocumentoFiscalId: regraDoc?.id ?? null,
-    lacunas,
+    exigeDocumentoFiscalPorCategoria,
+    lacunas: lacunasGravadas,
   };
 }
 
@@ -281,11 +466,24 @@ export function observacoesDe(regras: RegraExtraida[]): string[] {
   return observacoes;
 }
 
-/** Regras prontas para gravar: parâmetros e observações derivados das regras extraídas (se houver). */
-export function consolidarRegras(regras: RegrasPolitica): RegrasPolitica {
-  // Sem regras extraídas não há o que derivar: política demo (id 1 e 2) e saída do parser
-  // heurístico ficam intocadas — derivar aqui zeraria os limites que elas já trazem prontos.
-  if (regras.regrasExtraidas.length === 0) return regras;
+/**
+ * Origem da consolidação:
+ *  - "leitura" (default) → política gravada sendo lida/reexibida. Sem regras extraídas
+ *    nada é derivado: política demo (id 1 e 2) e saída do parser heurístico trazem os
+ *    limites prontos no JSON e derivar aqui os zeraria.
+ *  - "edicao" → o gestor acabou de salvar o passo "Revisar regras". Aqui a lista de
+ *    regras é a declaração dele, inclusive quando está vazia: apagar todas as regras e
+ *    salvar precisa zerar os parâmetros, e não congelar o `aprovacaoAutomaticaAte`
+ *    anterior aprovando despesas que nenhuma regra sustenta (D-013).
+ */
+export type OrigemConsolidacao = "leitura" | "edicao";
+
+/** Regras prontas para gravar: parâmetros e observações derivados das regras extraídas. */
+export function consolidarRegras(
+  regras: RegrasPolitica,
+  origem: OrigemConsolidacao = "leitura",
+): RegrasPolitica {
+  if (regras.regrasExtraidas.length === 0 && origem === "leitura") return regras;
   return {
     ...regras,
     ...derivarParametros(regras.regrasExtraidas),

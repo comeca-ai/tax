@@ -81,6 +81,24 @@ export function confiancaDaNota(nota: {
   return nota.dataFatoGerador && nota.categoriaSugerida ? "alta" : "media";
 }
 
+/**
+ * Id da regra que exige nota fiscal/recibo PARA ESTA despesa (v1.8): a regra da
+ * categoria, se houver; senão a regra geral (a que o gestor marcou sem categoria).
+ * `null` = a política nada declara sobre o tipo de comprovante nesta categoria — e o
+ * agente não supõe. Exigência de uma categoria nunca alcança as outras (D-013).
+ */
+function idRegraDocumentoFiscal(
+  regras: RegrasPolitica,
+  categoria: CategoriaDespesa | null,
+): string | null {
+  const daCategoria = categoria
+    ? (regras.exigeDocumentoFiscalPorCategoria ?? []).find((c) => c.categoria === categoria)
+    : undefined;
+  if (daCategoria) return daCategoria.regraId;
+  if (!regras.exigeDocumentoFiscal) return null;
+  return regras.regraDocumentoFiscalId ?? "documento-fiscal-exigido";
+}
+
 /** Formata valor monetário em PT-BR: 1234.56 → "1.234,56". */
 function fmt(valor: number): string {
   return valor.toLocaleString("pt-BR", {
@@ -108,12 +126,10 @@ export function decidirReembolso(
   // Tipo de documento sem lastro fiscal e política silenciosa: o agente não supõe que
   // o comprovante serve nem que não serve — declara o que viu e segue as regras de valor.
   const tipoDoc = extracao.tipoDocumento ?? null;
-  if (
-    tipoDoc &&
-    TIPOS_SEM_LASTRO_FISCAL.has(tipoDoc) &&
-    regrasPolitica &&
-    !regrasPolitica.exigeDocumentoFiscal
-  ) {
+  const idDocFiscal = regrasPolitica
+    ? idRegraDocumentoFiscal(regrasPolitica, extracao.categoriaSugerida)
+    : null;
+  if (tipoDoc && TIPOS_SEM_LASTRO_FISCAL.has(tipoDoc) && regrasPolitica && idDocFiscal === null) {
     ressalvas.push(
       `Documento enviado parece ser ${TIPO_DOCUMENTO_LABELS[tipoDoc]}; sua política não declara se esse tipo de comprovante é aceito.`,
     );
@@ -138,24 +154,25 @@ export function decidirReembolso(
   }
 
   // ── 0.5 Comprovante não fiscal (extrato/Pix/cartão) — regra da política ──
-  if (regrasPolitica.exigeDocumentoFiscal && tipoDoc && TIPOS_NAO_FISCAIS.has(tipoDoc)) {
-    const regraDoc =
-      regrasPolitica.regrasExtraidas.find((r) => r.id === regrasPolitica.regraDocumentoFiscalId) ?? null;
+  if (idDocFiscal !== null && tipoDoc && TIPOS_NAO_FISCAIS.has(tipoDoc)) {
+    const regraDoc = regrasPolitica.regrasExtraidas.find((r) => r.id === idDocFiscal) ?? null;
     const rotulo = TIPO_DOCUMENTO_LABELS[tipoDoc];
-    const idRegra = regraDoc?.id ?? regrasPolitica.regraDocumentoFiscalId ?? "documento-fiscal-exigido";
+    // A citação é a DESCRIÇÃO da regra: o gestor lê "Regra 'manual-mep2k3-a4f9'" e não
+    // reconhece nada. O id fica em `regrasAplicadas`, que é a trilha de máquina.
+    const descricaoRegra = regraDoc?.descricao ?? "comprovantes de pagamento não são aceitos";
     if (extracao.confiancaTipo === "alta") {
       const versao = contexto.politicaVersao != null ? ` (v${contexto.politicaVersao})` : "";
       return {
         decisao: "negado",
         motivos: [
           `Comprovante não aceito pela política: o documento enviado parece ser ${rotulo} — a política exige nota fiscal ou recibo.`,
-          `Regra "${idRegra}" da política${versao}: ${regraDoc?.descricao ?? "comprovantes de pagamento não são aceitos"}${regraDoc?.condicao ? ` — Condição: ${regraDoc.condicao}` : ""}.`,
+          `Regra da política${versao}: "${descricaoRegra}"${regraDoc?.condicao ? ` — Condição: ${regraDoc.condicao}` : ""}.`,
           "Peça a nota fiscal ao estabelecimento e reenvie a despesa.",
         ],
         ressalvas,
         confianca,
         regrasAplicadas: [
-          { regra: idRegra, resultado: "falhou", detalhe: `tipo de documento detectado: ${rotulo} (confiança alta)` },
+          { regra: idDocFiscal, resultado: "falhou", detalhe: `tipo de documento detectado: ${rotulo} (confiança alta)` },
         ],
         categoria: extracao.categoriaSugerida,
       };
@@ -169,7 +186,7 @@ export function decidirReembolso(
       ressalvas,
       confianca,
       regrasAplicadas: [
-        { regra: idRegra, resultado: "revisar", detalhe: `tipo de documento detectado: ${rotulo} (confiança ${extracao.confiancaTipo ?? "desconhecida"})` },
+        { regra: idDocFiscal, resultado: "revisar", detalhe: `tipo de documento detectado: ${rotulo} (confiança ${extracao.confiancaTipo ?? "desconhecida"})` },
       ],
       categoria: extracao.categoriaSugerida,
     };

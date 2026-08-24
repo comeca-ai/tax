@@ -8,6 +8,7 @@ import {
   CircleCheck,
   CircleX,
   Paperclip,
+  Receipt,
   ScanSearch,
   StickyNote,
 } from "lucide-react"
@@ -106,12 +107,16 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
   const aprovaPorCategoria = (
     Object.entries(regras.aprovacaoAutomaticaPorCategoria ?? {}) as [CategoriaDespesa, number | undefined][]
   ).filter(([, valor]) => valor != null)
+  /** Categorias em que a política só aceita nota fiscal/recibo — negação automática (v1.8). */
+  const exigeDocPorCategoria = regras.exigeDocumentoFiscalPorCategoria ?? []
   /** O que o agente pode decidir SOZINHO — só o que a política declarou (D-013). */
   const decideSozinho =
     regras.aprovacaoAutomaticaAte != null ||
     aprovaPorCategoria.length > 0 ||
     regras.negacaoAcimaDe != null ||
-    regras.categoriasVedadas.length > 0
+    regras.categoriasVedadas.length > 0 ||
+    regras.exigeDocumentoFiscal ||
+    exigeDocPorCategoria.length > 0
   const lacunas = regras.lacunas ?? []
   const temParametros =
     limites.length > 0 ||
@@ -160,6 +165,20 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
             {regras.categoriasVedadas.map((c) => (
               <ChipCategoria key={`nega-${c.categoria}`} categoria={c.categoria} extra="nega sempre" />
             ))}
+            {/* Exigir nota fiscal também é negação automática: precisa aparecer aqui. */}
+            {regras.exigeDocumentoFiscal && (
+              <span className="inline-flex h-6 items-center gap-1.5 rounded-md border border-conf-vedado-dot/25 bg-conf-vedado-bg px-2 text-[11px] font-medium text-conf-vedado-text">
+                <Receipt className="h-3 w-3" aria-hidden="true" />
+                nega extrato e comprovante de pagamento
+              </span>
+            )}
+            {exigeDocPorCategoria.map((c) => (
+              <ChipCategoria
+                key={`doc-${c.categoria}`}
+                categoria={c.categoria}
+                extra="só nota fiscal ou recibo"
+              />
+            ))}
           </>
         ) : (
           <p className="text-[12px] leading-relaxed text-text-500">
@@ -169,7 +188,10 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
         )}
       </Linha>,
     )
-    if (limites.length > 0) {
+    // Bloco sempre presente quando há regras estruturadas: o teto por categoria sumir da
+    // tela parecia sumiço de dado — os tetos de sub-item deixaram de virar teto de
+    // categoria de propósito (v1.8) e a tela precisa dizer isso.
+    if (limites.length > 0 || estruturadas) {
       blocos.push(
         <Linha
           key="teto"
@@ -181,6 +203,12 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
               : undefined
           }
         >
+          {limites.length === 0 && (
+            <p className="text-[12px] leading-relaxed text-text-500">
+              Nenhum — nenhuma regra está marcada como “Vale para a categoria inteira”. Limites de
+              sub-item (lavanderia, frigobar) não viram teto da categoria.
+            </p>
+          )}
           {limites.map(([categoria, valor]) => {
             const unidade = regras.tetosTemporaisPorCategoria?.[categoria]
             return (

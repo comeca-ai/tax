@@ -40,9 +40,10 @@ import { numeroParaPt, parseNumeroPt } from "@/components/despesas/wizard/types"
 import { cn } from "@/lib/utils"
 import { CATEGORIAS_POLITICA, type RegrasForm } from "./regrasForm"
 import {
+  AVISO_DECISAO_REBAIXADA,
   DECISAO_AUTOMATICA_CHIP,
-  DECISAO_AUTOMATICA_LABELS,
   REEMBOLSAVEL_LABELS,
+  ROTULO_SEM_DECISAO_AUTOMATICA,
   UNIDADE_LABELS,
   adicionarRegra,
   agruparPorTema,
@@ -73,7 +74,7 @@ interface PoliticaRegrasStepProps {
 }
 
 const INPUT_BASE =
-  "h-10 w-full rounded-[10px] border border-line bg-surface px-3 font-mono text-[13px] tabular text-text-900 outline-none transition placeholder:text-text-500/60 focus:border-brand-500 focus:ring-[3px] focus:ring-brand-500/20"
+  "h-11 w-full rounded-[10px] border border-line bg-surface px-3 font-mono text-[13px] tabular text-text-900 outline-none transition placeholder:text-text-500/60 focus:border-brand-500 focus:ring-[3px] focus:ring-brand-500/20 sm:h-10"
 
 const BOTAO_ICONE =
   "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-text-500 transition hover:bg-surface focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand-500/30 sm:h-8 sm:w-8"
@@ -128,6 +129,8 @@ interface RascunhoRegra {
   regra: RegraExtraida
   valor: string
   valorAlterado: boolean
+  /** A última edição derrubou a decisão automática — o `<select>` volta sozinho e o gestor precisa saber. */
+  rebaixada: boolean
 }
 
 function rascunhoDe(regra: RegraExtraida): RascunhoRegra {
@@ -136,7 +139,24 @@ function rascunhoDe(regra: RegraExtraida): RascunhoRegra {
     regra,
     valor: regra.valorLimite !== null ? numeroParaPt(regra.valorLimite) : "",
     valorAlterado: false,
+    rebaixada: false,
   }
+}
+
+/**
+ * Rótulo visível do controle. No mobile o grid vira 1 coluna e os 4 campos ficavam
+ * sem rótulo nenhum (só `aria-label`, que ninguém enxerga); no desktop as 4 colunas
+ * lado a lado se explicam e o rótulo some para não duplicar a informação.
+ */
+function CampoRegra({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.04em] text-text-500 sm:sr-only">
+        {rotulo}
+      </span>
+      {children}
+    </label>
+  )
 }
 
 interface SecaoRegrasProps {
@@ -204,9 +224,26 @@ export default function PoliticaRegrasStep({
     onEditou("regrasExtraidas")
   }
 
-  function setRascunho(patch: Partial<Omit<RegraExtraida, "id">>) {
+  /**
+   * Aplica o patch ao rascunho e rebaixa a decisão automática que ele deixou de
+   * sustentar. Vale para TODA edição do card: apagar a categoria de uma regra marcada
+   * "negar" a convertia de "nega hospedagem" em "nega tudo", em silêncio (v1.8).
+   * `valor` presente = o gestor digitou no campo de valor (que é sempre em reais).
+   */
+  function setRascunho(patch: Partial<Omit<RegraExtraida, "id">>, valor?: string) {
     if (!editando) return
-    setEditando({ ...editando, regra: { ...editando.regra, ...patch } })
+    const valorFinal = valor ?? editando.valor
+    const regra = { ...editando.regra, ...patch }
+    const rebaixamento = rebaixarDecisaoAutomatica(regra, valorFinal)
+    const rebaixou = rebaixamento.decisaoAutomatica !== undefined
+    setEditando({
+      ...editando,
+      valor: valorFinal,
+      valorAlterado: editando.valorAlterado || valor !== undefined,
+      regra: { ...regra, ...rebaixamento },
+      // O aviso fica visível até o gestor voltar a escolher uma decisão automática.
+      rebaixada: rebaixou || (patch.decisaoAutomatica === undefined && editando.rebaixada),
+    })
   }
 
   function salvarEdicao() {
@@ -337,6 +374,9 @@ export default function PoliticaRegrasStep({
     const podeSalvar = r.descricao.trim() !== "" && textoDentroDoLimite(r.descricao, r.condicao)
     const escopo = estadoEscopo(r, rascunho.valor)
     const decisao = estadoDecisaoAutomatica(r, rascunho.valor)
+    const dicasDecisao = [decisao.aprovar.dica, decisao.negar.dica].filter(
+      (dica): dica is string => dica !== null,
+    )
     const dicaEscopoId = `escopo-dica-${rascunho.id}`
     const dicaDecisaoId = `decisao-dica-${rascunho.id}`
     return (
@@ -358,7 +398,7 @@ export default function PoliticaRegrasStep({
           aria-label="Descrição da regra"
           placeholder="Descreva a regra…"
           maxLength={REGRA_TEXTO_MAX}
-          className={cn(INPUT_BASE, "h-auto resize-y py-2 font-sans text-[13px] leading-relaxed")}
+          className={cn(INPUT_BASE, "h-auto resize-y py-2 font-sans text-[13px] leading-relaxed sm:h-auto")}
         />
         {contadorTexto(r.descricao)}
         <input
@@ -377,81 +417,72 @@ export default function PoliticaRegrasStep({
         />
         {contadorTexto(r.condicao ?? "")}
         <div className="grid gap-2 sm:grid-cols-4">
-          <select
-            aria-label="Categoria"
-            value={r.categoria ?? ""}
-            onChange={(e) =>
-              // Sem categoria não há o que promover: o escopo volta a "item" no mesmo patch.
-              setRascunho(
-                e.target.value === ""
-                  ? { categoria: null, escopo: "item" }
-                  : { categoria: e.target.value as CategoriaDespesa },
-              )
-            }
-            className={cn(INPUT_BASE, "font-sans")}
-          >
-            <option value="">Sem categoria</option>
-            {CATEGORIAS_POLITICA.map((c) => (
-              <option key={c} value={c}>
-                {CATEGORIA_META[c].label}
-              </option>
-            ))}
-          </select>
-          <input
-            inputMode="decimal"
-            value={rascunho.valor}
-            onChange={(e) => {
-              // Zerar/limpar o valor derruba a autorização de aprovar sozinho no mesmo patch.
-              const valor = e.target.value
-              setEditando({
-                ...rascunho,
-                valor,
-                valorAlterado: true,
-                regra: { ...r, ...rebaixarDecisaoAutomatica(r, valor) },
-              })
-            }}
-            placeholder="sem limite"
-            aria-label="Valor limite (R$)"
-            className={INPUT_BASE}
-          />
-          <select
-            aria-label="Unidade do limite"
-            value={r.unidadeLimite ?? ""}
-            onChange={(e) => {
-              const unidadeLimite = e.target.value === "" ? null : (e.target.value as UnidadeLimite)
-              setRascunho({
-                unidadeLimite,
-                ...rebaixarDecisaoAutomatica({ ...r, unidadeLimite }, rascunho.valor),
-              })
-            }}
-            className={cn(INPUT_BASE, "font-sans")}
-          >
-            <option value="">—</option>
-            {UNIDADES_LIMITE.map((u) => (
-              <option key={u} value={u}>
-                {UNIDADE_LABELS[u]}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Reembolsável"
-            value={r.reembolsavel}
-            onChange={(e) => {
-              // Trocar a classificação da regra derruba a decisão automática que ela sustentava.
-              const reembolsavel = e.target.value as ReembolsavelRegra
-              setRascunho({
-                reembolsavel,
-                ...rebaixarDecisaoAutomatica({ ...r, reembolsavel }, rascunho.valor),
-              })
-            }}
-            className={cn(INPUT_BASE, "font-sans")}
-          >
-            {REEMBOLSAVEL_REGRA.map((v) => (
-              <option key={v} value={v}>
-                {REEMBOLSAVEL_LABELS[v]}
-              </option>
-            ))}
-          </select>
+          <CampoRegra rotulo="Categoria">
+            <select
+              aria-label="Categoria"
+              value={r.categoria ?? ""}
+              onChange={(e) =>
+                // Sem categoria não há o que promover: o escopo volta a "item" no mesmo patch.
+                setRascunho(
+                  e.target.value === ""
+                    ? { categoria: null, escopo: "item" }
+                    : { categoria: e.target.value as CategoriaDespesa },
+                )
+              }
+              className={cn(INPUT_BASE, "font-sans")}
+            >
+              <option value="">Sem categoria</option>
+              {CATEGORIAS_POLITICA.map((c) => (
+                <option key={c} value={c}>
+                  {CATEGORIA_META[c].label}
+                </option>
+              ))}
+            </select>
+          </CampoRegra>
+          <CampoRegra rotulo="Valor limite (R$)">
+            <input
+              inputMode="decimal"
+              value={rascunho.valor}
+              onChange={(e) => setRascunho({ moeda: "BRL" }, e.target.value)}
+              placeholder="sem limite"
+              aria-label="Valor limite (R$)"
+              className={INPUT_BASE}
+            />
+          </CampoRegra>
+          <CampoRegra rotulo="Unidade do limite">
+            <select
+              aria-label="Unidade do limite"
+              value={r.unidadeLimite ?? ""}
+              onChange={(e) =>
+                setRascunho({
+                  unidadeLimite:
+                    e.target.value === "" ? null : (e.target.value as UnidadeLimite),
+                })
+              }
+              className={cn(INPUT_BASE, "font-sans")}
+            >
+              <option value="">Sem unidade</option>
+              {UNIDADES_LIMITE.map((u) => (
+                <option key={u} value={u}>
+                  {UNIDADE_LABELS[u]}
+                </option>
+              ))}
+            </select>
+          </CampoRegra>
+          <CampoRegra rotulo="Reembolsável">
+            <select
+              aria-label="Reembolsável"
+              value={r.reembolsavel}
+              onChange={(e) => setRascunho({ reembolsavel: e.target.value as ReembolsavelRegra })}
+              className={cn(INPUT_BASE, "font-sans")}
+            >
+              {REEMBOLSAVEL_REGRA.map((v) => (
+                <option key={v} value={v}>
+                  {REEMBOLSAVEL_LABELS[v]}
+                </option>
+              ))}
+            </select>
+          </CampoRegra>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <label className="flex min-h-11 items-center gap-2 text-[12px] text-text-900 sm:min-h-0">
@@ -498,28 +529,35 @@ export default function PoliticaRegrasStep({
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <select
               aria-label="Decisão automática"
-              aria-describedby={decisao.dica ? dicaDecisaoId : undefined}
+              aria-describedby={dicasDecisao.length > 0 ? dicaDecisaoId : undefined}
               value={decisao.valor}
               onChange={(e) => setRascunho({ decisaoAutomatica: e.target.value as DecisaoAutomaticaRegra })}
-              className={cn(INPUT_BASE, "h-11 font-sans sm:h-10 sm:max-w-[260px]")}
+              className={cn(INPUT_BASE, "font-sans sm:max-w-[320px]")}
             >
-              {DECISOES_AUTOMATICAS_REGRA.map((v) => (
-                <option
-                  key={v}
-                  value={v}
-                  disabled={
-                    (v === "aprovar" && !decisao.aprovar.habilitada) ||
-                    (v === "negar" && !decisao.negar.habilitada)
-                  }
-                >
-                  {DECISAO_AUTOMATICA_LABELS[v]}
-                </option>
-              ))}
+              {DECISOES_AUTOMATICAS_REGRA.map((v) => {
+                const opcao = v === "nenhuma" ? null : decisao[v]
+                return (
+                  <option key={v} value={v} disabled={opcao !== null && !opcao.habilitada}>
+                    {opcao === null ? ROTULO_SEM_DECISAO_AUTOMATICA : opcao.rotulo}
+                  </option>
+                )
+              })}
             </select>
-            {decisao.dica && (
-              <span id={dicaDecisaoId} className="text-[11px] leading-relaxed text-text-500">
-                {decisao.dica}
-              </span>
+            {/* Opção desabilitada em `select` nativo não tem tooltip: no celular o gestor
+                toca e nada explica. A dica de cada opção indisponível fica sempre visível. */}
+            {dicasDecisao.length > 0 && (
+              <ul id={dicaDecisaoId} className="flex flex-col gap-0.5">
+                {dicasDecisao.map((dica) => (
+                  <li key={dica} className="text-[11px] leading-relaxed text-text-500">
+                    {dica}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {rascunho.rebaixada && (
+              <p className="text-[11px] leading-relaxed text-conf-media-text">
+                {AVISO_DECISAO_REBAIXADA}
+              </p>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -569,7 +607,7 @@ export default function PoliticaRegrasStep({
           {/* Regras estruturadas por tema (fonte dos parâmetros do agente) */}
           <SecaoRegras
             titulo="Regras da política"
-            descricao="Tudo que o agente aplica nasce destas regras. Edite valores, categorias e condições; remova o que não vale; acrescente o que faltou. Ao cadastrar regras aqui, limites e tetos antigos desta política são substituídos pelos derivados. Marque “Vale para a categoria inteira” nas regras que definem o limite geral do tipo de despesa; sub-itens (lavanderia, frigobar, gorjeta) ficam desmarcados. Marque “O agente pode aprovar sozinho” nas regras que autorizam o agente a decidir sem você. Sem nenhuma regra marcada, toda despesa vem para a sua revisão."
+            descricao="Tudo que o agente aplica nasce destas regras. Edite valores, categorias e condições; remova o que não vale; acrescente o que faltou. Ao cadastrar regras aqui, limites e tetos antigos desta política são substituídos pelos derivados. Marque “Vale para a categoria inteira” nas regras que definem o limite geral do tipo de despesa; sub-itens (lavanderia, frigobar, gorjeta) ficam desmarcados. Em “Decisão automática”, marque as regras que autorizam o agente a decidir sem você — o rótulo de cada opção diz o alcance dela. Sem nenhuma regra marcada, toda despesa vem para a sua revisão."
             pendente={pendente("regrasExtraidas")}
           >
             {comItens.length > 0 ? (

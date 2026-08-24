@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { CATEGORIAS_DESPESA, regrasPoliticaSchema, type RegraExtraida } from "@contracts/types";
+import {
+  CATEGORIAS_DESPESA,
+  LACUNAS_MAX,
+  regrasPoliticaSchema,
+  type RegraExtraida,
+} from "@contracts/types";
 import { consolidarRegras, derivarParametros, observacoesDe } from "./derivar";
 import { REGRAS_POLITICA_13 } from "./politica13.fixture";
 
@@ -174,23 +179,30 @@ describe("derivarParametros — vedação, exceção e lacunas por categoria", (
   it("só regra vedada na categoria, sem marcação → lacuna 'so-vedado-sem-marcacao', nunca negação", () => {
     const p = derivarParametros([
       regra({ descricao: "Gorjetas para motoristas", categoria: "uber", reembolsavel: "vedado" }),
+      regra({ descricao: "Corridas de lazer", categoria: "uber", reembolsavel: "vedado" }),
     ]);
     expect(p.categoriasVedadas).toEqual([]);
+    // Contagem, não um par arbitrário — e a frase diz o que fazer para resolver.
     expect(p.lacunas).toEqual([
       {
         tipo: "so-vedado-sem-marcacao",
         categoria: "uber",
-        regraIds: ["gorjetas-para-motoristas"],
+        regraIds: ["gorjetas-para-motoristas", "corridas-de-lazer"],
         motivo:
-          'A política só tem regra vedada para Uber/app — regra: "Gorjetas para motoristas" — e nenhuma está marcada como negação automática. A despesa vai para revisão do gestor.',
+          'A política só tem 2 regras vedadas para Uber/app e nenhuma diz o que é permitido — o agente não aprova nem nega sozinho. Para o agente negar Uber/app por completo, cadastre uma regra vedada SEM valor, marque "Vale para a categoria inteira" e "O agente pode negar sozinho". Enquanto isso a despesa vai para a sua revisão.',
       },
     ]);
   });
 
-  it("vedada convivendo com reembolsável → lacuna 'conflito-vedado-permissivo', nomeando as duas regras", () => {
+  it("vedada de CATEGORIA convivendo com reembolsável → lacuna 'conflito-vedado-permissivo' com contagens", () => {
     const p = derivarParametros([
       regra({ descricao: "Aplicativos de transporte", categoria: "uber" }),
-      regra({ descricao: "Gorjetas para motoristas", categoria: "uber", reembolsavel: "vedado" }),
+      regra({
+        descricao: "Mobilidade urbana não é reembolsada",
+        categoria: "uber",
+        escopo: "categoria",
+        reembolsavel: "vedado",
+      }),
     ]);
     expect(p.categoriasVedadas).toEqual([]);
     expect(p.categoriasExcecao).toEqual([]);
@@ -198,11 +210,25 @@ describe("derivarParametros — vedação, exceção e lacunas por categoria", (
       {
         tipo: "conflito-vedado-permissivo",
         categoria: "uber",
-        regraIds: ["gorjetas-para-motoristas", "aplicativos-de-transporte"],
+        regraIds: ["mobilidade-urbana-não-é-reembolsada", "aplicativos-de-transporte"],
         motivo:
-          'A política tem regra vedada e regra permissiva para Uber/app e não diz qual prevalece — regras: "Gorjetas para motoristas" e "Aplicativos de transporte". A despesa vai para revisão do gestor.',
+          'Em Uber/app, 1 regra veda a categoria inteira e 1 regra a libera — a política não diz qual prevalece. Deixe uma só: desmarque "Vale para a categoria inteira" na regra vedada, ou remova a regra que libera. Enquanto isso a despesa vai para a sua revisão.',
       },
     ]);
+  });
+
+  it("B-3: regra vedada de SUB-ITEM convivendo com permissiva não é conflito — nenhuma lacuna", () => {
+    // Frigobar/gorjeta/bebida alcoólica são declarações sobre um sub-item, não
+    // discordância sobre a categoria. Diverge da spec §3.1 item 7 — decisão do dono.
+    const p = derivarParametros([
+      regra({ descricao: "Aplicativos de transporte", categoria: "uber" }),
+      regra({ descricao: "Gorjetas para motoristas", categoria: "uber", reembolsavel: "vedado" }),
+      regra({ descricao: "Hospedagem em viagens", categoria: "hospedagem" }),
+      regra({ descricao: "Frigobar", categoria: "hospedagem", reembolsavel: "vedado" }),
+      regra({ descricao: "Lavanderia pessoal", categoria: "hospedagem", reembolsavel: "vedado" }),
+    ]);
+    expect(p.lacunas).toEqual([]);
+    expect(p.categoriasVedadas).toEqual([]);
   });
 
   it("categoriasExcecao só nasce de regra 'excecao' com escopo categoria", () => {
@@ -256,15 +282,15 @@ describe("derivarParametros — regressão da política 13 (70 regras reais)", (
     expect("hospedagem" in p.limitesPorCategoria).toBe(false);
   });
 
-  it("nenhuma categoria é negada nem excepcionada automaticamente; hospedagem e Uber viram lacuna", () => {
+  it("nenhuma categoria é negada nem excepcionada automaticamente; hospedagem e Uber NÃO travam", () => {
     const p = derivarParametros(REGRAS_POLITICA_13);
     expect(p.categoriasVedadas).toEqual([]);
-    // Nenhuma regra da política real tem escopo "categoria": nada é declarado como exceção.
+    // Nenhuma regra da política real tem escopo "categoria": nada é declarado como
+    // exceção — e as 6 vedadas de hospedagem / 1 de Uber são todas de sub-item, então
+    // não há conflito de hierarquia a resolver (B-3). Antes as duas categorias mais
+    // frequentes iam para revisão para sempre, sem gesto na tela capaz de destravar.
     expect(p.categoriasExcecao).toEqual([]);
-    expect(p.lacunas.map((l) => `${l.categoria}:${l.tipo}`)).toEqual([
-      "hospedagem:conflito-vedado-permissivo",
-      "uber:conflito-vedado-permissivo",
-    ]);
+    expect(p.lacunas).toEqual([]);
   });
 
   it("a política real, como está, NÃO autoriza nada: nenhum teto de aprovação nem de negação", () => {
@@ -569,15 +595,175 @@ describe("consolidarRegras", () => {
         categoria: "alimentacao",
         regraIds: ["bebidas-alcoólicas"],
         motivo:
-          'A política só tem regra vedada para alimentação — regra: "Bebidas alcoólicas" — e nenhuma está marcada como negação automática. A despesa vai para revisão do gestor.',
-      },
-      {
-        tipo: "conflito-vedado-permissivo",
-        categoria: "uber",
-        regraIds: ["gorjetas-para-motoristas", "aplicativos-de-transporte"],
-        motivo:
-          'A política tem regra vedada e regra permissiva para Uber/app e não diz qual prevalece — regras: "Gorjetas para motoristas" e "Aplicativos de transporte". A despesa vai para revisão do gestor.',
+          'A política só tem 1 regra vedada para alimentação e nenhuma diz o que é permitido — o agente não aprova nem nega sozinho. Para o agente negar alimentação por completo, cadastre uma regra vedada SEM valor, marque "Vale para a categoria inteira" e "O agente pode negar sozinho". Enquanto isso a despesa vai para a sua revisão.',
       },
     ]);
+  });
+});
+
+describe("derivarParametros — B-1: regra vedada COM valor não veda a categoria", () => {
+  const hospedagem800 = {
+    descricao: "Hospedagem acima de R$ 800 por diária não é reembolsada",
+    categoria: "hospedagem" as const,
+    escopo: "categoria" as const,
+    reembolsavel: "vedado" as const,
+    unidadeLimite: "dia" as const,
+    decisaoAutomatica: "negar" as const,
+  };
+
+  it("marcada 'negar' com valorLimite 800 NÃO entra em categoriasVedadas — negaria R$ 100 também", () => {
+    const p = derivarParametros([regra({ ...hospedagem800, valorLimite: 800 })]);
+    expect(p.categoriasVedadas).toEqual([]);
+    expect(p.lacunas).toHaveLength(1);
+    expect(p.lacunas[0].tipo).toBe("marcacao-sem-efeito");
+    expect(p.lacunas[0].categoria).toBe("hospedagem");
+    expect(p.lacunas[0].motivo).toContain("não nega a categoria inteira por causa de um limite");
+    expect(p.lacunas[0].motivo).toContain("regra vedada SEM valor");
+  });
+
+  it("a MESMA regra sem valor veda a categoria (é o gesto que declara a vedação)", () => {
+    const p = derivarParametros([
+      regra({ ...hospedagem800, valorLimite: null, unidadeLimite: null }),
+    ]);
+    expect(p.categoriasVedadas.map((c) => c.categoria)).toEqual(["hospedagem"]);
+    expect(p.lacunas).toEqual([]);
+  });
+});
+
+describe("derivarParametros — B-2: negação GLOBAL exige valor maior que zero", () => {
+  it("valorLimite 0 marcado 'negar' NÃO vira negacaoAcimaDe (negaria toda despesa da empresa)", () => {
+    const p = derivarParametros([
+      regra({ descricao: "Teto por despesa", valorLimite: 0, reembolsavel: "vedado", decisaoAutomatica: "negar" }),
+    ]);
+    expect(p.negacaoAcimaDe).toBeNull();
+    expect(p.negacaoAcimaDeRegraId).toBeNull();
+    expect(p.lacunas.map((l) => l.tipo)).toEqual(["marcacao-sem-efeito"]);
+  });
+
+  it("valorLimite 0 marcado 'aprovar' também não vira teto — vira lacuna nomeada", () => {
+    const p = derivarParametros([
+      regra({ descricao: "Alçada zerada", valorLimite: 0, decisaoAutomatica: "aprovar" }),
+    ]);
+    expect(p.aprovacaoAutomaticaAte).toBeNull();
+    expect(p.lacunas.map((l) => l.tipo)).toEqual(["marcacao-sem-valor"]);
+  });
+
+  it("regra sem categoria e sem valor marcada 'negar' não nega nada e diz o que falta", () => {
+    const p = derivarParametros([
+      regra({ descricao: "Despesas pessoais não são reembolsadas", reembolsavel: "vedado", decisaoAutomatica: "negar" }),
+    ]);
+    expect(p.negacaoAcimaDe).toBeNull();
+    expect(p.lacunas[0].motivo).toContain("não tem categoria nem valor em reais");
+  });
+});
+
+describe("derivarParametros — B-4: marcação sem efeito deixa rastro", () => {
+  it("'aprovar' em regra de categoria com escopo 'item' vira lacuna dizendo o que fazer", () => {
+    const p = derivarParametros([
+      regra({
+        descricao: "Almoço em viagem",
+        tema: "alimentacao",
+        categoria: "alimentacao",
+        valorLimite: 70,
+        decisaoAutomatica: "aprovar",
+      }),
+    ]);
+    expect(p.aprovacaoAutomaticaPorCategoria).toEqual({});
+    expect(p.aprovacaoAutomaticaAte).toBeNull();
+    expect(p.lacunas).toHaveLength(1);
+    expect(p.lacunas[0].tipo).toBe("marcacao-sem-efeito");
+    expect(p.lacunas[0].motivo).toContain('Marque também "Vale para a categoria inteira"');
+  });
+
+  it("'negar' em regra vedada de sub-item não produz a frase mentirosa 'nenhuma está marcada'", () => {
+    const p = derivarParametros([
+      regra({ descricao: "Frigobar", categoria: "hospedagem", reembolsavel: "vedado", decisaoAutomatica: "negar" }),
+    ]);
+    expect(p.categoriasVedadas).toEqual([]);
+    const motivos = p.lacunas.map((l) => l.motivo).join(" ");
+    expect(motivos).not.toContain("nenhuma está marcada");
+    expect(motivos).toContain("vale só para um sub-item de hospedagem");
+  });
+
+  it("'aprovar' em regra não reembolsável é nomeada em vez de sumir", () => {
+    const p = derivarParametros([
+      regra({ descricao: "Curso externo", categoria: "alimentacao", escopo: "categoria", valorLimite: 100, reembolsavel: "excecao", decisaoAutomatica: "aprovar" }),
+    ]);
+    expect(p.aprovacaoAutomaticaPorCategoria).toEqual({});
+    expect(p.lacunas[0].motivo).toContain("não está classificada como reembolsável");
+  });
+});
+
+describe("derivarParametros — B-6: nunca mais lacunas do que o contrato aceita", () => {
+  it("100 marcações sem efeito viram LACUNAS_MAX entradas e o reparse continua passando", () => {
+    const muitas = Array.from({ length: 100 }, (_, i) =>
+      regra({
+        id: `sem-efeito-${i}`,
+        descricao: `Regra ${i}`,
+        categoria: "alimentacao",
+        valorLimite: 50,
+        decisaoAutomatica: "aprovar",
+      }),
+    );
+    const p = derivarParametros(muitas);
+    expect(p.lacunas).toHaveLength(LACUNAS_MAX);
+    const ultima = p.lacunas[LACUNAS_MAX - 1];
+    expect(ultima.tipo).toBe("lacunas-demais");
+    // Sem categoria: o corte manda TUDO para revisão, nunca menos revisão que antes.
+    expect(ultima.categoria).toBeNull();
+    expect(() => regrasPoliticaSchema.parse({ lacunas: p.lacunas })).not.toThrow();
+  });
+
+  it("todo motivo cabe no contrato mesmo com descrições no tamanho máximo", () => {
+    const longa = "x".repeat(300);
+    const p = derivarParametros([
+      regra({ id: "a", descricao: longa, categoria: "hospedagem" }),
+      regra({ id: "b", descricao: longa, categoria: "hospedagem", escopo: "categoria", reembolsavel: "vedado" }),
+    ]);
+    expect(p.lacunas.every((l) => l.motivo.length <= 400)).toBe(true);
+    expect(() => regrasPoliticaSchema.parse({ lacunas: p.lacunas })).not.toThrow();
+  });
+});
+
+describe("derivarParametros — I-1: exigeDocumentoFiscal por categoria", () => {
+  it("regra COM categoria exige só nela; nada vaza para a empresa", () => {
+    const p = derivarParametros([
+      regra({ id: "nf-hospedagem", descricao: "Hospedagem só com nota fiscal", categoria: "hospedagem", exigeDocumentoFiscal: true }),
+    ]);
+    expect(p.exigeDocumentoFiscal).toBe(false);
+    expect(p.regraDocumentoFiscalId).toBeNull();
+    expect(p.exigeDocumentoFiscalPorCategoria.map((c) => c.categoria)).toEqual(["hospedagem"]);
+    expect(p.exigeDocumentoFiscalPorCategoria[0].regraId).toBe("nf-hospedagem");
+  });
+
+  it("regra SEM categoria continua valendo para toda a empresa", () => {
+    const p = derivarParametros([
+      regra({ id: "nf-geral", descricao: "Só aceitamos nota fiscal ou recibo", reembolsavel: "vedado", exigeDocumentoFiscal: true }),
+    ]);
+    expect(p.exigeDocumentoFiscal).toBe(true);
+    expect(p.regraDocumentoFiscalId).toBe("nf-geral");
+    expect(p.exigeDocumentoFiscalPorCategoria).toEqual([]);
+  });
+});
+
+describe("consolidarRegras — I-8: apagar todas as regras zera os parâmetros", () => {
+  const anterior = regrasPoliticaSchema.parse({
+    aprovacaoAutomaticaAte: 99999,
+    limitesPorCategoria: { alimentacao: 70 },
+    observacoes: ["antiga"],
+    regrasExtraidas: [],
+  });
+
+  it("origem 'edicao' com lista vazia é declaração do gestor: nada sobra", () => {
+    const c = consolidarRegras(anterior, "edicao");
+    expect(c.aprovacaoAutomaticaAte).toBeNull();
+    expect(c.limitesPorCategoria).toEqual({});
+    expect(c.observacoes).toEqual([]);
+    expect(c.lacunas).toEqual([]);
+  });
+
+  it("origem 'leitura' (default) preserva a política demo/heurística sem regras extraídas", () => {
+    expect(consolidarRegras(anterior)).toBe(anterior);
+    expect(consolidarRegras(anterior).aprovacaoAutomaticaAte).toBe(99999);
   });
 });

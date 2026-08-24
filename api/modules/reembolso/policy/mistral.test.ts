@@ -102,10 +102,10 @@ describe("mapearRuleset", () => {
     });
     expect(regras.categoriasVedadas).toEqual([]);
     expect(regras.categoriasExcecao).toEqual([]);
-    // Vedado convivendo com permissivo é lacuna nomeada: o agente não elege vencedora (v1.8).
-    expect(regras.lacunas.map((l) => `${l.categoria}:${l.tipo}`)).toEqual([
-      "uber:conflito-vedado-permissivo",
-    ]);
+    // O LLM devolve toda regra com escopo "item": vedado de sub-item convivendo com
+    // permissivo não é conflito de hierarquia e não trava a categoria (B-3, v1.8).
+    // Nada é vedado automaticamente — que é o ponto: o LLM não autoriza negação.
+    expect(regras.lacunas).toEqual([]);
   });
 
   it("exige_comprovante em regra sem categoria exige evidência em todas as categorias", () => {

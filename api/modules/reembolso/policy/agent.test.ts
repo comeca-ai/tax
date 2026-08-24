@@ -282,7 +282,7 @@ describe("avaliarDespesa — agente de política de reembolso", () => {
     );
     expect(r.decisao).toBe("revisao_humana");
     expect(r.motivos).toContain(
-      "A política da empresa não declara nenhuma regra que autorize o agente a aprovar sozinho — a despesa foi enviada para revisão do gestor.",
+      "A política da empresa não declara nenhuma regra que autorize o agente a aprovar sozinho — a despesa foi enviada para a sua revisão.",
     );
   });
 
@@ -457,7 +457,7 @@ describe("avaliarDespesa — negação por categoria só com marcação do gesto
       temEvidencia: true,
     });
     expect(r.decisao).toBe("revisao_humana");
-    expect(r.motivos.join(" ")).toContain("só tem regra vedada para Uber/app");
+    expect(r.motivos.join(" ")).toContain("só tem 1 regra vedada para Uber/app");
   });
 });
 

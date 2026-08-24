@@ -17,6 +17,7 @@ import { Link } from "react-router"
 import { toast } from "sonner"
 import { trpc } from "@/providers/trpc"
 import { useActiveCompany } from "@/hooks/useActiveCompany"
+import { useAuth } from "@/hooks/useAuth"
 import {
   regrasPoliticaSchema,
   STATUS_POLITICA_LABELS,
@@ -79,6 +80,10 @@ function StepIndicator({ step }: { step: number }) {
   )
 }
 
+/** Espelho de `assertAdminDaEmpresa` (P-4): sem isso o não-admin editava 70 regras e levava 403 no fim. */
+const AVISO_SEM_PERMISSAO =
+  "Só o administrador da empresa — quem criou a conta — pode alterar as regras e ativar ou desativar a política. Você pode consultar a política ativa e usar o simulador."
+
 const STATUS_CHIP: Record<StatusPolitica, string> = {
   ativa: "bg-conf-alta-bg text-conf-alta-text",
   rascunho: "bg-conf-media-bg text-conf-media-text",
@@ -87,8 +92,14 @@ const STATUS_CHIP: Record<StatusPolitica, string> = {
 
 export default function Politica() {
   const { activeCompany, isLoading: empresaLoading } = useActiveCompany()
+  const { user } = useAuth()
   const utils = trpc.useUtils()
   const empresaId = activeCompany?.id ?? 0
+  // Mesmo critério do servidor: admin da plataforma (suporte) ou dono da empresa.
+  const podeDecidir =
+    user !== null &&
+    activeCompany !== null &&
+    (user.perfil === "admin" || activeCompany.usuarioId === user.id)
 
   const [modo, setModo] = useState<"status" | "wizard">("status")
   const [step, setStep] = useState<1 | 2 | 3>(1)
@@ -110,6 +121,7 @@ export default function Politica() {
   )
 
   const uploadMut = trpc.politica.upload.useMutation()
+  const duplicar = trpc.politica.duplicar.useMutation()
   const updateRegras = trpc.politica.updateRegras.useMutation()
   const ativar = trpc.politica.ativar.useMutation()
   const desativar = trpc.politica.desativar.useMutation()
@@ -166,8 +178,9 @@ export default function Politica() {
     try {
       const res = await updateRegras.mutateAsync({ id: politicaId, regras: regrasFromForm(form) })
       setRegrasSalvas(res.regras)
-      toast.success("Regras salvas", {
-        description: "Simule o agente abaixo antes de ativar a política.",
+      toast.success("Regras salvas no rascunho", {
+        description:
+          "Elas só passam a valer quando você ativar a política. Simule o agente abaixo antes.",
       })
       setStep(3)
     } catch (erro) {
@@ -218,7 +231,23 @@ export default function Politica() {
     }
   }
 
-  /** Política (rascunho ou ativa) → reabre no passo 2 para revisão/edição das regras. */
+  /**
+   * Política em vigor é imutável (RF-07): editar cria uma CÓPIA rascunho e é ela que o
+   * wizard abre. A versão ativa continua decidindo as despesas até o "Ativar política".
+   */
+  async function novaVersaoDaAtiva(id: number) {
+    try {
+      const res = await duplicar.mutateAsync({ id })
+      await utils.politica.list.invalidate({ empresaId })
+      await revisarPolitica(res.politicaId)
+    } catch (erro) {
+      toast.error("Não foi possível criar a nova versão", {
+        description: erro instanceof Error ? erro.message : undefined,
+      })
+    }
+  }
+
+  /** Rascunho → reabre no passo 2 para revisão/edição das regras. */
   async function revisarPolitica(id: number) {
     try {
       const politica = await utils.politica.get.fetch({ id })
@@ -433,7 +462,7 @@ export default function Politica() {
             O agente avalia cada nova despesa contra as regras da política ativa.
           </p>
         </div>
-        {versoes.length > 0 && (
+        {versoes.length > 0 && podeDecidir && (
           <button
             type="button"
             onClick={abrirWizard}
@@ -444,6 +473,13 @@ export default function Politica() {
           </button>
         )}
       </div>
+
+      {/* P-4: o gate existe no servidor desde a v1.8 — a tela precisa dizer antes, não no 403. */}
+      {!podeDecidir && !carregandoListas && (
+        <p className="rounded-xl border border-line bg-paper px-4 py-3 text-[12px] leading-relaxed text-text-500">
+          {AVISO_SEM_PERMISSAO}
+        </p>
+      )}
 
       {carregandoListas ? (
         <div className="flex flex-col gap-4">
@@ -463,14 +499,17 @@ export default function Politica() {
               as regras do documento — você confere e ajusta antes de ativar.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={abrirWizard}
-            className="mt-1 inline-flex h-10 items-center gap-2 rounded-[10px] bg-brand-500 px-4 text-sm font-semibold text-white transition hover:-translate-y-px hover:bg-brand-500/90"
-          >
-            <CirclePlus className="h-4 w-4" />
-            Enviar política de reembolso
-          </button>
+          {/* O motivo já aparece na faixa acima quando o usuário não é admin da empresa. */}
+          {podeDecidir && (
+            <button
+              type="button"
+              onClick={abrirWizard}
+              className="mt-1 inline-flex h-10 items-center gap-2 rounded-[10px] bg-brand-500 px-4 text-sm font-semibold text-white transition hover:-translate-y-px hover:bg-brand-500/90"
+            >
+              <CirclePlus className="h-4 w-4" />
+              Enviar política de reembolso
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -478,24 +517,37 @@ export default function Politica() {
               parecia funcionamento normal — a faixa diz o que está acontecendo e o que fazer. */}
           {ativa && regrasAtivas && semAutorizacaoDeAprovacao(regrasAtivas) && (
             <div className="flex flex-col gap-3 rounded-xl border border-conf-media-dot/25 bg-conf-media-bg px-4 py-3.5 sm:flex-row sm:items-center">
-              <TriangleAlert className="h-4 w-4 shrink-0 text-conf-media-text" aria-hidden="true" />
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <p className="text-[13px] font-semibold text-conf-media-text">
-                  Sua política não define quando o agente pode aprovar sozinho
-                </p>
-                <p className="text-[12px] leading-relaxed text-conf-media-text/90">
-                  Enquanto isso, toda despesa vai para a sua revisão. Abra as regras, marque as que
-                  autorizam o agente a aprovar sozinho e ative a política de novo.
-                </p>
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <TriangleAlert
+                  className="mt-0.5 h-4 w-4 shrink-0 text-conf-media-text"
+                  aria-hidden="true"
+                />
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <p className="text-[13px] font-semibold text-conf-media-text">
+                    Sua política não define quando o agente pode aprovar sozinho
+                  </p>
+                  <p className="text-[12px] leading-relaxed text-conf-media-text">
+                    Enquanto isso, toda despesa vai para a sua revisão.{" "}
+                    {podeDecidir
+                      ? `Crie uma nova versão a partir da v${ativa.versao}, marque as regras que autorizam o agente a aprovar sozinho e ative — a v${ativa.versao} continua valendo até lá.`
+                      : "Peça ao administrador da empresa para revisar as regras da política."}
+                  </p>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => void revisarPolitica(ativa.id)}
-                className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg bg-conf-media-text px-3 text-[12px] font-semibold text-white transition hover:opacity-90 sm:h-9"
-              >
-                <PencilLine className="h-3.5 w-3.5" />
-                Revisar regras
-              </button>
+              {podeDecidir && (
+                <button
+                  type="button"
+                  onClick={() => void novaVersaoDaAtiva(ativa.id)}
+                  disabled={duplicar.isPending}
+                  className={cn(
+                    "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg bg-conf-media-text px-3 text-[12px] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-conf-media-dot/40 sm:h-9",
+                    duplicar.isPending && "cursor-not-allowed opacity-50",
+                  )}
+                >
+                  <PencilLine className="h-3.5 w-3.5" />
+                  {duplicar.isPending ? "Criando…" : "Criar nova versão"}
+                </button>
+              )}
             </div>
           )}
 
@@ -523,10 +575,10 @@ export default function Politica() {
                 <button
                   type="button"
                   onClick={() => void desativarPolitica(ativa.id)}
-                  disabled={desativar.isPending}
+                  disabled={desativar.isPending || !podeDecidir}
                   className={cn(
                     "inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-3 text-[12px] font-semibold text-text-500 transition hover:border-conf-vedado-dot/30 hover:text-conf-vedado-text",
-                    desativar.isPending && "cursor-not-allowed opacity-50",
+                    (desativar.isPending || !podeDecidir) && "cursor-not-allowed opacity-50",
                   )}
                 >
                   <PowerOff className="h-3.5 w-3.5" />
@@ -544,13 +596,15 @@ export default function Politica() {
                 Nenhuma política ativa — o agente está pausado e as despesas seguem apenas o motor
                 tributário.
               </p>
-              <button
-                type="button"
-                onClick={abrirWizard}
-                className="inline-flex h-8 items-center rounded-lg bg-conf-media-text px-3 text-[12px] font-semibold text-white transition hover:opacity-90"
-              >
-                Enviar nova versão
-              </button>
+              {podeDecidir && (
+                <button
+                  type="button"
+                  onClick={abrirWizard}
+                  className="inline-flex h-8 items-center rounded-lg bg-conf-media-text px-3 text-[12px] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-conf-media-dot/40"
+                >
+                  Enviar nova versão
+                </button>
+              )}
             </div>
           )}
 
@@ -592,7 +646,7 @@ export default function Politica() {
                       {formatDataHora(versao.createdAt)}
                     </span>
                   </div>
-                  {versao.status === "rascunho" && (
+                  {versao.status === "rascunho" && podeDecidir && (
                     <button
                       type="button"
                       onClick={() => void revisarPolitica(versao.id)}
@@ -602,7 +656,7 @@ export default function Politica() {
                       Revisar regras
                     </button>
                   )}
-                  {versao.status !== "ativa" && (
+                  {versao.status !== "ativa" && podeDecidir && (
                     <button
                       type="button"
                       onClick={() => void ativarPolitica(versao.id)}
