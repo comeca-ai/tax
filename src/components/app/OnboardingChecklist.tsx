@@ -4,7 +4,6 @@ import { motion } from "framer-motion"
 import {
   ArrowRight,
   Building2,
-  CarFront,
   Check,
   Receipt,
   ScrollText,
@@ -30,8 +29,12 @@ interface Passo {
 }
 
 /**
- * Checklist de onboarding (v1.2.0) — 4 passos computados de dados reais.
- * Some quando os 4 estão completos ou quando o usuário fecha (persistido por usuário).
+ * Checklist de onboarding — 3 passos computados de dados reais.
+ * Some quando os 3 estão completos ou quando o usuário fecha (persistido por usuário).
+ *
+ * O cadastro de veículo saiu do checklist: ele não é pré-requisito para enviar
+ * despesa, e o motor de política não exige veículo cadastrado. Continua
+ * disponível em Configurar → Veículos, para quem usa reembolso de quilometragem.
  */
 export default function OnboardingChecklist() {
   const { user } = useAuth()
@@ -47,10 +50,6 @@ export default function OnboardingChecklist() {
     }
   })
 
-  const veiculosQ = trpc.veiculos.list.useQuery(
-    { empresaId },
-    { enabled: empresaId > 0, retry: false },
-  )
   const politicaQ = trpc.politica.ativa.useQuery(
     { empresaId },
     { enabled: empresaId > 0, retry: false },
@@ -70,13 +69,6 @@ export default function OnboardingChecklist() {
         completo: companies.length > 0,
       },
       {
-        rotulo: "Cadastre um veículo",
-        descricao: "Necessário para despesas de combustível e deslocamento",
-        to: "/app/veiculos",
-        icone: CarFront,
-        completo: (veiculosQ.data?.length ?? 0) > 0,
-      },
-      {
         rotulo: "Ative a política de reembolso",
         descricao: "O agente de política avalia cada despesa automaticamente",
         to: "/app/politica",
@@ -91,14 +83,14 @@ export default function OnboardingChecklist() {
         completo: (despesasQ.data?.length ?? 0) > 0,
       },
     ],
-    [companies.length, veiculosQ.data, politicaQ.data, despesasQ.data],
+    [companies.length, politicaQ.data, despesasQ.data],
   )
 
   const completos = passos.filter((p) => p.completo).length
 
   if (!user || dismissed || carregandoEmpresas) return null
   // Só decide "tudo completo" quando as queries da empresa ativa já responderam.
-  if (empresaId > 0 && (veiculosQ.isLoading || politicaQ.isLoading || despesasQ.isLoading)) {
+  if (empresaId > 0 && (politicaQ.isLoading || despesasQ.isLoading)) {
     return null
   }
   if (completos === passos.length) return null
@@ -128,7 +120,7 @@ export default function OnboardingChecklist() {
             Primeiros passos
           </h2>
           <p className="text-[13px] text-text-500">
-            Configure a plataforma em 4 passos para começar a recuperar tributos.
+            Configure a plataforma em 3 passos para começar a recuperar tributos.
           </p>
         </div>
         <span className="font-mono text-[12px] font-semibold tabular text-text-500">
