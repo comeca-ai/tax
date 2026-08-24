@@ -337,26 +337,41 @@ export const politicaRouter = createRouter({
     }),
 
   /**
-   * Dry-run do agente avaliador contra a política ativa — não grava nada.
-   * Sem política ativa → { politicaAtiva: false, resultado: null }.
+   * Dry-run do agente avaliador — não grava nada.
+   * Sem `politicaId`, simula a política ATIVA da empresa (playground da tela de status);
+   * com `politicaId`, simula aquela política, inclusive rascunho: o passo 3 manda o
+   * gestor "testar antes de ativar" e devolvia o veredito da versão antiga, o que fazia
+   * a marcação recém-salva parecer sem efeito (v1.8).
+   * Nenhuma política aplicável → { politicaAtiva: false, resultado: null }.
    */
   testar: protectedProcedure
     .input(politicaTestarInput)
     .mutation(async ({ input, ctx }) => {
       await assertEmpresaAcesso(ctx, input.empresaId);
       const db = getDb();
-      const rows = await db
-        .select()
-        .from(politicasReembolso)
-        .where(
-          and(
-            eq(politicasReembolso.empresaId, input.empresaId),
-            eq(politicasReembolso.status, "ativa"),
-          ),
-        )
-        .orderBy(desc(politicasReembolso.versao))
-        .limit(1);
-      const politica = rows[0];
+      let politica: typeof politicasReembolso.$inferSelect | undefined;
+      if (input.politicaId !== undefined) {
+        // Mesmo portão de acesso do `get`: a política precisa ser da empresa simulada.
+        const alvo = await buscarPoliticaOuFalhar(input.politicaId);
+        await assertEmpresaAcesso(ctx, alvo.empresaId);
+        if (alvo.empresaId !== input.empresaId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Política não encontrada." });
+        }
+        politica = alvo;
+      } else {
+        const rows = await db
+          .select()
+          .from(politicasReembolso)
+          .where(
+            and(
+              eq(politicasReembolso.empresaId, input.empresaId),
+              eq(politicasReembolso.status, "ativa"),
+            ),
+          )
+          .orderBy(desc(politicasReembolso.versao))
+          .limit(1);
+        politica = rows[0];
+      }
       if (!politica) {
         return {
           politicaAtiva: false as const,
@@ -374,7 +389,9 @@ export const politicaRouter = createRouter({
 
       return {
         politicaAtiva: true as const,
-        versao: politica.versao,
+        // Rascunho não tem versão (todos nascem "1"): mostrar "política v1" no veredito
+        // do passo 3 apontaria para uma versão que não é a simulada.
+        versao: politica.status === "ativa" ? politica.versao : null,
         resultado,
       };
     }),

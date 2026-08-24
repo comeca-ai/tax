@@ -9,19 +9,20 @@ import {
   UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react"
-import type { CategoriaDespesa, NivelConfianca, Tributo } from "@contracts/types"
+import { CATEGORIA_DESPESA_ROTULO, type CategoriaDespesa, type NivelConfianca, type Tributo } from "@contracts/types"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Labels e metadados PT-BR das páginas de despesas (fonte: @contracts/types)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Rótulo vem do contrato: a mesma grafia nos chips da tela e nos motivos do agente. */
 export const CATEGORIA_META: Record<CategoriaDespesa, { label: string; icon: LucideIcon }> = {
-  combustivel: { label: "Combustível", icon: Fuel },
-  alimentacao: { label: "Alimentação", icon: UtensilsCrossed },
-  hospedagem: { label: "Hospedagem", icon: BedDouble },
-  pedagio: { label: "Pedágio", icon: Route },
-  uber: { label: "Uber", icon: CarFront },
-  taxi: { label: "Táxi", icon: CarTaxiFront },
+  combustivel: { label: CATEGORIA_DESPESA_ROTULO.combustivel, icon: Fuel },
+  alimentacao: { label: CATEGORIA_DESPESA_ROTULO.alimentacao, icon: UtensilsCrossed },
+  hospedagem: { label: CATEGORIA_DESPESA_ROTULO.hospedagem, icon: BedDouble },
+  pedagio: { label: CATEGORIA_DESPESA_ROTULO.pedagio, icon: Route },
+  uber: { label: CATEGORIA_DESPESA_ROTULO.uber, icon: CarFront },
+  taxi: { label: CATEGORIA_DESPESA_ROTULO.taxi, icon: CarTaxiFront },
 }
 
 export const CATEGORIA_OPTIONS = (Object.keys(CATEGORIA_META) as CategoriaDespesa[]).map((value) => ({

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { regrasPoliticaSchema, type RegrasPolitica } from "@contracts/types";
+import {
+  CATEGORIA_DESPESA_ROTULO as ROTULO,
+  regrasPoliticaSchema,
+  type RegrasPolitica,
+} from "@contracts/types";
 import { consolidarRegras } from "../policy/derivar";
 import { REGRAS_POLITICA_13 } from "../policy/politica13.fixture";
 import { confiancaDaNota, decidirReembolso, type ExtracaoNota } from "./index";
@@ -13,6 +17,7 @@ const regras: RegrasPolitica = {
   aprovacaoAutomaticaAte: 55,
   aprovacaoAutomaticaAteRegraId: null,
   aprovacaoAutomaticaPorCategoria: {},
+  aprovacaoCitadaPorCategoria: [],
   revisaoHumanaAcimaDe: 55,
   revisaoHumanaAcimaDeRegraId: null,
   negacaoAcimaDe: 500,
@@ -141,7 +146,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
     expect(r.motivos.join(" ")).toContain("não declara nenhuma regra que autorize");
     expect(r.motivos.join(" ")).not.toContain("regra vedada e regra permissiva");
     expect(r.motivos.join(" ")).not.toContain("CNPJ");
-    expect(r.motivos.join(" ")).not.toContain("limite de hospedagem");
+    expect(r.motivos.join(" ")).not.toContain(`limite de ${ROTULO.hospedagem}`);
     expect(r.motivos.join(" ")).not.toContain("1,5");
     expect(r.confianca).toBe("media");
   });
@@ -166,7 +171,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
       { temVeiculo: false },
     );
     expect(r.decisao).toBe("revisao_manual");
-    expect(r.motivos.join(" ")).toContain("só tem 1 regra vedada para Uber/app");
+    expect(r.motivos.join(" ")).toContain(`só tem 1 regra vedada para ${ROTULO.uber}`);
     expect(r.motivos.join(" ")).not.toContain("negado");
   });
 

@@ -213,15 +213,26 @@ export function avaliarDespesa(
 
   // Tetos aplicáveis: o global e o da categoria. Aplicam-se TODOS — o valor precisa
   // caber em cada um deles; nenhum teto declarado = nenhuma autorização (D-013).
-  const tetosAplicaveis: { valor: number; rotulo: string }[] = [];
+  // Cada teto carrega a regra que o autorizou: aprovar era o único desfecho que não
+  // citava regra nenhuma, e o gestor não tinha como enxergar que uma regra sobre
+  // lavagem de carro alugado estava liberando o Uber de lazer dele (D-013).
+  const tetosAplicaveis: { valor: number; rotulo: string; descricao: string }[] = [];
   if (regras.aprovacaoAutomaticaAte != null) {
-    tetosAplicaveis.push({ valor: regras.aprovacaoAutomaticaAte, rotulo: "teto de aprovação automática" });
+    tetosAplicaveis.push({
+      valor: regras.aprovacaoAutomaticaAte,
+      rotulo: "teto de aprovação automática",
+      descricao: descricaoDaRegra(regras, regras.aprovacaoAutomaticaAteRegraId),
+    });
   }
   const tetoDaCategoria = regras.aprovacaoAutomaticaPorCategoria[categoria];
   if (tetoDaCategoria != null) {
+    const citada = (regras.aprovacaoCitadaPorCategoria ?? []).find(
+      (c) => c.categoria === categoria,
+    );
     tetosAplicaveis.push({
       valor: tetoDaCategoria,
       rotulo: `teto de aprovação automática de ${CATEGORIA_DESPESA_ROTULO[categoria]}`,
+      descricao: citada?.descricao ?? "",
     });
   }
 
@@ -247,19 +258,20 @@ export function avaliarDespesa(
       detalhe: `R$ ${fmtBRL(valorNota)} acima do ${excedido.rotulo} (R$ ${fmtBRL(excedido.valor)})`,
     });
     motivos.push(
-      `Valor acima do ${excedido.rotulo} da política: R$ ${fmtBRL(valorNota)} > R$ ${fmtBRL(excedido.valor)}.`,
+      `Valor acima do ${excedido.rotulo} da política: R$ ${fmtBRL(valorNota)} > R$ ${fmtBRL(excedido.valor)}.${sufixoRegra(excedido.descricao)}`,
     );
     return { decisao: "revisao_humana", motivos, regrasAplicadas };
   }
 
-  const menorTetoAplicavel = Math.min(...tetosAplicaveis.map((t) => t.valor));
+  // Governa o menor teto aplicável — e é a regra DELE que a aprovação cita.
+  const governa = [...tetosAplicaveis].sort((a, b) => a.valor - b.valor)[0];
   regrasAplicadas.push({
     regra: "aprovacaoAutomaticaAte",
     resultado: "passou",
-    detalhe: `R$ ${fmtBRL(valorNota)} dentro do teto de aprovação automática (R$ ${fmtBRL(menorTetoAplicavel)})`,
+    detalhe: `R$ ${fmtBRL(valorNota)} dentro do ${governa.rotulo} (R$ ${fmtBRL(governa.valor)})${governa.descricao ? ` — regra: "${governa.descricao}"` : ""}`,
   });
   motivos.push(
-    `Despesa aprovada automaticamente: R$ ${fmtBRL(valorNota)} ≤ R$ ${fmtBRL(menorTetoAplicavel)} e nenhuma regra da política falhou.`,
+    `Despesa aprovada automaticamente: R$ ${fmtBRL(valorNota)} ≤ R$ ${fmtBRL(governa.valor)} e nenhuma regra da política falhou.${sufixoRegra(governa.descricao)}`,
   );
   return { decisao: "aprovado", motivos, regrasAplicadas };
 }

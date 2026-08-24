@@ -10,6 +10,7 @@ import {
 import { Link } from "react-router"
 import type { CategoriaDespesa, RegraAplicada } from "@contracts/types"
 import { cn } from "@/lib/utils"
+import { detalheLegivel, rotuloRegraAplicada } from "@/components/politica/veredito"
 import { formatBRL } from "@/lib/format"
 import { CATEGORIA_META, formatData } from "../meta"
 
@@ -134,7 +135,7 @@ export default function StepVeredito({ veredito, onReiniciar }: StepVereditoProp
           <ul className="mt-1 flex flex-col gap-1 border-t border-line pt-2">
             {veredito.regrasAplicadas.map((r, i) => (
               <li key={i} className="font-mono text-[11px] leading-relaxed text-text-500">
-                {r.regra}: {r.detalhe ?? r.resultado}
+                {rotuloRegraAplicada(r.regra)}: {detalheLegivel(r.detalhe ?? r.resultado)}
               </li>
             ))}
           </ul>

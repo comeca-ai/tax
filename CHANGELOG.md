@@ -139,6 +139,38 @@ pendente de aplicação: `npm run db:migrate` → `docker compose build` →
   `focus-visible` no botão dela; decisões citam a **descrição** da regra, nunca o
   id cru
 
+### 3ª rodada de correções (QA de código e de tela)
+- **A marcação só vale em regra que a sustenta — no servidor também.** `aprovar`
+  passa a exigir regra `reembolsavel: "sim"` e `negar`, regra `vedado`, **na
+  derivação**. O filtro existia só no caminho por categoria: a tela barrava e a
+  API não. Porta de decisão automática não pode depender da tela (D-013)
+- **`exigeDocumentoFiscal` obedece ao alcance da regra**: com categoria, só surte
+  efeito com escopo `categoria`. "Gorjeta ao camareiro só com recibo" negava a
+  diária de hotel paga por Pix citando a regra da gorjeta. Marcação que não pega
+  vira lacuna `marcacao-sem-efeito` nomeando o gesto que resolve
+- **O teto de aprovação nunca é maior que o teto da categoria**: "aprova até
+  R$ 400" convivendo com outra regra que fixa R$ 150 mostrava chip verde de 400
+  enquanto o agente parava em 150. Aplicam-se as duas, vale a menor, e o motivo
+  nomeia as duas regras
+- **Aprovação passa a citar a regra** (`aprovacaoCitadaPorCategoria`): era o
+  único desfecho que não citava nenhuma — o gestor lia "aprovado" sem saber qual
+  regra liberou
+- **Rótulo de categoria igual na tela e no motor** (`CATEGORIA_DESPESA_ROTULO` =
+  `CATEGORIA_META`): o motivo dizia "alimentação" e "Uber/app" enquanto o chip ao
+  lado, na mesma tela, dizia "Alimentação" e "Uber"
+- **Chaves de máquina traduzidas na tela** (`src/components/politica/veredito.ts`):
+  `lacunaDaPolitica`, `conflito-vedado-permissivo` e afins apareciam crus no
+  veredito. A trilha de auditoria continua gravando as chaves
+
+### Removido nesta rodada
+- **Simulação do agente** (decisão do dono, 24/08): a caixa "Simular o agente"
+  saiu das duas telas de `/app/politica` — o "teste o agente antes de ativar" do
+  passo 3 e o playground da tela de status — e `SimuladorPolitica.tsx` foi
+  apagado. Nesta mesma leva o `politica.testar` havia ganhado o parâmetro
+  `politicaId`, para simular o **rascunho** em vez da versão em vigor (o passo 3
+  mandava "testar antes de ativar" e devolvia o veredito da política antiga); o
+  procedimento continua no router, agora **sem chamador**
+
 ### Nota de operação
 Políticas já ativas ficam em **100% revisão** até o gestor reeditar e marcar as
 regras que autorizam o agente a aprovar sozinho — nenhuma marcação é inventada

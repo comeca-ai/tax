@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { regrasPoliticaSchema, type RegrasPolitica } from "@contracts/types";
+import {
+  CATEGORIA_DESPESA_ROTULO as ROTULO,
+  regrasPoliticaSchema,
+  type RegrasPolitica,
+} from "@contracts/types";
 import { avaliarDespesa } from "./agent";
 import { consolidarRegras } from "./derivar";
 
@@ -74,12 +78,12 @@ describe("avaliarDespesa — teto de categoria nunca nega (D-013)", () => {
     expect(r.decisao).not.toBe("negado");
     expect(r.decisao).toBe("revisao_humana");
     expect(r.motivos[0]).toBe(
-      "Valor de hospedagem acima do limite da política (R$ 400,00 por dia): R$ 1.200,00. A despesa vai para a sua revisão.",
+      `Valor de ${ROTULO.hospedagem} acima do limite da política (R$ 400,00 por dia): R$ 1.200,00. A despesa vai para a sua revisão.`,
     );
     expect(r.regrasAplicadas.find((a) => a.regra === "limitePorCategoria")).toEqual({
       regra: "limitePorCategoria",
       resultado: "revisar",
-      detalhe: "R$ 1.200,00 acima do limite de hospedagem (R$ 400,00 por dia)",
+      detalhe: `R$ 1.200,00 acima do limite de ${ROTULO.hospedagem} (R$ 400,00 por dia)`,
     });
   });
 
@@ -321,7 +325,7 @@ describe("avaliarDespesa — aprovação só onde o gestor declarou (v1.8)", () 
       { temVeiculo: false, temEvidencia: true },
     );
     expect(fora.decisao).toBe("revisao_humana");
-    expect(fora.motivos.join(" ")).toContain("teto de aprovação automática de alimentação");
+    expect(fora.motivos.join(" ")).toContain(`teto de aprovação automática de ${ROTULO.alimentacao}`);
   });
 
   it("teto por categoria não autoriza outra categoria", () => {
@@ -457,7 +461,7 @@ describe("avaliarDespesa — negação por categoria só com marcação do gesto
       temEvidencia: true,
     });
     expect(r.decisao).toBe("revisao_humana");
-    expect(r.motivos.join(" ")).toContain("só tem 1 regra vedada para Uber/app");
+    expect(r.motivos.join(" ")).toContain(`só tem 1 regra vedada para ${ROTULO.uber}`);
   });
 });
 

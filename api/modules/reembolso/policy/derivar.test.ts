@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CATEGORIAS_DESPESA,
+  CATEGORIA_DESPESA_ROTULO as ROTULO,
   LACUNAS_MAX,
   regrasPoliticaSchema,
   type RegraExtraida,
@@ -42,7 +43,7 @@ describe("derivarParametros — limitesPorCategoria (só escopo 'categoria')", (
         categoria: "alimentacao",
         regraId: "café",
         descricao: "Café",
-        motivo: 'Teto de alimentação na política: R$ 30 — regra: "Café".',
+        motivo: `Teto de ${ROTULO.alimentacao} na política: R$ 30 — regra: "Café".`,
       },
     ]);
   });
@@ -160,7 +161,7 @@ describe("derivarParametros — vedação, exceção e lacunas por categoria", (
         categoria: "uber",
         regraId: "mobilidade-urbana-não-é-reembolsada",
         descricao: "Mobilidade urbana não é reembolsada",
-        motivo: 'Categoria Uber/app vedada pela política — regra: "Mobilidade urbana não é reembolsada".',
+        motivo: `Categoria ${ROTULO.uber} vedada pela política — regra: "Mobilidade urbana não é reembolsada".`,
       },
     ]);
     expect(p.categoriasExcecao).toEqual([]);
@@ -189,7 +190,7 @@ describe("derivarParametros — vedação, exceção e lacunas por categoria", (
         categoria: "uber",
         regraIds: ["gorjetas-para-motoristas", "corridas-de-lazer"],
         motivo:
-          'A política só tem 2 regras vedadas para Uber/app e nenhuma diz o que é permitido — o agente não aprova nem nega sozinho. Para o agente negar Uber/app por completo, cadastre uma regra vedada SEM valor, marque "Vale para a categoria inteira" e "O agente pode negar sozinho". Enquanto isso a despesa vai para a sua revisão.',
+          `A política só tem 2 regras vedadas para ${ROTULO.uber} e nenhuma diz o que é permitido — o agente não aprova nem nega sozinho. Para o agente negar ${ROTULO.uber} por completo, cadastre uma regra vedada SEM valor, marque "Vale para a categoria inteira" e "O agente pode negar sozinho". Enquanto isso a despesa vai para a sua revisão.`,
       },
     ]);
   });
@@ -212,7 +213,7 @@ describe("derivarParametros — vedação, exceção e lacunas por categoria", (
         categoria: "uber",
         regraIds: ["mobilidade-urbana-não-é-reembolsada", "aplicativos-de-transporte"],
         motivo:
-          'Em Uber/app, 1 regra veda a categoria inteira e 1 regra a libera — a política não diz qual prevalece. Deixe uma só: desmarque "Vale para a categoria inteira" na regra vedada, ou remova a regra que libera. Enquanto isso a despesa vai para a sua revisão.',
+          `Em ${ROTULO.uber}, 1 regra veda a categoria inteira e 1 regra a libera — a política não diz qual prevalece. Abra as regras vedadas de ${ROTULO.uber} e desmarque "Vale para a categoria inteira" nas que descrevem só um sub-item. Enquanto isso a despesa vai para a sua revisão.`,
       },
     ]);
   });
@@ -246,7 +247,7 @@ describe("derivarParametros — vedação, exceção e lacunas por categoria", (
         regraId: "hospedagem-em-viagens",
         descricao: "Hospedagem em viagens",
         motivo:
-          'Categoria hospedagem exige aprovação superior na política — regra: "Hospedagem em viagens".',
+          `Categoria ${ROTULO.hospedagem} exige aprovação superior na política — regra: "Hospedagem em viagens".`,
       },
     ]);
   });
@@ -450,7 +451,7 @@ describe("derivarParametros — lacuna 'marcacao-sem-valor' (P-5: aprovar exige 
         categoria: null,
         regraIds: ["reembolso-de-50%-da-mensalidade"],
         motivo:
-          'A regra "Reembolso de 50% da mensalidade" está marcada para o agente aprovar sozinho, mas não tem limite em reais — o agente não pode aplicá-la.',
+          'A regra "Reembolso de 50% da mensalidade" está marcada para o agente aprovar sozinho, mas não tem limite em reais — o agente não pode aplicá-la. Informe o valor limite em reais desta regra, ou volte a decisão automática para "Só o gestor decide".',
       },
     ]);
   });
@@ -595,7 +596,7 @@ describe("consolidarRegras", () => {
         categoria: "alimentacao",
         regraIds: ["bebidas-alcoólicas"],
         motivo:
-          'A política só tem 1 regra vedada para alimentação e nenhuma diz o que é permitido — o agente não aprova nem nega sozinho. Para o agente negar alimentação por completo, cadastre uma regra vedada SEM valor, marque "Vale para a categoria inteira" e "O agente pode negar sozinho". Enquanto isso a despesa vai para a sua revisão.',
+          `A política só tem 1 regra vedada para ${ROTULO.alimentacao} e nenhuma diz o que é permitido — o agente não aprova nem nega sozinho. Para o agente negar ${ROTULO.alimentacao} por completo, cadastre uma regra vedada SEM valor, marque "Vale para a categoria inteira" e "O agente pode negar sozinho". Enquanto isso a despesa vai para a sua revisão.`,
       },
     ]);
   });
@@ -682,7 +683,7 @@ describe("derivarParametros — B-4: marcação sem efeito deixa rastro", () => 
     expect(p.categoriasVedadas).toEqual([]);
     const motivos = p.lacunas.map((l) => l.motivo).join(" ");
     expect(motivos).not.toContain("nenhuma está marcada");
-    expect(motivos).toContain("vale só para um sub-item de hospedagem");
+    expect(motivos).toContain(`vale só para um sub-item de ${ROTULO.hospedagem}`);
   });
 
   it("'aprovar' em regra não reembolsável é nomeada em vez de sumir", () => {
@@ -728,12 +729,33 @@ describe("derivarParametros — B-6: nunca mais lacunas do que o contrato aceita
 describe("derivarParametros — I-1: exigeDocumentoFiscal por categoria", () => {
   it("regra COM categoria exige só nela; nada vaza para a empresa", () => {
     const p = derivarParametros([
-      regra({ id: "nf-hospedagem", descricao: "Hospedagem só com nota fiscal", categoria: "hospedagem", exigeDocumentoFiscal: true }),
+      regra({ id: "nf-hospedagem", descricao: "Hospedagem só com nota fiscal", categoria: "hospedagem", escopo: "categoria", exigeDocumentoFiscal: true }),
     ]);
     expect(p.exigeDocumentoFiscal).toBe(false);
     expect(p.regraDocumentoFiscalId).toBeNull();
     expect(p.exigeDocumentoFiscalPorCategoria.map((c) => c.categoria)).toEqual(["hospedagem"]);
     expect(p.exigeDocumentoFiscalPorCategoria[0].regraId).toBe("nf-hospedagem");
+    // A marcação pegou: nada a reportar ao gestor.
+    expect(p.lacunas).toEqual([]);
+  });
+
+  it("regra de SUB-ITEM não exige nota fiscal na categoria — a marcação vira lacuna", () => {
+    // Escopo "item" é o default do LLM: "só aceito nota fiscal" na gorjeta ao camareiro
+    // negava a diária do hotel paga por Pix citando a regra da gorjeta (D-013).
+    const p = derivarParametros([
+      regra({ id: "nf-gorjeta", descricao: "Gorjeta ao camareiro só com recibo", categoria: "hospedagem", exigeDocumentoFiscal: true }),
+    ]);
+    expect(p.exigeDocumentoFiscal).toBe(false);
+    expect(p.exigeDocumentoFiscalPorCategoria).toEqual([]);
+    // E não some em silêncio: o gestor precisa saber que a marcação não pegou.
+    expect(p.lacunas).toEqual([
+      {
+        tipo: "marcacao-sem-efeito",
+        categoria: "hospedagem",
+        regraIds: ["nf-gorjeta"],
+        motivo: `A regra "Gorjeta ao camareiro só com recibo" está marcada como "Só aceito nota fiscal ou recibo", mas vale só para um sub-item de ${ROTULO.hospedagem} — o agente não recusa comprovante nenhum por causa dela. Marque "Vale para a categoria inteira" se a política exige nota fiscal em toda despesa de ${ROTULO.hospedagem}.`,
+      },
+    ]);
   });
 
   it("regra SEM categoria continua valendo para toda a empresa", () => {

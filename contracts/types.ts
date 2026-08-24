@@ -295,14 +295,19 @@ export const CONFIANCA_EXTRACAO_LABELS: Record<ConfiancaExtracao, string> = {
   baixa: "Baixa",
 };
 
-/** Rótulo PT-BR da categoria usado nas frases do servidor (agente, decisor, derivação). */
+/**
+ * Rótulo PT-BR da categoria usado nas frases do servidor (agente, decisor, derivação).
+ * É o MESMO texto dos chips da tela (`CATEGORIA_META`): o motivo dizia "alimentação" e
+ * "Uber/app" enquanto o chip ao lado dizia "Alimentação" e "Uber", e o gestor lia as
+ * duas grafias na mesma tela sem saber se falavam da mesma coisa (v1.8).
+ */
 export const CATEGORIA_DESPESA_ROTULO: Record<CategoriaDespesa, string> = {
-  combustivel: "combustível",
-  alimentacao: "alimentação",
-  hospedagem: "hospedagem",
-  pedagio: "pedágio",
-  uber: "Uber/app",
-  taxi: "táxi",
+  combustivel: "Combustível",
+  alimentacao: "Alimentação",
+  hospedagem: "Hospedagem",
+  pedagio: "Pedágio",
+  uber: "Uber",
+  taxi: "Táxi",
 };
 
 /** Grandes temas de uma política de reembolso (slug, título) — ordem de exibição. */
@@ -400,6 +405,10 @@ export const regraExtraidaSchema = z.object({
    * Declaração do gestor: esta regra só aceita nota fiscal ou recibo — comprovante de
    * pagamento (Pix, cartão, extrato) não serve. Substitui o match pelo id
    * `comprovantes-nao-aceitos`, que nenhum prompt pedia (decisão do dono P-2, v1.8).
+   * Como toda porta de negação, o alcance segue o da regra: sem categoria vale para a
+   * empresa toda; COM categoria só surte efeito com `escopo: "categoria"` — marcar o
+   * campo numa regra de sub-item ("gorjeta ao camareiro só com recibo") negava a
+   * diária de hotel paga por Pix citando a regra da gorjeta (D-013).
    */
   exigeDocumentoFiscal: z.boolean().default(false),
   decisaoAutomatica: z.enum(DECISOES_AUTOMATICAS_REGRA).default("nenhuma"),
@@ -476,6 +485,12 @@ export const regrasPoliticaSchema = z.object({
   aprovacaoAutomaticaPorCategoria: z
     .partialRecord(z.enum(CATEGORIAS_DESPESA), z.number().min(0))
     .default({}),
+  /**
+   * Regra que autoriza cada teto de aprovação por categoria. Aprovar era o único
+   * desfecho que não citava regra nenhuma — o gestor lia "aprovado" e não tinha como
+   * saber que uma regra sobre lavar carro alugado liberara a despesa (D-013).
+   */
+  aprovacaoCitadaPorCategoria: z.array(categoriaRegraCitadaSchema).default([]),
   /** Regras citadas nos tetos por categoria (D-013: todo motivo nomeia a regra) */
   limitesCitados: z.array(categoriaRegraCitadaSchema).default([]),
   /** Id da regra que fundamenta cada teto global; null quando o teto não existe */
@@ -547,6 +562,13 @@ export const politicaUpdateRegrasInput = z.object({
 
 export const politicaTestarInput = z.object({
   empresaId: z.number().int().positive(),
+  /**
+   * Política a simular. Ausente = a ativa da empresa (playground da tela de status).
+   * O passo 3 do wizard manda o id do RASCUNHO: o texto mandava "testar antes de
+   * ativar" e o veredito vinha da política antiga, então o gestor concluía que a
+   * marcação não tinha funcionado (v1.8).
+   */
+  politicaId: z.number().int().positive().optional(),
   categoria: z.enum(CATEGORIAS_DESPESA),
   valorNota: z.number().min(0),
   temVeiculo: z.boolean().default(false),

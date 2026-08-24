@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { agruparObservacoes } from "./observacoes"
 import {
   REEMBOLSAVEL_LABELS_CURTO,
+  TEXTO_SEM_APROVACAO_AUTOMATICA,
   UNIDADE_LABELS,
   agruparPorTema,
   contarRegras,
@@ -181,10 +182,7 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
             ))}
           </>
         ) : (
-          <p className="text-[12px] leading-relaxed text-text-500">
-            Nada — sua política não define quando o agente pode aprovar sozinho; enquanto isso, tudo
-            vai para sua revisão.
-          </p>
+          <p className="text-[12px] leading-relaxed text-text-500">{TEXTO_SEM_APROVACAO_AUTOMATICA}</p>
         )}
       </Linha>,
     )
@@ -313,7 +311,7 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
               <button
                 type="button"
                 onClick={() => setAbertos(todosAbertos ? [] : grupos.map((g) => g.tema))}
-                className="inline-flex h-7 items-center gap-1 rounded-md px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.04em] text-text-500 outline-none transition hover:bg-paper hover:text-text-900 focus-visible:ring-2 focus-visible:ring-ring/50"
+                className="inline-flex h-11 items-center gap-1 rounded-md px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.04em] text-text-500 outline-none transition hover:bg-paper hover:text-text-900 focus-visible:ring-2 focus-visible:ring-ring/50 sm:h-7"
               >
                 {todosAbertos ? (
                   <ChevronsDownUp className="h-3 w-3" aria-hidden="true" />

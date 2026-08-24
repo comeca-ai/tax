@@ -43,6 +43,7 @@ export type ParametrosDerivados = Pick<
   | "aprovacaoAutomaticaAte"
   | "aprovacaoAutomaticaAteRegraId"
   | "aprovacaoAutomaticaPorCategoria"
+  | "aprovacaoCitadaPorCategoria"
   | "revisaoHumanaAcimaDe"
   | "revisaoHumanaAcimaDeRegraId"
   | "negacaoAcimaDe"
@@ -76,25 +77,41 @@ function temValorDeDecisao(r: RegraExtraida): boolean {
 
 /**
  * A marcação "aprovar" desta regra chega a produzir teto?
+ * Sempre exige regra REEMBOLSÁVEL: teto geral saía de regra vedada marcada "aprovar"
+ * porque o filtro de `reembolsavel` só existia no caminho por categoria — a tela
+ * barrava, o servidor não, e uma porta de decisão não pode depender da tela (D-013).
  * Sem categoria vira teto geral; com categoria só quando o gestor promoveu a regra
  * para a categoria inteira — marcar "aprovar" num sub-item não autoriza nada.
  */
 function aprovacaoTemEfeito(r: RegraExtraida): boolean {
-  if (!temValorDeDecisao(r)) return false;
-  if (r.categoria === null) return true;
-  return r.escopo === "categoria" && r.reembolsavel === "sim";
+  if (!temValorDeDecisao(r) || r.reembolsavel !== "sim") return false;
+  return r.categoria === null || r.escopo === "categoria";
 }
 
 /**
  * A marcação "negar" desta regra chega a produzir negação?
+ * Sempre exige regra VEDADA (ver `aprovacaoTemEfeito`: mesma lacuna, mesmo motivo).
  * Sem categoria: teto geral de negação, exige valor em reais > 0.
- * Com categoria: veda a categoria inteira, exige regra vedada, promovida e SEM valor —
+ * Com categoria: veda a categoria inteira, exige regra promovida e SEM valor —
  * regra vedada COM valor ("hospedagem acima de R$ 800 não é reembolsada") negaria
  * hospedagem de R$ 100, alcance maior do que a regra declara (D-013).
  */
 function negacaoTemEfeito(r: RegraExtraida): boolean {
+  if (r.reembolsavel !== "vedado") return false;
   if (r.categoria === null) return temValorDeDecisao(r);
-  return r.reembolsavel === "vedado" && r.escopo === "categoria" && r.valorLimite === null;
+  return r.escopo === "categoria" && r.valorLimite === null;
+}
+
+/**
+ * A exigência de nota fiscal desta regra chega a valer?
+ * Mesma trava das outras portas de negação: sem categoria vale na empresa toda; com
+ * categoria só quando a regra foi promovida. Marcar "só aceito nota fiscal ou recibo"
+ * em "Gorjeta ao camareiro só com recibo" (sub-item de hospedagem) negava a diária de
+ * hotel paga por Pix citando a regra da gorjeta (D-013).
+ */
+function documentoFiscalTemEfeito(r: RegraExtraida): boolean {
+  if (!r.exigeDocumentoFiscal) return false;
+  return r.categoria === null || r.escopo === "categoria";
 }
 
 /** "1 regra" · "3 regras" — contagem em vez de eleger um par arbitrário de regras. */
@@ -158,6 +175,7 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
   // 1b. Teto de aprovação automática POR categoria: só de regra que o gestor marcou
   // "o agente pode aprovar sozinho" (D-013 — nenhum texto livre autoriza aprovação).
   const aprovacaoAutomaticaPorCategoria: Partial<Record<CategoriaDespesa, number>> = {};
+  const aprovacaoCitadaPorCategoria: CategoriaRegraCitada[] = [];
   for (const cat of CATEGORIAS_DESPESA) {
     const rotulo = CATEGORIA_DESPESA_ROTULO[cat];
     const promovidas = regras.filter(
@@ -183,11 +201,27 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
         ),
       );
     }
+    // O teto de aprovação nunca é maior do que o teto da categoria: com "aprova até
+    // R$ 400" e outra regra fixando R$ 150, o chip verde dizia 400 e o agente parava
+    // em 150. Aplicam-se as duas — vale a menor, e o motivo nomeia as duas regras.
     const tetoAprovacao = menorTeto(
       promovidas.filter((r) => r.decisaoAutomatica === "aprovar" && temValorDeDecisao(r)),
     );
     if (tetoAprovacao !== null) {
-      aprovacaoAutomaticaPorCategoria[cat] = tetoAprovacao.valorLimite as number;
+      const autorizado = tetoAprovacao.valorLimite as number;
+      const tetoDaCategoria = teto !== null ? (teto.valorLimite as number) : null;
+      const efetivo =
+        tetoDaCategoria !== null ? Math.min(autorizado, tetoDaCategoria) : autorizado;
+      aprovacaoAutomaticaPorCategoria[cat] = efetivo;
+      aprovacaoCitadaPorCategoria.push(
+        citar(
+          cat,
+          tetoAprovacao,
+          teto !== null && efetivo < autorizado
+            ? `O agente aprova sozinho ${rotulo} até R$ ${efetivo}: a regra "${curto(tetoAprovacao.descricao, 80)}" autoriza até R$ ${autorizado}, mas o teto de ${rotulo} na política é menor — regra: "${curto(teto.descricao, 80)}".`
+            : `O agente aprova sozinho ${rotulo} até R$ ${efetivo} — regra: "${curto(tetoAprovacao.descricao)}".`,
+        ),
+      );
     }
   }
 
@@ -209,10 +243,10 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
   //    Havendo várias, aplicam-se todas ⇒ o menor valor governa e é o citado.
   const semCategoriaEmReais = regras.filter((r) => r.categoria === null && temValorEmReais(r));
   const regraAprovacao = menorTeto(
-    semCategoriaEmReais.filter((r) => r.decisaoAutomatica === "aprovar" && temValorDeDecisao(r)),
+    semCategoriaEmReais.filter((r) => r.decisaoAutomatica === "aprovar" && aprovacaoTemEfeito(r)),
   );
   const regraNegacao = menorTeto(
-    semCategoriaEmReais.filter((r) => r.decisaoAutomatica === "negar" && temValorDeDecisao(r)),
+    semCategoriaEmReais.filter((r) => r.decisaoAutomatica === "negar" && negacaoTemEfeito(r)),
   );
   const regraRevisao = menorTeto(
     semCategoriaEmReais.filter(
@@ -229,9 +263,22 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
   // `so-vedado-sem-marcacao` / `conflito-vedado-permissivo` empilharia o mesmo conselho.
   const negacaoSemEfeitoPorCategoria = new Set<CategoriaDespesa>();
   for (const r of regras) {
-    if (r.decisaoAutomatica === "nenhuma") continue;
     const rotulo = r.categoria ? CATEGORIA_DESPESA_ROTULO[r.categoria] : "";
     const desc = curto(r.descricao);
+
+    // "Só aceito nota fiscal ou recibo" é porta de negação e obedece ao mesmo alcance.
+    if (r.exigeDocumentoFiscal && !documentoFiscalTemEfeito(r)) {
+      lacunas.push(
+        lacuna(
+          "marcacao-sem-efeito",
+          r.categoria,
+          [r.id],
+          `A regra "${desc}" está marcada como "Só aceito nota fiscal ou recibo", mas vale só para um sub-item de ${rotulo} — o agente não recusa comprovante nenhum por causa dela. Marque "Vale para a categoria inteira" se a política exige nota fiscal em toda despesa de ${rotulo}.`,
+        ),
+      );
+    }
+
+    if (r.decisaoAutomatica === "nenhuma") continue;
 
     if (r.decisaoAutomatica === "aprovar") {
       if (aprovacaoTemEfeito(r)) continue;
@@ -242,7 +289,7 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
             "marcacao-sem-valor",
             r.categoria,
             [r.id],
-            `A regra "${desc}" está marcada para o agente aprovar sozinho, mas não tem limite em reais — o agente não pode aplicá-la.`,
+            `A regra "${desc}" está marcada para o agente aprovar sozinho, mas não tem limite em reais — o agente não pode aplicá-la. Informe o valor limite em reais desta regra, ou volte a decisão automática para "Só o gestor decide".`,
           ),
         );
         continue;
@@ -273,17 +320,9 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
     if (r.categoria !== null && r.reembolsavel === "vedado") {
       negacaoSemEfeitoPorCategoria.add(r.categoria);
     }
-    if (r.categoria === null) {
-      lacunas.push(
-        lacuna(
-          "marcacao-sem-efeito",
-          null,
-          [r.id],
-          `A regra "${desc}" está marcada para o agente negar sozinho, mas não tem categoria nem valor em reais — o agente não nega nada por causa dela. Informe o valor acima do qual a despesa é negada, ou escolha a categoria e marque "Vale para a categoria inteira".`,
-        ),
-      );
-      continue;
-    }
+    // Ordem importa: sem esta checagem antes, uma regra reembolsável SEM categoria
+    // marcada "negar" recebia o conselho errado ("informe o valor"), que a
+    // transformaria em teto de negação da empresa inteira.
     if (r.reembolsavel !== "vedado") {
       lacunas.push(
         lacuna(
@@ -291,6 +330,17 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
           r.categoria,
           [r.id],
           `A regra "${desc}" está marcada para o agente negar sozinho, mas não está classificada como vedada — só regra vedada autoriza negação automática. O agente não nega nada por causa dela.`,
+        ),
+      );
+      continue;
+    }
+    if (r.categoria === null) {
+      lacunas.push(
+        lacuna(
+          "marcacao-sem-efeito",
+          null,
+          [r.id],
+          `A regra "${desc}" está marcada para o agente negar sozinho, mas não tem categoria nem valor em reais — o agente não nega nada por causa dela. Informe o valor acima do qual a despesa é negada, ou escolha a categoria e marque "Vale para a categoria inteira".`,
         ),
       );
       continue;
@@ -321,10 +371,13 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
   // que nenhum prompt pedia, morreu na v1.8 (decisão do dono P-2).
   // Regra COM categoria exige só naquela categoria: marcar o checkbox numa regra de
   // hospedagem negava extrato em alimentação citando a regra de hospedagem (v1.8).
+  // E só quando a regra vale para a categoria INTEIRA (`documentoFiscalTemEfeito`):
+  // marcada num sub-item ("gorjeta ao camareiro só com recibo"), negava a diária de
+  // hotel paga por Pix citando a gorjeta.
   const regraDoc = regras.find((r) => r.exigeDocumentoFiscal && r.categoria === null);
   const exigeDocumentoFiscalPorCategoria: CategoriaRegraCitada[] = [];
   for (const cat of CATEGORIAS_DESPESA) {
-    const r = regras.find((x) => x.exigeDocumentoFiscal && x.categoria === cat);
+    const r = regras.find((x) => x.categoria === cat && documentoFiscalTemEfeito(x));
     if (!r) continue;
     exigeDocumentoFiscalPorCategoria.push(
       citar(
@@ -389,7 +442,7 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
           "conflito-vedado-permissivo",
           cat,
           [...vedadasDaCategoriaInteira.map((r) => r.id), ...permissivas.map((r) => r.id)],
-          `Em ${rotulo}, ${plural(vedadasDaCategoriaInteira.length, "regra veda", "regras vedam")} a categoria inteira e ${plural(permissivas.length, "regra a libera", "regras a liberam")} — a política não diz qual prevalece. Deixe uma só: desmarque "Vale para a categoria inteira" na regra vedada, ou remova a regra que libera. Enquanto isso a despesa vai para a sua revisão.`,
+          `Em ${rotulo}, ${plural(vedadasDaCategoriaInteira.length, "regra veda", "regras vedam")} a categoria inteira e ${plural(permissivas.length, "regra a libera", "regras a liberam")} — a política não diz qual prevalece. Abra as regras vedadas de ${rotulo} e desmarque "Vale para a categoria inteira" nas que descrevem só um sub-item. Enquanto isso a despesa vai para a sua revisão.`,
         ),
       );
     } else {
@@ -432,6 +485,7 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
     aprovacaoAutomaticaAte: regraAprovacao?.valorLimite ?? null,
     aprovacaoAutomaticaAteRegraId: regraAprovacao?.id ?? null,
     aprovacaoAutomaticaPorCategoria,
+    aprovacaoCitadaPorCategoria,
     revisaoHumanaAcimaDe: regraRevisao?.valorLimite ?? null,
     revisaoHumanaAcimaDeRegraId: regraRevisao?.id ?? null,
     negacaoAcimaDe: regraNegacao?.valorLimite ?? null,

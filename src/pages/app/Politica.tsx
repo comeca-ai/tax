@@ -33,13 +33,15 @@ import PoliticaUploadStep, {
 } from "@/components/politica/PoliticaUploadStep"
 import PoliticaRegrasStep from "@/components/politica/PoliticaRegrasStep"
 import PoliticaResumo from "@/components/politica/PoliticaResumo"
-import SimuladorPolitica from "@/components/politica/SimuladorPolitica"
 import {
   formFromRegras,
   regrasFromForm,
   type RegrasForm,
 } from "@/components/politica/regrasForm"
-import { semAutorizacaoDeAprovacao } from "@/components/politica/regrasExtraidas"
+import {
+  parametrosPerdidos,
+  semAutorizacaoDeAprovacao,
+} from "@/components/politica/regrasExtraidas"
 import { cn } from "@/lib/utils"
 
 const PASSOS = [
@@ -92,7 +94,7 @@ const STATUS_CHIP: Record<StatusPolitica, string> = {
 
 export default function Politica() {
   const { activeCompany, isLoading: empresaLoading } = useActiveCompany()
-  const { user } = useAuth()
+  const { user, isLoading: sessaoLoading } = useAuth()
   const utils = trpc.useUtils()
   const empresaId = activeCompany?.id ?? 0
   // Mesmo critério do servidor: admin da plataforma (suporte) ou dono da empresa.
@@ -109,6 +111,8 @@ export default function Politica() {
   const [form, setForm] = useState<RegrasForm | null>(null)
   /** Regras consolidadas pelo servidor no último save — é o que o agente vai usar (passo 3). */
   const [regrasSalvas, setRegrasSalvas] = useState<RegrasPolitica | null>(null)
+  /** Parâmetros que valiam na versão anterior e que este salvamento deixou de aplicar. */
+  const [perdidos, setPerdidos] = useState<string[]>([])
   const [editados, setEditados] = useState<Set<string>>(new Set())
 
   const ativaQuery = trpc.politica.ativa.useQuery(
@@ -141,6 +145,7 @@ export default function Politica() {
     setExtracao(null)
     setForm(null)
     setRegrasSalvas(null)
+    setPerdidos([])
     setEditados(new Set())
     setStep(1)
     setModo("wizard")
@@ -162,6 +167,7 @@ export default function Politica() {
         setPoliticaId(res.politicaId)
         setExtracao(res.extracao)
         setForm(formFromRegras(res.extracao.regras))
+        setPerdidos([])
         setEditados(new Set())
         setStep(2)
       } catch (erro) {
@@ -178,6 +184,10 @@ export default function Politica() {
     try {
       const res = await updateRegras.mutateAsync({ id: politicaId, regras: regrasFromForm(form) })
       setRegrasSalvas(res.regras)
+      // A política demo/heurística traz limites prontos e nenhuma regra extraída: salvar
+      // sem mexer zera esses parâmetros (a lista de regras é a declaração do gestor) — e
+      // isso precisa ser dito, não descoberto na primeira despesa.
+      setPerdidos(extracao ? parametrosPerdidos(extracao.regras, res.regras) : [])
       toast.success("Regras salvas no rascunho", {
         description:
           "Elas só passam a valer quando você ativar a política. Simule o agente abaixo antes.",
@@ -207,6 +217,7 @@ export default function Politica() {
       setExtracao(null)
       setForm(null)
       setRegrasSalvas(null)
+      setPerdidos([])
     } catch (erro) {
       toast.error("Falha ao ativar a política", {
         description: erro instanceof Error ? erro.message : undefined,
@@ -263,6 +274,7 @@ export default function Politica() {
       })
       setForm(formFromRegras(regras))
       setRegrasSalvas(null)
+      setPerdidos([])
       setEditados(new Set())
       setUpload({
         nome: politica.arquivoNome,
@@ -393,25 +405,31 @@ export default function Politica() {
               transition={{ duration: 0.25, ease: "easeOut" }}
               className="flex flex-col gap-4"
             >
+              {/* O salvamento zerou parâmetros que a versão anterior aplicava (política
+                  demo/heurística salva sem regras extraídas): dizer quais, antes de ativar. */}
+              {perdidos.length > 0 && (
+                <div className="flex items-start gap-3 rounded-xl border border-conf-media-dot/25 bg-conf-media-bg px-4 py-3.5">
+                  <TriangleAlert
+                    className="mt-0.5 h-4 w-4 shrink-0 text-conf-media-text"
+                    aria-hidden="true"
+                  />
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <p className="text-[13px] font-semibold text-conf-media-text">
+                      Esta versão deixa de aplicar o que a anterior aplicava
+                    </p>
+                    <p className="text-[12px] leading-relaxed text-conf-media-text">
+                      Tudo que o agente aplica nasce das regras desta política, e nenhuma regra
+                      sustenta estes parâmetros: {perdidos.join(" · ")}. Para mantê-los, volte às
+                      regras e cadastre a regra correspondente antes de ativar.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-5 shadow-card">
                 <h3 className="font-display text-[15px] font-semibold text-text-900">
                   Regras que serão ativadas
                 </h3>
                 {form && <PoliticaResumo regras={regrasSalvas ?? regrasFromForm(form)} />}
-              </div>
-              <div className="rounded-xl border border-line bg-surface p-5 shadow-card">
-                <p className="mb-4 text-[13px] leading-relaxed text-text-500">
-                  Teste o agente antes de ativar: ajuste categoria, valor e contexto e veja o
-                  veredito ao vivo.
-                </p>
-                <SimuladorPolitica
-                  empresaId={empresaId}
-                  nota={
-                    ativa
-                      ? `A simulação usa a política ativa atual (v${ativa.versao}). Ao ativar, a nova versão passa a valer imediatamente.`
-                      : undefined
-                  }
-                />
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <button
@@ -475,7 +493,7 @@ export default function Politica() {
       </div>
 
       {/* P-4: o gate existe no servidor desde a v1.8 — a tela precisa dizer antes, não no 403. */}
-      {!podeDecidir && !carregandoListas && (
+      {!podeDecidir && !carregandoListas && !sessaoLoading && (
         <p className="rounded-xl border border-line bg-paper px-4 py-3 text-[12px] leading-relaxed text-text-500">
           {AVISO_SEM_PERMISSAO}
         </p>
@@ -529,7 +547,7 @@ export default function Politica() {
                   <p className="text-[12px] leading-relaxed text-conf-media-text">
                     Enquanto isso, toda despesa vai para a sua revisão.{" "}
                     {podeDecidir
-                      ? `Crie uma nova versão a partir da v${ativa.versao}, marque as regras que autorizam o agente a aprovar sozinho e ative — a v${ativa.versao} continua valendo até lá.`
+                      ? `Crie uma nova versão a partir da v${ativa.versao}, cadastre uma regra de limite por categoria (ex.: “Alimentação em viagem — até R$ 124,00 por dia”), marque nela “Vale para a categoria inteira” e “O agente pode aprovar sozinho”, e ative — a v${ativa.versao} continua valendo até lá.`
                       : "Peça ao administrador da empresa para revisar as regras da política."}
                   </p>
                 </div>
@@ -572,12 +590,27 @@ export default function Politica() {
                     {ativa.arquivoNome} · importada em {formatDataHora(ativa.createdAt)}
                   </span>
                 </div>
+                {/* Caminho permanente para editar a política em vigor: antes só existia
+                    dentro da faixa de aviso, que some assim que a política autoriza algo —
+                    e aí o único jeito de corrigir uma marcação era reenviar o PDF. */}
+                <button
+                  type="button"
+                  onClick={() => void novaVersaoDaAtiva(ativa.id)}
+                  disabled={duplicar.isPending || !podeDecidir}
+                  className={cn(
+                    "inline-flex h-11 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-3 text-[12px] font-semibold text-text-900 transition hover:bg-paper sm:h-9",
+                    (duplicar.isPending || !podeDecidir) && "cursor-not-allowed opacity-50",
+                  )}
+                >
+                  <PencilLine className="h-3.5 w-3.5" />
+                  {duplicar.isPending ? "Criando…" : "Criar nova versão"}
+                </button>
                 <button
                   type="button"
                   onClick={() => void desativarPolitica(ativa.id)}
                   disabled={desativar.isPending || !podeDecidir}
                   className={cn(
-                    "inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-3 text-[12px] font-semibold text-text-500 transition hover:border-conf-vedado-dot/30 hover:text-conf-vedado-text",
+                    "inline-flex h-11 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-3 text-[12px] font-semibold text-text-500 transition hover:border-conf-vedado-dot/30 hover:text-conf-vedado-text sm:h-9",
                     (desativar.isPending || !podeDecidir) && "cursor-not-allowed opacity-50",
                   )}
                 >
@@ -600,18 +633,13 @@ export default function Politica() {
                 <button
                   type="button"
                   onClick={abrirWizard}
-                  className="inline-flex h-8 items-center rounded-lg bg-conf-media-text px-3 text-[12px] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-conf-media-dot/40"
+                  className="inline-flex h-11 items-center rounded-lg bg-conf-media-text px-3 text-[12px] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-conf-media-dot/40 sm:h-8"
                 >
                   Enviar nova versão
                 </button>
               )}
             </div>
           )}
-
-          {/* Playground */}
-          <div className="rounded-xl border border-line bg-surface p-5 shadow-card">
-            <SimuladorPolitica empresaId={empresaId} />
-          </div>
 
           {/* Histórico de versões */}
           <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-5 shadow-card">
@@ -627,8 +655,11 @@ export default function Politica() {
                   key={versao.id}
                   className="flex flex-wrap items-center gap-3 border-b border-line/60 py-3 last:border-b-0"
                 >
+                  {/* Rascunho não tem versão: ela é atribuída na ativação (max+1). Gravar
+                      "v1" em toda duplicação fazia dez rascunhos diferentes parecerem a
+                      mesma versão, cada um com botão "Ativar". */}
                   <span className="inline-flex h-7 min-w-14 items-center justify-center rounded-md border border-line bg-paper px-2 font-mono text-[11px] font-semibold tabular text-text-900">
-                    v{versao.versao}
+                    {versao.status === "rascunho" ? "—" : `v${versao.versao}`}
                   </span>
                   <span
                     className={cn(
@@ -643,6 +674,7 @@ export default function Politica() {
                       {versao.arquivoNome}
                     </span>
                     <span className="font-mono text-[11px] tracking-[0.02em] text-text-500">
+                      {versao.status === "rascunho" ? "rascunho criado em " : "importada em "}
                       {formatDataHora(versao.createdAt)}
                     </span>
                   </div>
@@ -650,7 +682,7 @@ export default function Politica() {
                     <button
                       type="button"
                       onClick={() => void revisarPolitica(versao.id)}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[12px] font-semibold text-text-900 transition hover:bg-paper"
+                      className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[12px] font-semibold text-text-900 transition hover:bg-paper sm:h-8"
                     >
                       <PencilLine className="h-3.5 w-3.5" />
                       Revisar regras
@@ -662,7 +694,7 @@ export default function Politica() {
                       onClick={() => void ativarPolitica(versao.id)}
                       disabled={ativar.isPending}
                       className={cn(
-                        "inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[12px] font-semibold text-brand-500 transition hover:bg-paper",
+                        "inline-flex h-11 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[12px] font-semibold text-brand-500 transition hover:bg-paper sm:h-8",
                         ativar.isPending && "cursor-not-allowed opacity-50",
                       )}
                     >

@@ -40,18 +40,19 @@ import { numeroParaPt, parseNumeroPt } from "@/components/despesas/wizard/types"
 import { cn } from "@/lib/utils"
 import { CATEGORIAS_POLITICA, type RegrasForm } from "./regrasForm"
 import {
-  AVISO_DECISAO_REBAIXADA,
   DECISAO_AUTOMATICA_CHIP,
   REEMBOLSAVEL_LABELS,
   ROTULO_SEM_DECISAO_AUTOMATICA,
   UNIDADE_LABELS,
   adicionarRegra,
   agruparPorTema,
+  avisoTetoPorPeriodo,
   editarRegra,
   estadoDecisaoAutomatica,
+  estadoDocumentoFiscal,
   estadoEscopo,
   novaRegra,
-  rebaixarDecisaoAutomatica,
+  rebaixarMarcacoes,
   removerRegra,
   resumoValor,
   type GrupoRegras,
@@ -129,8 +130,8 @@ interface RascunhoRegra {
   regra: RegraExtraida
   valor: string
   valorAlterado: boolean
-  /** A última edição derrubou a decisão automática — o `<select>` volta sozinho e o gestor precisa saber. */
-  rebaixada: boolean
+  /** A última edição derrubou uma marcação — o controle volta sozinho e o gestor precisa saber. */
+  aviso: string | null
 }
 
 function rascunhoDe(regra: RegraExtraida): RascunhoRegra {
@@ -139,7 +140,7 @@ function rascunhoDe(regra: RegraExtraida): RascunhoRegra {
     regra,
     valor: regra.valorLimite !== null ? numeroParaPt(regra.valorLimite) : "",
     valorAlterado: false,
-    rebaixada: false,
+    aviso: null,
   }
 }
 
@@ -225,24 +226,24 @@ export default function PoliticaRegrasStep({
   }
 
   /**
-   * Aplica o patch ao rascunho e rebaixa a decisão automática que ele deixou de
-   * sustentar. Vale para TODA edição do card: apagar a categoria de uma regra marcada
-   * "negar" a convertia de "nega hospedagem" em "nega tudo", em silêncio (v1.8).
+   * Aplica o patch ao rascunho e rebaixa toda marcação que ele deixou sem alcance — ou
+   * cujo alcance ele ALARGARIA. Vale para TODA edição do card: apagar a categoria de
+   * uma regra marcada "negar" a convertia de "nega hospedagem" em "nega tudo", e de
+   * uma marcada "aprovar" em "aprova qualquer despesa", em silêncio (v1.8).
    * `valor` presente = o gestor digitou no campo de valor (que é sempre em reais).
    */
   function setRascunho(patch: Partial<Omit<RegraExtraida, "id">>, valor?: string) {
     if (!editando) return
     const valorFinal = valor ?? editando.valor
     const regra = { ...editando.regra, ...patch }
-    const rebaixamento = rebaixarDecisaoAutomatica(regra, valorFinal)
-    const rebaixou = rebaixamento.decisaoAutomatica !== undefined
+    const { patch: rebaixamento, aviso } = rebaixarMarcacoes(editando.regra, regra, valorFinal)
     setEditando({
       ...editando,
       valor: valorFinal,
       valorAlterado: editando.valorAlterado || valor !== undefined,
       regra: { ...regra, ...rebaixamento },
       // O aviso fica visível até o gestor voltar a escolher uma decisão automática.
-      rebaixada: rebaixou || (patch.decisaoAutomatica === undefined && editando.rebaixada),
+      aviso: aviso ?? (patch.decisaoAutomatica === undefined ? editando.aviso : null),
     })
   }
 
@@ -373,11 +374,14 @@ export default function PoliticaRegrasStep({
     const r = rascunho.regra
     const podeSalvar = r.descricao.trim() !== "" && textoDentroDoLimite(r.descricao, r.condicao)
     const escopo = estadoEscopo(r, rascunho.valor)
+    const documentoFiscal = estadoDocumentoFiscal(r)
     const decisao = estadoDecisaoAutomatica(r, rascunho.valor)
+    const avisoPeriodo = avisoTetoPorPeriodo(r, rascunho.valor)
     const dicasDecisao = [decisao.aprovar.dica, decisao.negar.dica].filter(
       (dica): dica is string => dica !== null,
     )
     const dicaEscopoId = `escopo-dica-${rascunho.id}`
+    const dicaDocFiscalId = `doc-fiscal-dica-${rascunho.id}`
     const dicaDecisaoId = `decisao-dica-${rascunho.id}`
     return (
       <li key={rascunho.id} className="flex flex-col gap-2 rounded-lg border border-brand-500 bg-paper px-3 py-2">
@@ -493,13 +497,25 @@ export default function PoliticaRegrasStep({
             />
             Exige comprovante
           </label>
-          <label className="flex min-h-11 items-center gap-2 text-[12px] text-text-900 sm:min-h-0">
+          <label
+            className={cn(
+              "flex min-h-11 items-center gap-2 text-[12px] sm:min-h-0",
+              documentoFiscal.habilitado ? "text-text-900" : "text-text-500",
+            )}
+          >
             <Checkbox
-              checked={r.exigeDocumentoFiscal}
+              checked={documentoFiscal.marcado}
+              disabled={!documentoFiscal.habilitado}
               onCheckedChange={(v) => setRascunho({ exigeDocumentoFiscal: v === true })}
               aria-label="Só aceito nota fiscal ou recibo"
+              aria-describedby={documentoFiscal.dica ? dicaDocFiscalId : undefined}
             />
             Só aceito nota fiscal ou recibo
+            {documentoFiscal.dica && (
+              <span id={dicaDocFiscalId} className="text-[11px] text-text-500">
+                {documentoFiscal.dica}
+              </span>
+            )}
           </label>
           <label
             className={cn(
@@ -554,17 +570,18 @@ export default function PoliticaRegrasStep({
                 ))}
               </ul>
             )}
-            {rascunho.rebaixada && (
-              <p className="text-[11px] leading-relaxed text-conf-media-text">
-                {AVISO_DECISAO_REBAIXADA}
-              </p>
+            {avisoPeriodo && !escopo.aviso && (
+              <p className="text-[11px] leading-relaxed text-text-500">{avisoPeriodo}</p>
+            )}
+            {rascunho.aviso && (
+              <p className="text-[11px] leading-relaxed text-conf-media-text">{rascunho.aviso}</p>
             )}
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setEditando(null)}
-              className="inline-flex h-8 items-center rounded-md px-3 text-[12px] font-semibold text-text-500 transition hover:bg-surface hover:text-text-900 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand-500/30"
+              className="inline-flex h-11 items-center rounded-md px-3 text-[12px] font-semibold text-text-500 transition hover:bg-surface hover:text-text-900 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand-500/30 sm:h-8"
             >
               Cancelar
             </button>
@@ -573,7 +590,7 @@ export default function PoliticaRegrasStep({
               onClick={salvarEdicao}
               disabled={!podeSalvar}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-[12px] font-semibold text-white transition hover:bg-brand-500/90 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand-500/30",
+                "inline-flex h-11 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-[12px] font-semibold text-white transition hover:bg-brand-500/90 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand-500/30 sm:h-8",
                 !podeSalvar && "cursor-not-allowed opacity-50",
               )}
             >
@@ -607,7 +624,7 @@ export default function PoliticaRegrasStep({
           {/* Regras estruturadas por tema (fonte dos parâmetros do agente) */}
           <SecaoRegras
             titulo="Regras da política"
-            descricao="Tudo que o agente aplica nasce destas regras. Edite valores, categorias e condições; remova o que não vale; acrescente o que faltou. Ao cadastrar regras aqui, limites e tetos antigos desta política são substituídos pelos derivados. Marque “Vale para a categoria inteira” nas regras que definem o limite geral do tipo de despesa; sub-itens (lavanderia, frigobar, gorjeta) ficam desmarcados. Em “Decisão automática”, marque as regras que autorizam o agente a decidir sem você — o rótulo de cada opção diz o alcance dela. Sem nenhuma regra marcada, toda despesa vem para a sua revisão."
+            descricao="Tudo que o agente aplica nasce destas regras. Edite valores, categorias e condições; remova o que não vale; acrescente o que faltou. Ao cadastrar regras aqui, limites e tetos antigos desta política são substituídos pelos derivados. Marque “Vale para a categoria inteira” nas regras que definem o limite geral do tipo de despesa; sub-itens (lavanderia, frigobar, gorjeta) ficam desmarcados. Em “Decisão automática”, marque as regras que autorizam o agente a decidir sem você — o rótulo de cada opção diz o alcance dela. Sub-item não autoriza nada: para liberar o agente numa categoria, cadastre a regra do limite dela (ex.: “Alimentação em viagem — até R$ 124,00 por dia”) e marque as duas coisas. Sem nenhuma regra marcada, toda despesa vem para a sua revisão."
             pendente={pendente("regrasExtraidas")}
           >
             {comItens.length > 0 ? (

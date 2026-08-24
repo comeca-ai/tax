@@ -1,6 +1,7 @@
 import {
   TEMAS_POLITICA,
   UNIDADES_LIMITE_TEMPORAIS,
+  type CategoriaDespesa,
   type DecisaoAutomaticaRegra,
   type RegraExtraida,
   type ReembolsavelRegra,
@@ -211,8 +212,14 @@ export const DICA_APROVACAO_AUTOMATICA =
   "Marque a regra como reembolsável e informe um valor em reais para o agente poder aprovar sozinho."
 export const DICA_APROVACAO_MOEDA =
   "O agente só aprova sozinho com limite em reais — esta regra está em outra moeda."
+/**
+ * A dica anterior mandava promover a regra do sub-item ("marque também Vale para a
+ * categoria inteira"), e seguir isso no café da manhã fixava R$ 15 como teto de TODA a
+ * alimentação — o menor teto governa. O gesto certo é cadastrar a regra da categoria,
+ * no mesmo tom de `DICA_NEGACAO_COM_VALOR`.
+ */
 export const DICA_APROVACAO_ESCOPO =
-  "Marque também “Vale para a categoria inteira” para o agente poder aprovar sozinho as despesas desta categoria."
+  "Esta regra vale para um sub-item da categoria. Promovê-la fixa o valor dela como teto de TODA a categoria — o menor teto governa. Para liberar a categoria, cadastre uma regra do limite dela (ex.: “Alimentação em viagem — até R$ 124,00 por dia”), marque “Vale para a categoria inteira” e “O agente pode aprovar sozinho”."
 export const DICA_NEGACAO_AUTOMATICA = "Só regra vedada pode autorizar negação automática."
 export const DICA_NEGACAO_VALOR_GERAL =
   "Sem categoria, o agente só nega sozinho acima de um valor em reais — informe o valor, ou escolha a categoria desta regra."
@@ -224,6 +231,45 @@ export const DICA_NEGACAO_ESCOPO =
 /** Aviso ao lado do seletor quando a edição derrubou a marcação (o `<select>` volta sozinho). */
 export const AVISO_DECISAO_REBAIXADA =
   "A decisão automática voltou para “Só o gestor decide”: a regra deixou de sustentar a marcação anterior."
+
+/**
+ * Alargar o alcance é tão perigoso quanto estreitar — e passava calado. Apagar a
+ * categoria de uma regra marcada "aprovar" transformava "aprova alimentação até
+ * R$ 15" em "aprova QUALQUER despesa até R$ 15", com o card idêntico nos dois
+ * estados. Alargamento passa a exigir uma marcação nova, feita de olho no rótulo.
+ */
+export const AVISO_MARCACAO_ALARGADA =
+  "Sem categoria, a marcação passaria a valer para TODA despesa da empresa — ela voltou para “Só o gestor decide”. Marque de novo se é isso que a política diz."
+
+/** Aviso quando a exigência de nota fiscal é desmarcada por deixar de ter alcance. */
+export const AVISO_DOCUMENTO_FISCAL_REBAIXADO =
+  "“Só aceito nota fiscal ou recibo” foi desmarcado: a exigência só vale sem categoria (empresa toda) ou com “Vale para a categoria inteira”."
+
+/** Dica do checkbox "Só aceito nota fiscal ou recibo" quando ele não pode ser marcado. */
+export const DICA_DOCUMENTO_FISCAL_ESCOPO =
+  "Marque “Vale para a categoria inteira” para exigir nota fiscal nas despesas desta categoria — numa regra de sub-item a exigência recusaria comprovantes da categoria inteira."
+
+export interface EstadoDocumentoFiscal {
+  habilitado: boolean
+  marcado: boolean
+  /** Por que está desabilitado (nunca `title`: mobile não tem hover). */
+  dica: string | null
+}
+
+/**
+ * Estado do checkbox "Só aceito nota fiscal ou recibo" — espelho de
+ * `documentoFiscalTemEfeito` (`derivar.ts`). É porta de NEGAÇÃO automática: marcada
+ * numa regra de sub-item ("gorjeta ao camareiro só com recibo"), negava a diária de
+ * hotel paga por Pix citando a gorjeta (D-013).
+ */
+export function estadoDocumentoFiscal(r: RegraExtraida): EstadoDocumentoFiscal {
+  const habilitado = r.categoria === null || r.escopo === "categoria"
+  return {
+    habilitado,
+    marcado: habilitado && r.exigeDocumentoFiscal,
+    dica: habilitado ? null : DICA_DOCUMENTO_FISCAL_ESCOPO,
+  }
+}
 
 export interface OpcaoDecisaoAutomatica {
   habilitada: boolean
@@ -303,10 +349,136 @@ export function rebaixarDecisaoAutomatica(
   return r.decisaoAutomatica === "nenhuma" || sustentada ? {} : { decisaoAutomatica: "nenhuma" }
 }
 
+/** Unidades cujo limite é por período — o agente compara com CADA comprovante. */
+const UNIDADES_POR_PERIODO: readonly UnidadeLimite[] = ["dia", "mes", "viagem", "evento"]
+
+/**
+ * Aviso do teto por período no caminho da decisão automática. O aviso existia só
+ * quando a regra era promovida à categoria: no caminho global, "R$ 100 por mês" virava
+ * R$ 100 por nota sem uma palavra — e é justamente o caminho que decide sozinho.
+ */
+export const AVISO_TETO_POR_PERIODO =
+  "O limite desta regra é por período, e o agente compara com o valor de CADA comprovante — não com o total gasto no período."
+
+/** Aviso a exibir junto do seletor de decisão automática; null quando não se aplica. */
+export function avisoTetoPorPeriodo(r: RegraExtraida, valorDigitado: string): string | null {
+  if (r.decisaoAutomatica === "nenhuma" || r.unidadeLimite === null) return null
+  if (!UNIDADES_POR_PERIODO.includes(r.unidadeLimite)) return null
+  return parseNumeroPt(valorDigitado) > 0 ? AVISO_TETO_POR_PERIODO : null
+}
+
+export interface Rebaixamento {
+  /** Patch a aplicar sobre a regra proposta (vazio quando nada foi rebaixado). */
+  patch: Partial<Pick<RegraExtraida, "decisaoAutomatica" | "exigeDocumentoFiscal">>
+  /** Aviso visível ao lado do controle; null quando nada mudou. */
+  aviso: string | null
+}
+
+/**
+ * Rebaixa TODA marcação que a edição deixou sem alcance — ou cujo alcance ela
+ * ALARGARIA. Estreitar já era tratado; alargar não era, e apagar a categoria de uma
+ * regra marcada "aprovar" virava aprovação automática global em silêncio (D-013: o
+ * alcance nunca pode ser maior do que a regra declara).
+ */
+export function rebaixarMarcacoes(
+  anterior: RegraExtraida,
+  proposta: RegraExtraida,
+  valorDigitado: string,
+): Rebaixamento {
+  const patch: Rebaixamento["patch"] = {}
+  let aviso: string | null = null
+  const alargou = anterior.categoria !== null && proposta.categoria === null
+
+  if (proposta.decisaoAutomatica !== "nenhuma" && alargou) {
+    patch.decisaoAutomatica = "nenhuma"
+    aviso = AVISO_MARCACAO_ALARGADA
+  } else {
+    const rebaixamento = rebaixarDecisaoAutomatica(proposta, valorDigitado)
+    if (rebaixamento.decisaoAutomatica !== undefined) {
+      patch.decisaoAutomatica = rebaixamento.decisaoAutomatica
+      aviso = AVISO_DECISAO_REBAIXADA
+    }
+  }
+
+  if (proposta.exigeDocumentoFiscal && (alargou || !estadoDocumentoFiscal(proposta).habilitado)) {
+    patch.exigeDocumentoFiscal = false
+    aviso = alargou ? AVISO_MARCACAO_ALARGADA : (aviso ?? AVISO_DOCUMENTO_FISCAL_REBAIXADO)
+  }
+
+  return { patch, aviso }
+}
+
 /** Política que não autoriza NENHUMA aprovação automática — nem global, nem por categoria. */
 export function semAutorizacaoDeAprovacao(regras: RegrasPolitica): boolean {
   return (
     regras.aprovacaoAutomaticaAte == null &&
     Object.values(regras.aprovacaoAutomaticaPorCategoria ?? {}).every((v) => v == null)
   )
+}
+
+/**
+ * Texto do estado vazio de "O agente decide sozinho". O anterior dizia que a política
+ * "não define" e parava aí; o gestor olhava 70 regras extraídas e não tinha como
+ * saber que nenhuma delas serve — sub-item não vira limite de categoria.
+ */
+export const TEXTO_SEM_APROVACAO_AUTOMATICA =
+  "Nada — o agente não aprova nenhuma despesa sozinho, tudo vai para a sua revisão. As regras extraídas do seu documento descrevem sub-itens (café, lavanderia), e sub-item não vira limite da categoria. Para liberar o agente, cadastre uma regra por categoria — por exemplo “Alimentação em viagem — até R$ 124,00 por dia” — e marque nela “Vale para a categoria inteira” e “O agente pode aprovar sozinho”."
+
+function rotulo(categoria: CategoriaDespesa): string {
+  return CATEGORIA_META[categoria].label
+}
+
+/**
+ * Parâmetros que valiam antes do salvamento e deixam de valer depois dele.
+ * A política demo/heurística traz limites prontos no JSON e nenhuma regra extraída:
+ * "Criar nova versão" + "Salvar sem mexer" zerava tudo (é o que `consolidarRegras`
+ * com origem "edicao" deve fazer — a lista de regras é a declaração do gestor), só que
+ * em silêncio. O passo 3 passa a listar o que a nova versão deixa de aplicar.
+ */
+export function parametrosPerdidos(antes: RegrasPolitica, depois: RegrasPolitica): string[] {
+  const perdidos: string[] = []
+  if (antes.aprovacaoAutomaticaAte != null && depois.aprovacaoAutomaticaAte == null) {
+    perdidos.push(`aprova sozinho até ${formatBRL(antes.aprovacaoAutomaticaAte)}`)
+  }
+  if (antes.negacaoAcimaDe != null && depois.negacaoAcimaDe == null) {
+    perdidos.push(`nega acima de ${formatBRL(antes.negacaoAcimaDe)}`)
+  }
+  if (antes.revisaoHumanaAcimaDe != null && depois.revisaoHumanaAcimaDe == null) {
+    perdidos.push(`manda para revisão acima de ${formatBRL(antes.revisaoHumanaAcimaDe)}`)
+  }
+  for (const [cat, valor] of Object.entries(antes.limitesPorCategoria ?? {}) as [
+    CategoriaDespesa,
+    number | null,
+  ][]) {
+    if (valor != null && depois.limitesPorCategoria?.[cat] == null) {
+      perdidos.push(`teto de ${rotulo(cat)}: ${formatBRL(valor)}`)
+    }
+  }
+  for (const [cat, valor] of Object.entries(antes.aprovacaoAutomaticaPorCategoria ?? {}) as [
+    CategoriaDespesa,
+    number | undefined,
+  ][]) {
+    if (valor != null && depois.aprovacaoAutomaticaPorCategoria?.[cat] == null) {
+      perdidos.push(`aprova sozinho ${rotulo(cat)} até ${formatBRL(valor)}`)
+    }
+  }
+  for (const c of antes.categoriasVedadas ?? []) {
+    if (!(depois.categoriasVedadas ?? []).some((d) => d.categoria === c.categoria)) {
+      perdidos.push(`nega sempre: ${rotulo(c.categoria)}`)
+    }
+  }
+  for (const cat of antes.exigeVeiculoCadastrado ?? []) {
+    if (!(depois.exigeVeiculoCadastrado ?? []).includes(cat)) {
+      perdidos.push(`exige veículo cadastrado em ${rotulo(cat)}`)
+    }
+  }
+  for (const cat of antes.exigeEvidencia ?? []) {
+    if (!(depois.exigeEvidencia ?? []).includes(cat)) {
+      perdidos.push(`exige evidência em ${rotulo(cat)}`)
+    }
+  }
+  if (antes.exigeDocumentoFiscal && !depois.exigeDocumentoFiscal) {
+    perdidos.push("só aceita nota fiscal ou recibo")
+  }
+  return perdidos
 }
