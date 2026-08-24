@@ -16,7 +16,6 @@ import EnvioRapido from "@/pages/app/EnvioRapido"
 import Equipe from "@/pages/app/Equipe"
 import Politica from "@/pages/app/Politica"
 import Revisao from "@/pages/app/Revisao"
-import Veiculos from "@/pages/app/Veiculos"
 import Empresas from "@/pages/app/Empresas"
 import Relatorios from "@/pages/app/Relatorios"
 import Regras from "@/pages/app/Regras"
@@ -43,7 +42,6 @@ export default function App() {
             <Route path="equipe" element={<Equipe />} />
             <Route path="politica" element={<Politica />} />
             <Route path="revisao" element={<Revisao />} />
-            <Route path="veiculos" element={<Veiculos />} />
             <Route path="empresas" element={<Empresas />} />
             <Route path="relatorios" element={<Relatorios />} />
             <Route path="regras" element={<Regras />} />

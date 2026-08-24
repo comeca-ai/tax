@@ -10,7 +10,6 @@ import {
   notasFiscais,
   politicasReembolso,
   regrasElegibilidade,
-  veiculos,
 } from "@db/schema";
 import {
   CATEGORIAS_DESPESA,
@@ -137,24 +136,6 @@ export const despesasRouter = createRouter({
         });
       }
 
-      let veiculo: typeof veiculos.$inferSelect | null = null;
-      if (input.veiculoId) {
-        const rows = await db
-          .select()
-          .from(veiculos)
-          .where(
-            and(
-              eq(veiculos.id, input.veiculoId),
-              eq(veiculos.empresaId, input.empresaId),
-            ),
-          )
-          .limit(1);
-        veiculo = rows[0] ?? null;
-        if (!veiculo) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Veículo não encontrado." });
-        }
-      }
-
       // Atualiza a nota com os campos confirmados pelo usuário
       await db
         .update(notasFiscais)
@@ -197,12 +178,7 @@ export const despesasRouter = createRouter({
           kmComercial: input.kmComercial,
           kmNaoComercial: input.kmNaoComercial,
         },
-        veiculo
-          ? {
-              kmPorLitroDeclarado: veiculo.kmPorLitroDeclarado,
-              tarifaReembolsoKm: veiculo.tarifaReembolsoKm,
-            }
-          : null,
+        null,
         regras,
       );
 
@@ -240,7 +216,6 @@ export const despesasRouter = createRouter({
           { categoria: input.categoria, valorNota: input.valorNota },
           regrasPolitica,
           {
-            temVeiculo: veiculo !== null,
             // A despesa ainda não existe → impossível ter evidência anexada
             // neste ponto; evidências são anexadas depois (addEvidencia).
             temEvidencia: false,
@@ -258,7 +233,6 @@ export const despesasRouter = createRouter({
       const insertDespesa = await db.insert(despesas).values({
         empresaId: input.empresaId,
         notaFiscalId: input.notaFiscalId,
-        veiculoId: input.veiculoId ?? null,
         categoria: input.categoria,
         colaborador: input.colaborador ?? null,
         centroCusto: input.centroCusto ?? null,
@@ -349,7 +323,6 @@ export const despesasRouter = createRouter({
       z.object({
         empresaId: z.number().int().positive(),
         notaFiscalId: z.number().int().positive(),
-        veiculoId: z.number().int().positive().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -403,28 +376,6 @@ export const despesasRouter = createRouter({
         ? consolidarRegras(regrasPoliticaSchema.parse(politicaAtiva.regras ?? {}))
         : null;
 
-      // "temVeiculo" = a EMPRESA tem veículo cadastrado. Sem casamento de placa
-      // nesta versão — o OCR não extrai placa.
-      const veiculosDaEmpresa = await db
-        .select({ id: veiculos.id })
-        .from(veiculos)
-        .where(eq(veiculos.empresaId, input.empresaId))
-        .limit(1);
-      const temVeiculo = veiculosDaEmpresa.length > 0;
-
-      // O veiculoId recebido só é gravado se pertencer à empresa.
-      let veiculoId: number | null = null;
-      if (input.veiculoId) {
-        const v = await db
-          .select({ id: veiculos.id })
-          .from(veiculos)
-          .where(
-            and(eq(veiculos.id, input.veiculoId), eq(veiculos.empresaId, input.empresaId)),
-          )
-          .limit(1);
-        veiculoId = v[0]?.id ?? null;
-      }
-
       // ── Decisor de reembolso (função pura — módulo reembolso) ──────────
       const decisao = decidirReembolso(
         {
@@ -438,7 +389,7 @@ export const despesasRouter = createRouter({
           confiancaTipo: (nota.confiancaTipo as "alta" | "media" | "baixa" | null) ?? null,
         },
         regrasPolitica,
-        { temVeiculo, politicaVersao: politicaAtiva?.versao ?? null },
+        { politicaVersao: politicaAtiva?.versao ?? null },
       );
 
       const statusFinal: StatusDespesa =
@@ -508,7 +459,6 @@ export const despesasRouter = createRouter({
       const insert = await db.insert(despesas).values({
         empresaId: input.empresaId,
         notaFiscalId: input.notaFiscalId,
-        veiculoId,
         categoria: decisao.categoria,
         kmComercial: 0,
         kmNaoComercial: 0,
@@ -633,7 +583,7 @@ export const despesasRouter = createRouter({
       }
       await assertEmpresaAcesso(ctx, despesa.empresaId);
 
-      const [nota, creditos, evidencias, veiculo] = await Promise.all([
+      const [nota, creditos, evidencias] = await Promise.all([
         db
           .select({
             id: notasFiscais.id,
@@ -665,13 +615,6 @@ export const despesasRouter = createRouter({
           })
           .from(evidenciasDocumentais)
           .where(eq(evidenciasDocumentais.despesaId, despesa.id)),
-        despesa.veiculoId
-          ? db
-              .select()
-              .from(veiculos)
-              .where(eq(veiculos.id, despesa.veiculoId))
-              .limit(1)
-          : Promise.resolve([]),
       ]);
 
       return {
@@ -679,7 +622,6 @@ export const despesasRouter = createRouter({
         nota: nota[0] ?? null,
         creditos,
         evidencias,
-        veiculo: veiculo[0] ?? null,
       };
     }),
 

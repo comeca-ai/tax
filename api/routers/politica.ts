@@ -384,7 +384,7 @@ export const politicaRouter = createRouter({
       const resultado = avaliarDespesa(
         { categoria: input.categoria, valorNota: input.valorNota },
         regras,
-        { temVeiculo: input.temVeiculo, temEvidencia: input.temEvidencia },
+        { temEvidencia: input.temEvidencia },
       );
 
       return {

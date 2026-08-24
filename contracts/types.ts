@@ -108,7 +108,6 @@ export const uploadNotaInput = z.object({
 export const despesaInput = z.object({
   empresaId: z.number().int().positive(),
   notaFiscalId: z.number().int().positive(),
-  veiculoId: z.number().int().positive().optional(),
   categoria: z.enum(CATEGORIAS_DESPESA),
   colaborador: z.string().max(255).optional(),
   centroCusto: z.string().max(255).optional(),
@@ -475,8 +474,6 @@ export const regrasPoliticaSchema = z.object({
   categoriasVedadas: z.array(categoriaRegraCitadaSchema).default([]),
   /** Categorias que exigem revisão humana (aprovação superior), com a regra citada (derivado) */
   categoriasExcecao: z.array(categoriaRegraCitadaSchema).default([]),
-  /** Categorias que exigem veículo cadastrado na empresa */
-  exigeVeiculoCadastrado: z.array(z.enum(CATEGORIAS_DESPESA)).default([]),
   /** Categorias que exigem evidência documental anexada */
   exigeEvidencia: z.array(z.enum(CATEGORIAS_DESPESA)).default([]),
   /** Aprovação automática até este valor (R$); null = sem teto configurado */
@@ -571,7 +568,6 @@ export const politicaTestarInput = z.object({
   politicaId: z.number().int().positive().optional(),
   categoria: z.enum(CATEGORIAS_DESPESA),
   valorNota: z.number().min(0),
-  temVeiculo: z.boolean().default(false),
   temEvidencia: z.boolean().default(false),
 });
 

@@ -20,7 +20,6 @@ export type DespesaPolitica = {
 };
 
 export type ContextoPolitica = {
-  temVeiculo: boolean;
   temEvidencia: boolean;
 };
 
@@ -53,7 +52,7 @@ function sufixoRegra(descricao: string): string {
  * 5. valorNota > limite da categoria → SEMPRE revisão humana, nunca negação: a
  *    tolerância de 1,5× era um número que a política nunca escreveu (D-013)
  * 6. valorNota > revisaoHumanaAcimaDe → revisão humana
- * 7. categoria exige veículo cadastrado / evidência e não há → revisão humana
+ * 7. categoria exige evidência documental e não há → revisão humana
  * 8. nada falhou E existe teto de aprovação aplicável E o valor respeita TODOS eles
  *    → aprovado; sem nenhum teto declarado → revisão humana nomeando a ausência
  */
@@ -170,25 +169,7 @@ export function avaliarDespesa(
     }
   }
 
-  // ── 7a. Exigência de veículo cadastrado ──────────────────────────────────
-  if (regras.exigeVeiculoCadastrado.includes(categoria)) {
-    const revisar = !contexto.temVeiculo;
-    regrasAplicadas.push({
-      regra: "exigeVeiculoCadastrado",
-      resultado: revisar ? "revisar" : "passou",
-      detalhe: revisar
-        ? `Categoria ${CATEGORIA_DESPESA_ROTULO[categoria]} exige veículo cadastrado e nenhum foi vinculado`
-        : "Veículo cadastrado vinculado à despesa",
-    });
-    if (revisar) {
-      motivos.push(
-        `Categoria ${CATEGORIA_DESPESA_ROTULO[categoria]} exige veículo cadastrado na política e a despesa não tem veículo vinculado.`,
-      );
-      precisaRevisao = true;
-    }
-  }
-
-  // ── 7b. Exigência de evidência documental ────────────────────────────────
+  // ── 7. Exigência de evidência documental ─────────────────────────────────
   if (regras.exigeEvidencia.includes(categoria)) {
     const revisar = !contexto.temEvidencia;
     regrasAplicadas.push({

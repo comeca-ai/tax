@@ -299,7 +299,6 @@ async function seed() {
         combustivel: 600,
         pedagio: null,
       },
-      exigeVeiculoCadastrado: ["combustivel"],
       exigeEvidencia: ["hospedagem", "alimentacao"],
       aprovacaoAutomaticaAte: 200,
       revisaoHumanaAcimaDe: 2000,

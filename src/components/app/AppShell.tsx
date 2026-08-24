@@ -7,7 +7,6 @@ import {
   Zap,
   ScrollText,
   ClipboardCheck,
-  CarFront,
   Building2,
   Users,
   FileChartColumn,
@@ -70,7 +69,6 @@ const NAV_GROUPS: { rotulo: string; itens: NavItem[] }[] = [
     itens: [
       { to: "/app/politica", label: "Política", icon: ScrollText, end: false },
       { to: "/app/equipe", label: "Equipe", icon: Users, end: false, adminOnly: true },
-      { to: "/app/veiculos", label: "Veículos", icon: CarFront, end: false },
       { to: "/app/empresas", label: "Empresas", icon: Building2, end: false },
       { to: "/app/regras", label: "Regras & Matriz", icon: Scale, end: false },
     ],
@@ -91,7 +89,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/app/equipe": "Equipe",
   "/app/politica": "Política",
   "/app/revisao": "Fila de Revisão",
-  "/app/veiculos": "Veículos",
   "/app/empresas": "Empresas",
   "/app/relatorios": "Relatórios",
   "/app/regras": "Regras & Matriz",

@@ -22,7 +22,6 @@ const regras: RegrasPolitica = {
   revisaoHumanaAcimaDeRegraId: null,
   negacaoAcimaDe: 500,
   negacaoAcimaDeRegraId: null,
-  exigeVeiculoCadastrado: [],
   exigeEvidencia: [],
   exigeDocumentoFiscal: true,
   regraDocumentoFiscalId: "comprovantes-nao-aceitos",
@@ -67,7 +66,7 @@ const base: ExtracaoNota = {
 
 describe("decidirReembolso (D-013/D-014)", () => {
   it("aprova com regra explícita quando dentro da política", () => {
-    const r = decidirReembolso(base, regras, { temVeiculo: false });
+    const r = decidirReembolso(base, regras, {});
     expect(r.decisao).toBe("aprovado");
     expect(r.categoria).toBe("alimentacao");
     expect(r.motivos[0]).toContain("Dentro da política");
@@ -76,42 +75,42 @@ describe("decidirReembolso (D-013/D-014)", () => {
   });
 
   it("nega citando a regra quando acima do teto de negação", () => {
-    const r = decidirReembolso({ ...base, valor: 600 }, regras, { temVeiculo: false });
+    const r = decidirReembolso({ ...base, valor: 600 }, regras, {});
     expect(r.decisao).toBe("negado");
     expect(r.motivos.join(" ")).toContain("teto");
   });
 
   it("devolve para revisão quando acima do limite da categoria", () => {
-    const r = decidirReembolso({ ...base, valor: 70 }, regras, { temVeiculo: false });
+    const r = decidirReembolso({ ...base, valor: 70 }, regras, {});
     expect(r.decisao).toBe("revisao_manual");
   });
 
   it("muito acima do limite da categoria também é revisão (cupom R$ 90,14 com limite R$ 55)", () => {
     // Antes da v1.8 a tolerância de 1,5× negava — número que a política nunca escreveu (D-013).
-    const r = decidirReembolso({ ...base, valor: 90.14 }, regras, { temVeiculo: false });
+    const r = decidirReembolso({ ...base, valor: 90.14 }, regras, {});
     expect(r.decisao).toBe("revisao_manual");
     expect(r.motivos.join(" ")).not.toContain("1,5");
   });
 
   it("sem política ativa, NUNCA aprova — vai para revisão manual", () => {
-    const r = decidirReembolso(base, null, { temVeiculo: false });
+    const r = decidirReembolso(base, null, {});
     expect(r.decisao).toBe("revisao_manual");
     expect(r.motivos[0]).toContain("sem política");
   });
 
   it("sem valor extraído → revisão manual (ninguém preenche nada)", () => {
-    const r = decidirReembolso({ ...base, valor: null }, regras, { temVeiculo: false });
+    const r = decidirReembolso({ ...base, valor: null }, regras, {});
     expect(r.decisao).toBe("revisao_manual");
     expect(r.motivos[0]).toContain("valor total");
   });
 
   it("sem data → revisão manual", () => {
-    const r = decidirReembolso({ ...base, dataFatoGerador: null }, regras, { temVeiculo: false });
+    const r = decidirReembolso({ ...base, dataFatoGerador: null }, regras, {});
     expect(r.decisao).toBe("revisao_manual");
   });
 
   it("sem CNPJ do emitente NÃO bloqueia: decide normalmente, com ressalva e confiança média", () => {
-    const r = decidirReembolso({ ...base, cnpjEmitente: null }, regras, { temVeiculo: false });
+    const r = decidirReembolso({ ...base, cnpjEmitente: null }, regras, {});
     expect(r.decisao).toBe("aprovado");
     expect(r.motivos.join(" ")).not.toContain("CNPJ");
     expect(r.ressalvas[0]).toContain("CNPJ");
@@ -119,7 +118,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
   });
 
   it("categoria indeterminada → revisão manual, categoria null", () => {
-    const r = decidirReembolso({ ...base, categoriaSugerida: null }, regras, { temVeiculo: false });
+    const r = decidirReembolso({ ...base, categoriaSugerida: null }, regras, {});
     expect(r.decisao).toBe("revisao_manual");
     expect(r.categoria).toBeNull();
   });
@@ -137,7 +136,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
         cnpjEmitente: null,
       },
       politica13,
-      { temVeiculo: false },
+      {},
     );
     expect(r.decisao).toBe("revisao_manual");
     // A política real não declara NADA que o agente possa aprovar sozinho — é essa
@@ -168,7 +167,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
     const r = decidirReembolso(
       { ...base, categoriaSugerida: "uber", valor: 32 },
       soVedado,
-      { temVeiculo: false },
+      {},
     );
     expect(r.decisao).toBe("revisao_manual");
     expect(r.motivos.join(" ")).toContain(`só tem 1 regra vedada para ${ROTULO.uber}`);
@@ -194,7 +193,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
     const r = decidirReembolso(
       { ...base, categoriaSugerida: "uber", valor: 32 },
       vedadaMarcada,
-      { temVeiculo: false },
+      {},
     );
     expect(r.decisao).toBe("negado");
     expect(r.motivos.join(" ")).toContain(
@@ -237,7 +236,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
         cnpjEmitente: null,
       },
       comTeto,
-      { temVeiculo: false },
+      {},
     );
     expect(r.decisao).toBe("aprovado");
     expect(r.ressalvas[0]).toContain("CNPJ");
@@ -255,7 +254,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
         confiancaTipo: "alta",
       },
       regras,
-      { temVeiculo: false, politicaVersao: 2 },
+      { politicaVersao: 2 },
     );
     expect(r.decisao).toBe("negado");
     const texto = r.motivos.join(" ");
@@ -277,7 +276,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
     const r = decidirReembolso(
       { ...base, tipoDocumento: "extrato_conta", confiancaTipo: "media" },
       regras,
-      { temVeiculo: false },
+      {},
     );
     expect(r.decisao).toBe("revisao_manual");
     expect(r.motivos[0]).toContain("parece ser extrato de conta");
@@ -290,7 +289,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
     const r = decidirReembolso(
       { ...base, valor: null, cnpjEmitente: null },
       regras,
-      { temVeiculo: false },
+      {},
     );
     expect(r.decisao).toBe("revisao_manual");
     expect(r.motivos[0]).toContain("Não foi possível extrair");
@@ -301,7 +300,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
     const r = decidirReembolso(
       { ...base, tipoDocumento: "nota_fiscal", confiancaTipo: "alta" },
       regras,
-      { temVeiculo: false },
+      {},
     );
     expect(r.decisao).toBe("aprovado");
   });
@@ -310,7 +309,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
     const r = decidirReembolso(
       { ...base, tipoDocumento: "extrato_conta", confiancaTipo: "alta" },
       regrasSemExigencia,
-      { temVeiculo: false },
+      {},
     );
     expect(r.decisao).toBe("aprovado");
   });
@@ -319,7 +318,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
     const r = decidirReembolso(
       { ...base, tipoDocumento: "outro", confiancaTipo: "alta" },
       regras,
-      { temVeiculo: false },
+      {},
     );
     expect(r.decisao).not.toBe("negado");
     expect(r.decisao).toBe("aprovado");
@@ -345,16 +344,14 @@ describe("decidirReembolso (D-013/D-014)", () => {
     );
     const extrato = { tipoDocumento: "extrato_conta" as const, confiancaTipo: "alta" as const };
 
-    const alimentacao = decidirReembolso({ ...base, ...extrato }, soHospedagem, {
-      temVeiculo: false,
-    });
+    const alimentacao = decidirReembolso({ ...base, ...extrato }, soHospedagem, {});
     expect(alimentacao.decisao).not.toBe("negado");
     expect(alimentacao.motivos.join(" ")).not.toContain("Hospedagem só é reembolsada");
 
     const hospedagem = decidirReembolso(
       { ...base, ...extrato, categoriaSugerida: "hospedagem", valor: 300 },
       soHospedagem,
-      { temVeiculo: false },
+      {},
     );
     expect(hospedagem.decisao).toBe("negado");
     expect(hospedagem.motivos.join(" ")).toContain("Hospedagem só é reembolsada com nota fiscal");
@@ -364,7 +361,7 @@ describe("decidirReembolso (D-013/D-014)", () => {
     const r = decidirReembolso(
       { ...base, tipoDocumento: "extrato_conta", confiancaTipo: "alta" },
       regrasSemExigencia,
-      { temVeiculo: false },
+      {},
     );
     expect(r.decisao).toBe("aprovado");
     expect(r.ressalvas.join(" ")).toContain(
@@ -376,36 +373,20 @@ describe("decidirReembolso (D-013/D-014)", () => {
   it("todas as saídas devolvem ressalvas e confianca — inclusive a de 'sem política ativa'", () => {
     const semCnpj = { ...base, cnpjEmitente: null };
     const saidas = [
-      decidirReembolso(semCnpj, null, { temVeiculo: false }),
-      decidirReembolso({ ...semCnpj, tipoDocumento: "extrato_conta", confiancaTipo: "alta" }, regras, { temVeiculo: false }),
-      decidirReembolso({ ...semCnpj, tipoDocumento: "outro", confiancaTipo: "baixa" }, regras, { temVeiculo: false }),
-      decidirReembolso({ ...semCnpj, valor: null }, regras, { temVeiculo: false }),
-      decidirReembolso({ ...semCnpj, categoriaSugerida: null }, regras, { temVeiculo: false }),
-      decidirReembolso(semCnpj, regras, { temVeiculo: false }),
-      decidirReembolso({ ...semCnpj, valor: 600 }, regras, { temVeiculo: false }),
-      decidirReembolso({ ...semCnpj, valor: 70 }, regras, { temVeiculo: false }),
+      decidirReembolso(semCnpj, null, {}),
+      decidirReembolso({ ...semCnpj, tipoDocumento: "extrato_conta", confiancaTipo: "alta" }, regras, {}),
+      decidirReembolso({ ...semCnpj, tipoDocumento: "outro", confiancaTipo: "baixa" }, regras, {}),
+      decidirReembolso({ ...semCnpj, valor: null }, regras, {}),
+      decidirReembolso({ ...semCnpj, categoriaSugerida: null }, regras, {}),
+      decidirReembolso(semCnpj, regras, {}),
+      decidirReembolso({ ...semCnpj, valor: 600 }, regras, {}),
+      decidirReembolso({ ...semCnpj, valor: 70 }, regras, {}),
     ];
     for (const r of saidas) {
       expect(r.ressalvas).toHaveLength(1);
       expect(r.ressalvas[0]).toContain("CNPJ");
       expect(r.confianca).toBe("media");
     }
-  });
-
-  it("combustível sem veículo cadastrado → revisão manual (regra da política)", () => {
-    const regrasComb: RegrasPolitica = {
-      ...regras,
-      limitesPorCategoria: { combustivel: 300 },
-      aprovacaoAutomaticaAte: 300,
-      revisaoHumanaAcimaDe: 300,
-      exigeVeiculoCadastrado: ["combustivel"],
-    };
-    const r = decidirReembolso(
-      { ...base, categoriaSugerida: "combustivel", valor: 100 },
-      regrasComb,
-      { temVeiculo: false },
-    );
-    expect(r.decisao).toBe("revisao_manual");
   });
 });
 

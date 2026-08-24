@@ -184,7 +184,6 @@ export class HeuristicPolicyParser implements PolicyParser {
         confiancaExtracao: "baixa",
         camposPendentes: [
           "limitesPorCategoria",
-          "exigeVeiculoCadastrado",
           "exigeEvidencia",
           "aprovacaoAutomaticaAte",
           "revisaoHumanaAcimaDe",
@@ -246,15 +245,7 @@ export class HeuristicPolicyParser implements PolicyParser {
     regrasInput.limitesPorCategoria = limites;
     if (Object.keys(limites).length === 0) camposPendentes.push("limitesPorCategoria");
 
-    // 2. Exigência de veículo cadastrado ("veículo cadastrado/próprio")
-    const exigeVeiculo = categoriasComExigencia(
-      texto,
-      /ve[íi]culo\s+(cadastrado|pr[óo]prio)|ve[íi]culo\s+da\s+empresa/i,
-    );
-    regrasInput.exigeVeiculoCadastrado = exigeVeiculo;
-    if (exigeVeiculo.length > 0) regrasExtraidas += 1;
-
-    // 3. Exigência de evidência ("obrigatório/nota/recibo/evidência/comprovante")
+    // 2. Exigência de evidência ("obrigatório/nota/recibo/evidência/comprovante")
     const exigeEvidencia = categoriasComExigencia(
       texto,
       /obrigat[óo]ri|nota\s+fiscal|recibo|evid[êe]ncia|comprovante|cupom\s+fiscal/i,
@@ -262,7 +253,7 @@ export class HeuristicPolicyParser implements PolicyParser {
     regrasInput.exigeEvidencia = exigeEvidencia;
     if (exigeEvidencia.length > 0) regrasExtraidas += 1;
 
-    // 4. Tetos globais
+    // 3. Tetos globais
     const aprovacaoAutomaticaAte = tetoPorContexto(
       texto,
       /aprova[çc][ãa]o\s+autom[áa]tica|reembolso\s+autom[áa]tico/i,
@@ -286,7 +277,7 @@ export class HeuristicPolicyParser implements PolicyParser {
       (revisaoHumanaAcimaDe !== null ? 1 : 0) +
       (negacaoAcimaDe !== null ? 1 : 0);
 
-    // 5. Observações em texto livre — tarifa/km: bloco de linhas ao redor da
+    // 4. Observações em texto livre — tarifa/km: bloco de linhas ao redor da
     //    primeira menção a quilometragem (a tabela quebra "R$ 1,30 / km" em
     //    várias linhas), mais frases avulsas que citam tarifa com valor.
     const kmIdx = linhas.findIndex((l) => RE_LINHA_KM.test(l));

@@ -20,7 +20,6 @@ const REGRAS_DEMO: RegrasPolitica = regrasPoliticaSchema.parse({
     combustivel: 600,
     pedagio: null,
   },
-  exigeVeiculoCadastrado: ["combustivel"],
   exigeEvidencia: ["hospedagem", "alimentacao"],
   aprovacaoAutomaticaAte: 200,
   revisaoHumanaAcimaDe: 2000,
@@ -73,7 +72,7 @@ describe("avaliarDespesa — teto de categoria nunca nega (D-013)", () => {
     const r = avaliarDespesa(
       { categoria: "hospedagem", valorNota: 1200 },
       TETO_TEMPORAL,
-      { temVeiculo: false, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).not.toBe("negado");
     expect(r.decisao).toBe("revisao_humana");
@@ -91,7 +90,7 @@ describe("avaliarDespesa — teto de categoria nunca nega (D-013)", () => {
     const r = avaliarDespesa(
       { categoria: "hospedagem", valorNota: 1200 },
       TETO_POR_NOTA,
-      { temVeiculo: false, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).toBe("revisao_humana");
     expect(r.motivos.join(" ")).not.toContain("1,5");
@@ -103,7 +102,7 @@ describe("avaliarDespesa — teto de categoria nunca nega (D-013)", () => {
       const r = avaliarDespesa(
         { categoria: "hospedagem", valorNota: 300 },
         regras,
-        { temVeiculo: false, temEvidencia: true },
+        { temEvidencia: true },
       );
       expect(r.decisao).toBe("aprovado");
     }
@@ -113,7 +112,7 @@ describe("avaliarDespesa — teto de categoria nunca nega (D-013)", () => {
     const r = avaliarDespesa(
       { categoria: "hospedagem", valorNota: 500 },
       TETO_TEMPORAL,
-      { temVeiculo: false, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).toBe("revisao_humana");
     expect(r.motivos[0]).toContain("R$ 400,00 por dia");
@@ -125,7 +124,7 @@ describe("avaliarDespesa — categoria vedada e categoria em exceção", () => {
     const r = avaliarDespesa(
       { categoria: "hospedagem", valorNota: 300 },
       REGRAS_MARCADAS,
-      { temVeiculo: true, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).toBe("negado");
     expect(r.regrasAplicadas).toHaveLength(1);
@@ -141,7 +140,7 @@ describe("avaliarDespesa — categoria vedada e categoria em exceção", () => {
     const r = avaliarDespesa(
       { categoria: "hospedagem", valorNota: 10 },
       REGRAS_MARCADAS,
-      { temVeiculo: true, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).toBe("negado");
     expect(r.regrasAplicadas[0].regra).toBe("categoriaVedada");
@@ -151,7 +150,7 @@ describe("avaliarDespesa — categoria vedada e categoria em exceção", () => {
     const r = avaliarDespesa(
       { categoria: "uber", valorNota: 40 }, // ≤ limite 80 e ≤ aprovacaoAutomaticaAte 200
       REGRAS_MARCADAS,
-      { temVeiculo: true, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).toBe("revisao_humana");
     expect(r.regrasAplicadas.find((a) => a.regra === "categoriaExcecao")).toMatchObject({
@@ -166,7 +165,7 @@ describe("avaliarDespesa — categoria vedada e categoria em exceção", () => {
     const r = avaliarDespesa(
       { categoria: "alimentacao", valorNota: 120 },
       REGRAS_MARCADAS,
-      { temVeiculo: false, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).toBe("aprovado");
     expect(r.regrasAplicadas.some((a) => a.regra.startsWith("categoria"))).toBe(false);
@@ -178,7 +177,7 @@ describe("avaliarDespesa — agente de política de reembolso", () => {
     const r = avaliarDespesa(
       { categoria: "hospedagem", valorNota: 5001 },
       REGRAS_DEMO,
-      { temVeiculo: true, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).toBe("negado");
     expect(r.motivos[0]).toContain("teto da política");
@@ -192,7 +191,7 @@ describe("avaliarDespesa — agente de política de reembolso", () => {
     const r = avaliarDespesa(
       { categoria: "alimentacao", valorNota: 200 }, // limite 120; antes negava por 1,5×
       REGRAS_DEMO,
-      { temVeiculo: false, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).toBe("revisao_humana");
     expect(r.motivos.join(" ")).not.toContain("1,5");
@@ -208,7 +207,7 @@ describe("avaliarDespesa — agente de política de reembolso", () => {
     const r = avaliarDespesa(
       { categoria: "alimentacao", valorNota: 150 }, // > 120
       REGRAS_DEMO,
-      { temVeiculo: false, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).toBe("revisao_humana");
     expect(r.motivos.join(" ")).toContain("limite");
@@ -221,7 +220,7 @@ describe("avaliarDespesa — agente de política de reembolso", () => {
     const r = avaliarDespesa(
       { categoria: "pedagio", valorNota: 2500 }, // pedágio sem limite; > 2000
       REGRAS_DEMO,
-      { temVeiculo: false, temEvidencia: false },
+      { temEvidencia: false },
     );
     expect(r.decisao).toBe("revisao_humana");
     expect(
@@ -229,36 +228,11 @@ describe("avaliarDespesa — agente de política de reembolso", () => {
     ).toBe("revisar");
   });
 
-  it("manda para revisão quando categoria exige veículo cadastrado e não há", () => {
-    const r = avaliarDespesa(
-      { categoria: "combustivel", valorNota: 300 },
-      REGRAS_DEMO,
-      { temVeiculo: false, temEvidencia: true },
-    );
-    expect(r.decisao).toBe("revisao_humana");
-    expect(r.motivos.join(" ")).toContain("veículo cadastrado");
-    expect(
-      r.regrasAplicadas.find((a) => a.regra === "exigeVeiculoCadastrado")?.resultado,
-    ).toBe("revisar");
-  });
-
-  it("não aplica exigência de veículo quando veículo está vinculado", () => {
-    const r = avaliarDespesa(
-      { categoria: "combustivel", valorNota: 300 },
-      REGRAS_DEMO,
-      { temVeiculo: true, temEvidencia: true },
-    );
-    expect(
-      r.regrasAplicadas.find((a) => a.regra === "exigeVeiculoCadastrado")?.resultado,
-    ).toBe("passou");
-    expect(r.decisao).toBe("revisao_humana"); // 300 > 200 (teto de aprovação auto)
-  });
-
   it("manda para revisão quando categoria exige evidência e não há", () => {
     const r = avaliarDespesa(
       { categoria: "hospedagem", valorNota: 300 }, // ≤ limite 450
       REGRAS_DEMO,
-      { temVeiculo: false, temEvidencia: false },
+      { temEvidencia: false },
     );
     expect(r.decisao).toBe("revisao_humana");
     expect(r.motivos.join(" ")).toContain("evidência");
@@ -271,7 +245,7 @@ describe("avaliarDespesa — agente de política de reembolso", () => {
     const r = avaliarDespesa(
       { categoria: "alimentacao", valorNota: 120 },
       REGRAS_DEMO,
-      { temVeiculo: false, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).toBe("aprovado");
     expect(r.motivos.join(" ")).toContain("aprovada automaticamente");
@@ -282,7 +256,7 @@ describe("avaliarDespesa — agente de política de reembolso", () => {
     const r = avaliarDespesa(
       { categoria: "alimentacao", valorNota: 50 },
       SEM_TETO,
-      { temVeiculo: false, temEvidencia: false },
+      { temEvidencia: false },
     );
     expect(r.decisao).toBe("revisao_humana");
     expect(r.motivos).toContain(
@@ -294,7 +268,7 @@ describe("avaliarDespesa — agente de política de reembolso", () => {
     const r = avaliarDespesa(
       { categoria: "alimentacao", valorNota: 6000 },
       REGRAS_DEMO,
-      { temVeiculo: false, temEvidencia: false },
+      { temEvidencia: false },
     );
     expect(r.decisao).toBe("negado");
     expect(r.regrasAplicadas).toHaveLength(1);
@@ -315,14 +289,14 @@ describe("avaliarDespesa — aprovação só onde o gestor declarou (v1.8)", () 
     const dentro = avaliarDespesa(
       { categoria: "alimentacao", valorNota: 60 },
       APROVA_POR_CATEGORIA,
-      { temVeiculo: false, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(dentro.decisao).toBe("aprovado");
 
     const fora = avaliarDespesa(
       { categoria: "alimentacao", valorNota: 80 },
       APROVA_POR_CATEGORIA,
-      { temVeiculo: false, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(fora.decisao).toBe("revisao_humana");
     expect(fora.motivos.join(" ")).toContain(`teto de aprovação automática de ${ROTULO.alimentacao}`);
@@ -332,7 +306,7 @@ describe("avaliarDespesa — aprovação só onde o gestor declarou (v1.8)", () 
     const r = avaliarDespesa(
       { categoria: "hospedagem", valorNota: 10 },
       APROVA_POR_CATEGORIA,
-      { temVeiculo: false, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).toBe("revisao_humana");
     expect(r.motivos.join(" ")).toContain("não declara nenhuma regra que autorize");
@@ -342,14 +316,14 @@ describe("avaliarDespesa — aprovação só onde o gestor declarou (v1.8)", () 
     const r = avaliarDespesa(
       { categoria: "alimentacao", valorNota: 100 },
       DOIS_TETOS,
-      { temVeiculo: false, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).toBe("revisao_humana");
 
     const dentro = avaliarDespesa(
       { categoria: "alimentacao", valorNota: 60 },
       DOIS_TETOS,
-      { temVeiculo: false, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(dentro.decisao).toBe("aprovado");
     expect(dentro.motivos.join(" ")).toContain("R$ 60,00 ≤ R$ 70,00");
@@ -359,7 +333,7 @@ describe("avaliarDespesa — aprovação só onde o gestor declarou (v1.8)", () 
     const r = avaliarDespesa(
       { categoria: "pedagio", valorNota: 150 },
       regrasPoliticaSchema.parse({ aprovacaoAutomaticaAte: 200 }),
-      { temVeiculo: false, temEvidencia: true },
+      { temEvidencia: true },
     );
     expect(r.decisao).toBe("aprovado");
   });
@@ -387,7 +361,6 @@ describe("avaliarDespesa — lacunas da política viram revisão nomeada", () =>
   it("lacuna sem categoria manda qualquer despesa para revisão", () => {
     for (const categoria of ["alimentacao", "hospedagem"] as const) {
       const r = avaliarDespesa({ categoria, valorNota: 10 }, LACUNA_GLOBAL, {
-        temVeiculo: false,
         temEvidencia: true,
       });
       expect(r.decisao).toBe("revisao_humana");
@@ -402,14 +375,12 @@ describe("avaliarDespesa — lacunas da política viram revisão nomeada", () =>
 
   it("lacuna de categoria só afeta a categoria dela", () => {
     const naCategoria = avaliarDespesa({ categoria: "alimentacao", valorNota: 10 }, LACUNA_DA_CATEGORIA, {
-      temVeiculo: false,
       temEvidencia: true,
     });
     expect(naCategoria.decisao).toBe("revisao_humana");
     expect(naCategoria.motivos).toContain("A política tem regra vedada e regra permissiva para alimentação.");
 
     const fora = avaliarDespesa({ categoria: "hospedagem", valorNota: 10 }, LACUNA_DA_CATEGORIA, {
-      temVeiculo: false,
       temEvidencia: true,
     });
     expect(fora.decisao).toBe("aprovado");
@@ -434,7 +405,6 @@ describe("avaliarDespesa — negação por categoria só com marcação do gesto
       }),
     );
     const r = avaliarDespesa({ categoria: "uber", valorNota: 32 }, regras, {
-      temVeiculo: false,
       temEvidencia: true,
     });
     expect(r.decisao).toBe("negado");
@@ -457,7 +427,6 @@ describe("avaliarDespesa — negação por categoria só com marcação do gesto
       }),
     );
     const r = avaliarDespesa({ categoria: "uber", valorNota: 32 }, regras, {
-      temVeiculo: false,
       temEvidencia: true,
     });
     expect(r.decisao).toBe("revisao_humana");
@@ -482,7 +451,6 @@ describe("avaliarDespesa — negacaoAcimaDe nomeia a regra que fixou o teto", ()
       }),
     );
     const r = avaliarDespesa({ categoria: "hospedagem", valorNota: 6000 }, regras, {
-      temVeiculo: false,
       temEvidencia: true,
     });
     expect(r.decisao).toBe("negado");

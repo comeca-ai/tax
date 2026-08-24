@@ -175,8 +175,6 @@ describe("mapearRuleset", () => {
         decisaoAutomatica: "nenhuma",
       },
     ]);
-    // A regex de "veículo cadastrado" morreu na v1.8: exigência só por campo estruturado (P-3).
-    expect(regras.exigeVeiculoCadastrado).toEqual([]);
     expect(regras.exigeEvidencia).toEqual(["combustivel"]);
   });
 

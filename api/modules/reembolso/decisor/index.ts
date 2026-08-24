@@ -110,7 +110,7 @@ function fmt(valor: number): string {
 export function decidirReembolso(
   extracao: ExtracaoNota,
   regrasPolitica: RegrasPolitica | null,
-  contexto: { temVeiculo: boolean; politicaVersao?: number | null },
+  contexto: { politicaVersao?: number | null },
 ): DecisaoReembolso {
   // ── 0.3 Ressalvas e confiança — montadas ANTES do bloco 0 de propósito ───
   // Toda saída deste decisor (inclusive a de "sem política ativa") devolve os
@@ -239,7 +239,7 @@ export function decidirReembolso(
   const veredito = avaliarDespesa(
     { categoria: extracao.categoriaSugerida, valorNota: extracao.valor! },
     regrasPolitica,
-    { temVeiculo: contexto.temVeiculo, temEvidencia: true },
+    { temEvidencia: true },
   );
 
   if (veredito.decisao === "aprovado") {

@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react"
 import {
   Bot,
-  CarFront,
   ChevronsDownUp,
   ChevronsUpDown,
   CircleAlert,
@@ -97,7 +96,7 @@ function ChipValor({ rotulo, valor, tone }: { rotulo: string; valor: number; ton
 
 /**
  * Resumo legível das regras da política de reembolso ativa (v1.1.0): limites
- * por categoria, exigências (veículo / evidência), limiares de decisão
+ * por categoria, exigência de evidência, limiares de decisão
  * automática e observações extraídas do documento. Com regras estruturadas
  * (v1.7), mostra cabeçalho de números, o que o agente vai aplicar (derivado)
  * em cards e as regras em accordion por tema.
@@ -121,7 +120,6 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
   const lacunas = regras.lacunas ?? []
   const temParametros =
     limites.length > 0 ||
-    regras.exigeVeiculoCadastrado.length > 0 ||
     regras.exigeEvidencia.length > 0 ||
     regras.revisaoHumanaAcimaDe != null ||
     lacunas.length > 0 ||
@@ -217,15 +215,6 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
               />
             )
           })}
-        </Linha>,
-      )
-    }
-    if (regras.exigeVeiculoCadastrado.length > 0) {
-      blocos.push(
-        <Linha key="veiculo" icone={CarFront} titulo="Exige veículo cadastrado">
-          {regras.exigeVeiculoCadastrado.map((categoria) => (
-            <ChipCategoria key={categoria} categoria={categoria} />
-          ))}
         </Linha>,
       )
     }

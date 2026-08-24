@@ -301,7 +301,6 @@ describe("derivarParametros — regressão da política 13 (70 regras reais)", (
     expect(p.aprovacaoAutomaticaPorCategoria).toEqual({});
     expect(p.revisaoHumanaAcimaDe).toBeNull();
     expect(p.negacaoAcimaDe).toBeNull();
-    expect(p.exigeVeiculoCadastrado).toEqual([]);
   });
 });
 
@@ -320,27 +319,6 @@ describe("derivarParametros — exigeEvidencia", () => {
 
   it("sem comprovante devolve vazio", () => {
     expect(derivarParametros([regra({ descricao: "A" })]).exigeEvidencia).toEqual([]);
-  });
-});
-
-describe("derivarParametros — exigeVeiculoCadastrado (regex morta na v1.8)", () => {
-  it("texto 'veículo cadastrado' em regra de combustível NÃO exige mais veículo (P-3 adiada)", () => {
-    const p = derivarParametros([
-      regra({
-        descricao: "Reembolso de combustível para veículo cadastrado",
-        tema: "transporte-e-deslocamento",
-        categoria: "combustivel",
-      }),
-    ]);
-    expect(p.exigeVeiculoCadastrado).toEqual([]);
-  });
-
-  it("nenhum texto livre reintroduz a exigência", () => {
-    const p = derivarParametros([
-      regra({ descricao: "Deslocamento", tema: "transporte-e-deslocamento", condicao: "apenas carro próprio" }),
-      regra({ descricao: "Almoço com veículo próprio", tema: "alimentacao", categoria: "alimentacao" }),
-    ]);
-    expect(p.exigeVeiculoCadastrado).toEqual([]);
   });
 });
 
@@ -565,7 +543,6 @@ describe("consolidarRegras", () => {
   it("política demo (regrasExtraidas vazio, limites preenchidos) sai inalterada", () => {
     const demo = regrasPoliticaSchema.parse({
       limitesPorCategoria: { alimentacao: 120, hospedagem: 450, uber: 80 },
-      exigeVeiculoCadastrado: ["combustivel"],
       exigeEvidencia: ["hospedagem", "alimentacao"],
       aprovacaoAutomaticaAte: 200,
       revisaoHumanaAcimaDe: 2000,

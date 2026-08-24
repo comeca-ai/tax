@@ -467,11 +467,6 @@ export function parametrosPerdidos(antes: RegrasPolitica, depois: RegrasPolitica
       perdidos.push(`nega sempre: ${rotulo(c.categoria)}`)
     }
   }
-  for (const cat of antes.exigeVeiculoCadastrado ?? []) {
-    if (!(depois.exigeVeiculoCadastrado ?? []).includes(cat)) {
-      perdidos.push(`exige veículo cadastrado em ${rotulo(cat)}`)
-    }
-  }
   for (const cat of antes.exigeEvidencia ?? []) {
     if (!(depois.exigeEvidencia ?? []).includes(cat)) {
       perdidos.push(`exige evidência em ${rotulo(cat)}`)

@@ -38,7 +38,6 @@ export type ParametrosDerivados = Pick<
   | "limitesCitados"
   | "categoriasVedadas"
   | "categoriasExcecao"
-  | "exigeVeiculoCadastrado"
   | "exigeEvidencia"
   | "aprovacaoAutomaticaAte"
   | "aprovacaoAutomaticaAteRegraId"
@@ -230,12 +229,7 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
     regras.some((r) => r.exigeComprovante && (r.categoria === null || r.categoria === cat)),
   );
 
-  // 3. Veículo cadastrado: a regex que o inferia de texto livre morreu na v1.8 e o
-  // checkbox por regra ficou adiado (decisão do dono P-3). Sem campo estruturado, a
-  // exigência não existe — nada é suposto a partir da descrição da regra.
-  const exigeVeiculoCadastrado: CategoriaDespesa[] = [];
-
-  // 4. Tetos gerais (regra sem categoria, em BRL e com valor monetário).
+  // 3. Tetos gerais (regra sem categoria, em BRL e com valor monetário).
   //    aprovar / negar → SÓ com a marcação `decisaoAutomatica` do gestor: é a única
   //      porta para decisão automática (D-013). Nenhum texto livre autoriza.
   //    revisão humana → não precisa de marcação: o desfecho é a AUSÊNCIA de decisão,
@@ -254,7 +248,7 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
     ),
   );
 
-  // 4b. Marcação que o agente NÃO consegue aplicar. O gestor marcou, a tela mostrou o
+  // 3b. Marcação que o agente NÃO consegue aplicar. O gestor marcou, a tela mostrou o
   // chip e a derivação não produziu nada — era o único caminho que sumia sem deixar
   // rastro. Cada marcação sem efeito vira lacuna nomeada, dizendo o que fazer.
   //
@@ -366,7 +360,7 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
     );
   }
 
-  // 5. Exigência de documento fiscal: declaração estruturada do gestor no card
+  // 4. Exigência de documento fiscal: declaração estruturada do gestor no card
   // ("só aceito nota fiscal ou recibo"). O match pelo id `comprovantes-nao-aceitos`,
   // que nenhum prompt pedia, morreu na v1.8 (decisão do dono P-2).
   // Regra COM categoria exige só naquela categoria: marcar o checkbox numa regra de
@@ -388,7 +382,7 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
     );
   }
 
-  // 6. Vedação e exceção POR CATEGORIA — só o que a política DECLARA:
+  // 5. Vedação e exceção POR CATEGORIA — só o que a política DECLARA:
   //    (1) categoria vedada ⇒ regra vedada, SEM valor, marcada "negar" com escopo
   //        "categoria" (regra vedada com valor não veda a categoria: ver `negacaoTemEfeito`);
   //    (2) categoria em exceção ⇒ regra "excecao" com escopo "categoria";
@@ -457,7 +451,7 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
     }
   }
 
-  // 6b. Teto de lacunas: mais do que o contrato aceita derrubava o reparse da política
+  // 5b. Teto de lacunas: mais do que o contrato aceita derrubava o reparse da política
   // (`too_big`) e, com ele, `politica.get`, `politica.ativa` e a decisão automática da
   // empresa inteira. O corte troca a última pela lacuna agregada, SEM categoria — ou
   // seja, manda tudo para revisão: truncar só pode errar para o lado seguro (D-013).
@@ -480,7 +474,6 @@ export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados 
     limitesCitados,
     categoriasVedadas,
     categoriasExcecao,
-    exigeVeiculoCadastrado,
     exigeEvidencia,
     aprovacaoAutomaticaAte: regraAprovacao?.valorLimite ?? null,
     aprovacaoAutomaticaAteRegraId: regraAprovacao?.id ?? null,

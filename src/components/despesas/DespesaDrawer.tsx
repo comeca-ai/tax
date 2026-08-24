@@ -104,7 +104,6 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
   const nota = data?.nota ?? null
   const creditos = useMemo(() => data?.creditos ?? [], [data])
   const evidencias = useMemo(() => data?.evidencias ?? [], [data])
-  const veiculo = data?.veiculo ?? null
 
   const memorialLinhas: MemorialLinha[] = useMemo(
     () =>
@@ -230,12 +229,6 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
                   <FiscalField label="Centro de custo" value={despesa.centroCusto ?? "—"} mono={false} />
                   <FiscalField label="km comercial" value={formatKm(despesa.kmComercial)} />
                   <FiscalField label="km não comercial" value={formatKm(despesa.kmNaoComercial)} />
-                  {veiculo && (
-                    <FiscalField
-                      label="Veículo"
-                      value={`${veiculo.placa} · ${formatNumero(veiculo.kmPorLitroDeclarado)} km/L`}
-                    />
-                  )}
                 </div>
                 {despesa.motivoDeslocamento && (
                   <FiscalField label="Motivo do deslocamento" value={despesa.motivoDeslocamento} mono={false} />
@@ -269,9 +262,6 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
                     <p className="font-mono text-[11px] leading-relaxed tracking-[0.02em] text-text-500">
                       valor fiscal ({formatBRL(despesa.valorFiscal)}) ≠ valor reembolsável (
                       {formatBRL(despesa.valorReembolsavel)}
-                      {veiculo && veiculo.tarifaReembolsoKm > 0
-                        ? ` = tarifa/km ${formatBRL(veiculo.tarifaReembolsoKm)} × km comercial`
-                        : ""}
                       ) — cálculos independentes.
                     </p>
                   </div>

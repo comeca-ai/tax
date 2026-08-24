@@ -15,7 +15,6 @@ const ROTULO_REGRA: Record<string, string> = {
   categoriaExcecao: "Categoria que exige aprovação superior",
   limitePorCategoria: "Teto da categoria",
   revisaoHumanaAcimaDe: "Faixa de revisão do gestor",
-  exigeVeiculoCadastrado: "Exigência de veículo cadastrado",
   exigeEvidencia: "Exigência de evidência documental",
   aprovacaoAutomaticaAte: "Aprovação automática",
   extracao: "Leitura do comprovante",

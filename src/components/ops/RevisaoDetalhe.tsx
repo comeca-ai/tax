@@ -295,9 +295,6 @@ export default function RevisaoDetalhe({
             <FiscalField label="Km comercial" value={`${formatarNumero(despesa.kmComercial, 0)} km`} />
             <FiscalField label="Km não comercial" value={`${formatarNumero(despesa.kmNaoComercial, 0)} km`} />
             {despesa.colaborador && <FiscalField label="Colaborador" value={despesa.colaborador} mono={false} />}
-            {dados.veiculo && (
-              <FiscalField label="Veículo" value={`${dados.veiculo.placa} · ${formatarNumero(dados.veiculo.kmPorLitroDeclarado)} km/L`} />
-            )}
           </div>
 
           {/* Memorial de cálculo (dark, compacto) */}

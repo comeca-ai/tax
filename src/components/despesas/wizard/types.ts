@@ -32,7 +32,6 @@ export interface FormState {
   colaborador: string
   centroCusto: string
   motivo: string
-  veiculoId: string
   kmComercial: string
   kmNaoComercial: string
 }
@@ -65,7 +64,6 @@ export function formFromExtracao(extracao: OcrExtracao): FormState {
     colaborador: "",
     centroCusto: "",
     motivo: "",
-    veiculoId: "",
     kmComercial: "",
     kmNaoComercial: "",
   }

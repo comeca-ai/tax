@@ -73,6 +73,27 @@ campo, empate entre regras — é lacuna, e lacuna vai para revisão humana
 - Inferência de vedação por ausência de regra reembolsável na categoria
 - Match por id `comprovantes-nao-aceitos`
 
+### Removido — cadastro de veículo
+- **A tela "Veículos" saiu do produto**, junto com o item no menu, a rota
+  `/app/veiculos` e o campo "Veículo vinculado" no envio de despesa. Cadastrar
+  veículo nunca foi pré-requisito de nada: era uma tela a mais entre o gestor e
+  a primeira despesa
+- **O checklist de primeiros passos tem 3 passos** (empresa → política →
+  primeira despesa). Antes ficava eternamente incompleto em quem nunca cadastrou
+  veículo — e o passo pedia um cadastro que não destravava nada
+- **Nenhuma despesa vai mais para revisão por falta de veículo cadastrado**: a
+  exigência (`exigeVeiculoCadastrado`) deixou de existir no contrato, na
+  derivação e no agente. A regex do parser heurístico que a inferia de texto
+  livre ("veículo cadastrado", "veículo da empresa") também saiu — políticas que
+  não passavam pelas regras extraídas ainda carregavam o valor e travavam de
+  verdade. O campo desaparece na leitura das políticas já gravadas, sem migração
+- O detalhe da despesa não mostra mais a linha "Veículo" (placa · km/L), nem no
+  drawer nem na fila de revisão, e o memorial de uso misto não cita mais a
+  tarifa/km do veículo. **km comercial e km não comercial continuam intactos** —
+  são a segregação de uso misto do motor tributário (§7.4)
+- A tabela `veiculos` **continua no banco, com os dados preservados**: nenhuma
+  migração destrutiva foi escrita
+
 ### Migrações
 Nenhuma. Todos os campos novos vivem no JSON de `politicas_reembolso.regras` e
 chegam por `default` do zod — políticas gravadas parseiam sem tocar no banco.
