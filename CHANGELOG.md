@@ -91,8 +91,23 @@ campo, empate entre regras — é lacuna, e lacuna vai para revisão humana
   drawer nem na fila de revisão, e o memorial de uso misto não cita mais a
   tarifa/km do veículo. **km comercial e km não comercial continuam intactos** —
   são a segregação de uso misto do motor tributário (§7.4)
+- **O agente de WhatsApp também parou de pedir veículo**: quem declara que roda
+  com veículo próprio não recebe mais as três perguntas de placa, modelo e km/L
+  — o onboarding encerra logo depois das três declarações de perfil, e nenhum
+  veículo é criado por conversa. A pergunta sobre rodar a trabalho continua, é
+  ela que define de quais categorias o funcionário vai pedir reembolso
 - A tabela `veiculos` **continua no banco, com os dados preservados**: nenhuma
   migração destrutiva foi escrita
+
+### Removido — Regras & Matriz vira área restrita
+- **"Regras & Matriz" sumiu da navegação de quem não é admin.** A matriz de
+  elegibilidade é ferramenta do time da plataforma, não do gestor que só quer
+  reembolsar despesa: o item saiu do menu e o atalho "Ver linha completa na
+  matriz", no cadastro de empresa, também. A tela continua igual para quem tem
+  perfil admin
+- **Digitar a URL não entra mais**: `/app/regras` e `/app/equipe` — que só
+  escondiam o item do menu — passaram a ter guarda de perfil na rota, com volta
+  silenciosa ao dashboard para quem não é admin
 
 ### Migrações
 Nenhuma. Todos os campos novos vivem no JSON de `politicas_reembolso.regras` e

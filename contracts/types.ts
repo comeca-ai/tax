@@ -85,14 +85,6 @@ export const empresaInput = z.object({
   declaracaoPoderes: z.boolean().optional(),
 });
 
-export const veiculoInput = z.object({
-  placa: z.string().min(7).max(10),
-  renavam: z.string().max(20).optional(),
-  kmPorLitroDeclarado: z.number().positive(),
-  tarifaReembolsoKm: z.number().min(0).default(0),
-  descricao: z.string().max(255).optional(),
-});
-
 // Limite de 10 MB por arquivo → base64 ≈ 13,4 MB de caracteres (margem p/ overhead)
 export const ARQUIVO_BASE64_MAX = 14_000_000;
 const ARQUIVO_BASE64_MSG =

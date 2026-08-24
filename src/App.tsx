@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/sonner"
 import Layout from "@/components/Layout"
 import AppShell from "@/components/app/AppShell"
 import RequireAuth from "@/components/app/RequireAuth"
+import RequireAdmin from "@/components/app/RequireAdmin"
 import Home from "@/pages/Home"
 import Tese from "@/pages/Tese"
 import Login from "@/pages/Login"
@@ -39,12 +40,14 @@ export default function App() {
             <Route path="despesas" element={<Despesas />} />
             <Route path="despesas/nova" element={<NovaDespesa />} />
             <Route path="rapido" element={<EnvioRapido />} />
-            <Route path="equipe" element={<Equipe />} />
             <Route path="politica" element={<Politica />} />
             <Route path="revisao" element={<Revisao />} />
             <Route path="empresas" element={<Empresas />} />
             <Route path="relatorios" element={<Relatorios />} />
-            <Route path="regras" element={<Regras />} />
+            <Route element={<RequireAdmin />}>
+              <Route path="equipe" element={<Equipe />} />
+              <Route path="regras" element={<Regras />} />
+            </Route>
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

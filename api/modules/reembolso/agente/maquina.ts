@@ -6,9 +6,8 @@
  *
  * Princípios do produto aplicados aqui:
  * - Confirmação, não cadastro (D-005): o admin cadastrou; o funcionário confere.
- * - Cada campo é uma defesa (D-001): veículo só é pedido a quem declarou
- *   combustível — ou a quem mandar despesa de combustível (correção de rota,
- *   v1.6.0).
+ * - Cada campo é uma defesa (D-001): só se pergunta o que muda a decisão do
+ *   reembolso do próprio funcionário.
  * - O interesse é dele (D-004): a conversa destrava o reembolso do funcionário.
  */
 
@@ -18,18 +17,12 @@ export type EstadoConversa =
   | "declarando_combustivel"
   | "declarando_viagem"
   | "declarando_refeicao"
-  | "coletando_veiculo_placa"
-  | "coletando_veiculo_descricao"
-  | "coletando_veiculo_consumo"
   | "pronto";
 
 export interface ContextoConversa {
   combustivel?: boolean;
   viagem?: boolean;
   refeicao?: boolean;
-  veiculoPlaca?: string;
-  veiculoDescricao?: string;
-  veiculoConsumo?: number;
 }
 
 export interface DadosColaborador {
@@ -49,7 +42,6 @@ export interface EntradaMaquina {
 
 export type AcaoMaquina =
   | { tipo: "salvar_declaracoes" }
-  | { tipo: "criar_veiculo" }
   | { tipo: "marcar_confirmado" }
   | { tipo: "marcar_divergencia"; detalhe: string };
 
@@ -76,21 +68,6 @@ export function interpretarSimNao(texto: string): boolean | null {
   if (sim.includes(t) || sim.includes(primeira)) return true;
   if (nao.includes(t) || nao.includes(primeira)) return false;
   return null;
-}
-
-const REGRA_PLACA = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/; // Mercosul e antiga
-
-export function normalizarPlaca(texto: string): string | null {
-  const t = texto.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return REGRA_PLACA.test(t) ? t : null;
-}
-
-export function interpretarConsumo(texto: string): number | null {
-  const t = texto.trim().replace(",", ".");
-  const match = t.match(/(\d+(\.\d+)?)/);
-  if (!match) return null;
-  const valor = Number(match[1]);
-  return valor > 2 && valor < 40 ? valor : null;
 }
 
 function primeiroNome(nome: string): string {
@@ -198,18 +175,6 @@ export function proximoPasso(entrada: EntradaMaquina): SaidaMaquina {
         return { estado: entrada.estado, contexto: ctx, respostas: [`Me responde só *sim* ou *não*: ${PERGUNTA_REFEICAO}`], acoes: [] };
       }
       ctx.refeicao = sn;
-      const acoes: AcaoMaquina[] = [{ tipo: "salvar_declaracoes" }];
-      if (ctx.combustivel) {
-        return {
-          estado: "coletando_veiculo_placa",
-          contexto: ctx,
-          respostas: [
-            "Anotado! 📝 Como você roda com veículo próprio, preciso dele pra defender seus reembolsos de combustível — prometo que é só desta vez.",
-            "Qual a *placa* do veículo? (ex.: ABC1D23)",
-          ],
-          acoes,
-        };
-      }
       return {
         estado: "pronto",
         contexto: ctx,
@@ -217,61 +182,7 @@ export function proximoPasso(entrada: EntradaMaquina): SaidaMaquina {
           "Prontinho, cadastro confirmado! ✅",
           "Quando tiver uma despesa, é só mandar a foto da nota/cupom aqui que eu cuido do resto.",
         ],
-        acoes: [...acoes, { tipo: "marcar_confirmado" }],
-      };
-    }
-
-    case "coletando_veiculo_placa": {
-      const placa = normalizarPlaca(texto);
-      if (!placa) {
-        return {
-          estado: entrada.estado,
-          contexto: ctx,
-          respostas: ["Essa placa não parece válida. Me manda no formato ABC1D23 ou ABC-1234?"],
-          acoes: [],
-        };
-      }
-      ctx.veiculoPlaca = placa;
-      return {
-        estado: "coletando_veiculo_descricao",
-        contexto: ctx,
-        respostas: ["Qual o veículo? (ex.: Onix prata 2022)"],
-        acoes: [],
-      };
-    }
-
-    case "coletando_veiculo_descricao": {
-      if (texto.length < 3) {
-        return { estado: entrada.estado, contexto: ctx, respostas: ["Me diz o modelo do veículo? (ex.: Onix prata 2022)"], acoes: [] };
-      }
-      ctx.veiculoDescricao = texto.slice(0, 255);
-      return {
-        estado: "coletando_veiculo_consumo",
-        contexto: ctx,
-        respostas: ["Última: quantos *km por litro* ele faz em média? (ex.: 12,5 — se não souber, chuta um valor aproximado)"],
-        acoes: [],
-      };
-    }
-
-    case "coletando_veiculo_consumo": {
-      const consumo = interpretarConsumo(texto);
-      if (consumo === null) {
-        return {
-          estado: entrada.estado,
-          contexto: ctx,
-          respostas: ["Não entendi o número. Me manda só o valor, ex.: 12,5"],
-          acoes: [],
-        };
-      }
-      ctx.veiculoConsumo = consumo;
-      return {
-        estado: "pronto",
-        contexto: ctx,
-        respostas: [
-          `Veículo cadastrado: *${ctx.veiculoDescricao}* (${ctx.veiculoPlaca}), ${String(consumo).replace(".", ",")} km/l. ✅`,
-          "Prontinho! Quando tiver uma despesa, é só mandar a foto da nota/cupom aqui que eu cuido do resto.",
-        ],
-        acoes: [{ tipo: "criar_veiculo" }, { tipo: "marcar_confirmado" }],
+        acoes: [{ tipo: "salvar_declaracoes" }, { tipo: "marcar_confirmado" }],
       };
     }
 

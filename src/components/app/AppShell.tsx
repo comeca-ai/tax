@@ -70,7 +70,7 @@ const NAV_GROUPS: { rotulo: string; itens: NavItem[] }[] = [
       { to: "/app/politica", label: "Política", icon: ScrollText, end: false },
       { to: "/app/equipe", label: "Equipe", icon: Users, end: false, adminOnly: true },
       { to: "/app/empresas", label: "Empresas", icon: Building2, end: false },
-      { to: "/app/regras", label: "Regras & Matriz", icon: Scale, end: false },
+      { to: "/app/regras", label: "Regras & Matriz", icon: Scale, end: false, adminOnly: true },
     ],
   },
   {
