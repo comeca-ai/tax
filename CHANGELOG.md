@@ -4,6 +4,58 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.9.0] — 2026-08-27
+
+**Estrutura da Norma PoC.** Migração puramente aditiva: nenhum arquivo em `src/`
+ou `api/` muda. O código que consome estas tabelas vem em deploy separado.
+
+### Adicionado
+- **`empresas_config`** (1:1 com empresa, `UNIQUE(empresa_id)`): `cnpj`,
+  `tem_vale_refeicao`, `tem_contrato_corporativo_app`, `tarifa_km` (**única, em
+  R$/km** — a PoC não diferencia motorização nem UF), `analista_id` e
+  `aprovador_id`
+- **`veiculos_colaborador`**: veículo por colaborador com `placa`,
+  `motorizacao` (`combustao|hibrido|eletrico`) e `uf_licenciamento`;
+  `UNIQUE(colaborador_id, placa)`
+- **`delegacoes_decisao`**: histórico auditável de quem decidiu em nome de quem,
+  com `motivo` e `decidido_em`
+- **`colaboradores`**: `papel_fluxo` (`solicitante|analista|aprovador`, default
+  `solicitante`) e `equipe` (`interna|externa`, default `externa`) — ambas NOT
+  NULL com default, sem backfill necessário
+- **Isolamento multi-tenant por chave composta**: `colaboradores(empresa_id, id)`
+  ganha índice e as quatro referências a colaborador
+  (`empresas_config.analista_id`, `empresas_config.aprovador_id`,
+  `delegacoes_decisao.decidiu_colaborador_id`,
+  `delegacoes_decisao.em_nome_de_colaborador_id`) passam a ser FKs compostas
+  `(empresa_id, colaborador_id)`. Antes, a config da empresa 1 aceitava analista
+  da empresa 2; agora o MySQL recusa com erro 1452
+- **`db/migrations/migracoes.test.ts`**: teste-guarda da migração — cruza o `.sql`
+  com `db/schema.ts` e com o snapshot, e **reprova se a ordem dos statements se
+  perder** (ver Migrações)
+- **`db/migrations/rollback/rollback_0008.sql`**: desfaz a 0008 por inteiro.
+  Fica fora do glob `db/migrations/0*.sql`, então o entrypoint não o alcança
+
+### Migrações
+- `0008_norma_poc_estrutura.sql` — aditiva, idempotente sob o `apply.ts`,
+  reaplicável e reversível. Validada contra **cópia fresca do banco de
+  produção**: 15/15 statements, 2ª passada sem erro fora da allowlist, rollback
+  ×2 e reaplicação OK, 16/16 tabelas com contagem intacta
+- **A ordem dos statements é deliberada**: o `CREATE INDEX` de
+  `colaboradores(empresa_id, id)` foi movido à mão para a **primeira** posição.
+  O drizzle o emite por último, mas as FKs compostas precisam dele antes —
+  sem isso o MySQL devolve `ER_FK_NO_INDEX_PARENT` (1822), que **não está na
+  allowlist do `apply.ts`**, e o container não sobe. Se a migração for regerada,
+  mova o `CREATE INDEX` de volta para o topo
+
+### Conhecido / pendente
+- `delegacoes_decisao.despesa_id` continua **FK simples**: a linha tem três
+  ponteiros e só os dois de colaborador foram amarrados por empresa. Fechar isso
+  exige índice `despesas(empresa_id, id)` + FK composta — fica para a 0009,
+  porque encosta em `despesas` e amplia o escopo desta migração
+- O cruzamento SQL↔`schema.ts` do teste-guarda compara **nomes** de coluna, não
+  tipo/`notNull`/índices; uma troca de tipo passaria verde
+- Sem seed de `empresas_config` (3 empresas, 0 configs) — vem no PR do código
+
 ## [1.8.0] — 2026-08-24
 
 **A política é a única fonte.** Não existe tolerância, não existe hierarquia
