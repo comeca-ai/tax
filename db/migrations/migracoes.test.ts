@@ -380,3 +380,222 @@ describe("0008 — o SQL bate com o schema.ts", () => {
     );
   });
 });
+
+/**
+ * REFORÇO — achado 2 do QA de código (27/08).
+ *
+ * O cruzamento SQL↔schema.ts acima compara só NOMES de coluna. Três mutações
+ * passavam 19/19 verdes, todas reproduzidas contra MySQL 8.0.46 real:
+ *   FG1) `bigint unsigned` → `int unsigned` em empresas_config.empresa_id
+ *        ⇒ ER_FK_INCOMPATIBLE_COLUMNS (3780), FORA da allowlist do apply.ts,
+ *          `set -e` no entrypoint ⇒ o container NÃO SOBE.
+ *   FG2) `double` → `varchar(10)` em tarifa_km ⇒ drift silencioso (o app lê
+ *        número, o banco guarda string).
+ *   FG3) remover o UNIQUE de empresa_id ⇒ duas configs para a mesma empresa.
+ *
+ * O snapshot do próprio drizzle já traz `type` e `notNull` por coluna e os
+ * índices (uniques inclusive, com isUnique), então a checagem sai de graça —
+ * e é o drizzle, não nós, quem define a verdade.
+ */
+type ColunaSql = { tipo: string; notNull: boolean };
+
+/** Extrai tipo e nulabilidade de uma definição de coluna do .sql. */
+function defColuna(resto: string): ColunaSql {
+  const semAuto = resto.replace(/\s+AUTO_INCREMENT\b/g, "");
+  const notNull = /\bNOT NULL\b/.test(semAuto);
+  const tipo = semAuto
+    .replace(/\s+NOT NULL\b/g, "")
+    .replace(/\s+DEFAULT\s+.*$/i, "")
+    .replace(/\s+ON UPDATE\s+.*$/i, "")
+    .replace(/,\s*$/, "")
+    .trim();
+  return { tipo, notNull };
+}
+
+/** Colunas por tabela declaradas nos CREATE TABLE e nos ALTER ... ADD do .sql. */
+function colunasDoSql(sql: string): Map<string, Map<string, ColunaSql>> {
+  const fora = new Map<string, Map<string, ColunaSql>>();
+  for (const [, nome, corpo] of sql.matchAll(
+    /CREATE TABLE `([a-z_]+)` \(([\s\S]*?)\n\);/g
+  )) {
+    const cols = new Map<string, ColunaSql>();
+    for (const linha of corpo.split("\n")) {
+      const m = /^\t`([a-z_]+)`\s+(.+?),?$/.exec(linha);
+      if (m) cols.set(m[1]!, defColuna(m[2]!));
+    }
+    fora.set(nome, cols);
+  }
+  for (const [, tabela, coluna, resto] of sql.matchAll(
+    /ALTER TABLE `([a-z_]+)` ADD `([a-z_]+)`\s+(.+?);/g
+  )) {
+    if (!fora.has(tabela)) fora.set(tabela, new Map());
+    fora.get(tabela)!.set(coluna, defColuna(resto));
+  }
+  return fora;
+}
+
+function lerSnapshot(idx: string): {
+  tables: Record<
+    string,
+    {
+      columns: Record<string, { type: string; notNull?: boolean }>;
+      indexes: Record<
+        string,
+        { name: string; columns: string[]; isUnique: boolean }
+      >;
+    }
+  >;
+} {
+  return JSON.parse(
+    readFileSync(path.join(DIR, "meta", `${idx}_snapshot.json`), "utf8")
+  );
+}
+
+describe("SQL × snapshot — tipo, nulabilidade e unique (não só nome)", () => {
+  const snap = lerSnapshot("0009");
+
+  it("0008: toda coluna criada tem no .sql o MESMO tipo do snapshot (mata FG1/FG2)", () => {
+    const arquivo = readdirSync(DIR).filter(f => /^0008_.*\.sql$/.test(f))[0];
+    const doSql = colunasDoSql(
+      semComentarios(readFileSync(path.join(DIR, arquivo!), "utf8"))
+    );
+    expect(doSql.size).toBeGreaterThan(0);
+
+    let conferidas = 0;
+    for (const [tabela, colunas] of doSql) {
+      const noSnap = snap.tables[tabela];
+      expect(noSnap, `tabela ${tabela} ausente do snapshot`).toBeDefined();
+      for (const [coluna, { tipo, notNull }] of colunas) {
+        const ref = noSnap!.columns[coluna];
+        expect(ref, `${tabela}.${coluna} ausente do snapshot`).toBeDefined();
+        expect(tipo, `tipo divergente em ${tabela}.${coluna}`).toBe(ref!.type);
+        expect(notNull, `nulabilidade divergente em ${tabela}.${coluna}`).toBe(
+          ref!.notNull === true
+        );
+        conferidas++;
+      }
+    }
+    // 3 CREATE TABLE (10+6+9 colunas) + 2 ALTER ADD
+    expect(conferidas).toBe(27);
+  });
+
+  it("0008: todo UNIQUE do snapshot está no .sql (mata FG3)", () => {
+    const arquivo = readdirSync(DIR).filter(f => /^0008_.*\.sql$/.test(f))[0];
+    const sql = semComentarios(readFileSync(path.join(DIR, arquivo!), "utf8"));
+    const criadas = [...sql.matchAll(/CREATE TABLE `([a-z_]+)`/g)].map(
+      m => m[1]!
+    );
+    expect(criadas.length).toBe(3);
+
+    let uniques = 0;
+    for (const tabela of criadas) {
+      for (const idx of Object.values(snap.tables[tabela]!.indexes)) {
+        if (!idx.isUnique) continue;
+        // O drizzle emite o unique inline, como CONSTRAINT ... UNIQUE(cols).
+        const cols = idx.columns.map(c => "`" + c + "`").join(",");
+        expect(
+          sql,
+          `UNIQUE ${idx.name} sumiu do .sql — duas linhas iguais passariam`
+        ).toContain(`CONSTRAINT \`${idx.name}\` UNIQUE(${cols})`);
+        uniques++;
+      }
+    }
+    expect(uniques).toBe(2);
+  });
+});
+
+/**
+ * Guarda da migração 0009 — fecha a terceira ponta da delegação.
+ *
+ * A 0008 amarrou quem-decidiu e em-nome-de-quem a `colaboradores(empresa_id,id)`,
+ * mas deixou `despesa_id` como FK SIMPLES. O QA de 27/08 gravou, com dado real
+ * de produção, uma delegação da empresa 1 apontando despesa da empresa 2.
+ */
+const arquivos0009 = readdirSync(DIR).filter(f => /^0009_.*\.sql$/.test(f));
+
+describe("migração 0009 — aditiva (delegação × despesa)", () => {
+  it("existe exatamente UM arquivo 0009_*.sql", () => {
+    expect(arquivos0009).toHaveLength(1);
+  });
+
+  const sql = semComentarios(
+    readFileSync(path.join(DIR, arquivos0009[0]!), "utf8")
+  );
+  const statements = sql
+    .split("--> statement-breakpoint")
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  it("tem 2 statements: 1 CREATE INDEX e 1 ADD CONSTRAINT", () => {
+    expect(statements).toHaveLength(2);
+    expect(statements.filter(s => /^CREATE INDEX/.test(s))).toHaveLength(1);
+    expect(statements.filter(s => /ADD CONSTRAINT/.test(s))).toHaveLength(1);
+  });
+
+  it("nenhum statement é destrutivo", () => {
+    // Mesmo desconto da 0008: `ON DELETE no action` / `ON UPDATE no action`
+    // carregam as palavras sem serem verbos.
+    for (const s of statements) {
+      const limpo = s
+        .replace(/ON DELETE no action/g, "")
+        .replace(/ON UPDATE no action/g, "");
+      expect(limpo, `statement destrutivo: ${s.slice(0, 60)}`).not.toMatch(
+        /\b(DROP|MODIFY|CHANGE|RENAME|TRUNCATE|DELETE|UPDATE)\b/i
+      );
+    }
+  });
+
+  it("o CREATE INDEX vem ANTES da FK composta (senão o boot quebra com 1822)", () => {
+    // Mesma armadilha da 0008: o drizzle emite o índice por último. Se alguém
+    // regerar a 0009 e não reordenar, o MySQL devolve ER_FK_NO_INDEX_PARENT
+    // (1822), que NÃO está na allowlist do apply.ts, e o container não sobe.
+    const posIndice = statements.findIndex(s =>
+      s.includes("despesas_empresa_id_id_idx")
+    );
+    const posFk = statements.findIndex(s =>
+      s.includes("delegacoes_decisao_despesa_mesma_empresa_fk")
+    );
+    expect(posIndice).toBeGreaterThanOrEqual(0);
+    expect(posFk).toBeGreaterThanOrEqual(0);
+    expect(
+      posFk,
+      "a FK composta vem antes do índice — o boot quebraria"
+    ).toBeGreaterThan(posIndice);
+  });
+
+  it("a FK amarra (empresa_id, despesa_id) a despesas(empresa_id, id)", () => {
+    expect(sql).toMatch(
+      /ADD CONSTRAINT `delegacoes_decisao_despesa_mesma_empresa_fk` FOREIGN KEY \(`empresa_id`,`despesa_id`\) REFERENCES `despesas`\(`empresa_id`,`id`\)/
+    );
+    expect(sql).toMatch(
+      /CREATE INDEX `despesas_empresa_id_id_idx` ON `despesas` \(`empresa_id`,`id`\)/
+    );
+  });
+
+  it("todo statement é re-executável sob a allowlist do apply.ts", () => {
+    // CREATE INDEX repetido → ER_DUP_KEYNAME; ADD CONSTRAINT → ER_FK_DUP_NAME.
+    // Ambos tolerados, então a 2ª passada do boot não mata o container.
+    for (const s of statements) {
+      expect(s).toMatch(/^(CREATE INDEX|ALTER TABLE `[a-z_]+` ADD CONSTRAINT)/);
+    }
+  });
+
+  it("nenhum identificador passa de 64 caracteres", () => {
+    for (const [, nome] of sql.matchAll(/`([a-z_]{40,})`/g)) {
+      expect(nome!.length, `identificador longo: ${nome}`).toBeLessThanOrEqual(
+        64
+      );
+    }
+  });
+
+  it("o snapshot e o journal da 0009 foram commitados juntos", () => {
+    const tag = arquivos0009[0]!.replace(/\.sql$/, "");
+    expect(existsSync(path.join(DIR, "meta", "0009_snapshot.json"))).toBe(true);
+    const journal = JSON.parse(
+      readFileSync(path.join(DIR, "meta", "_journal.json"), "utf8")
+    ) as { entries: { idx: number; tag: string }[] };
+    const entrada = journal.entries.find(e => e.idx === 9);
+    expect(entrada, "journal sem entrada idx=9").toBeDefined();
+    expect(entrada!.tag).toBe(tag);
+  });
+});

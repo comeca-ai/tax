@@ -3,6 +3,7 @@ import { getDb } from "../api/queries/connection";
 import {
   cnaesSecundarios,
   empresas,
+  empresasConfig,
   politicasReembolso,
   regrasElegibilidade,
   usuarios,
@@ -16,6 +17,8 @@ import { regrasPoliticaSchema, type RegrasPolitica } from "@contracts/types";
  * 1. Matriz de elegibilidade CNAE × categoria (MVP, §7.2 da spec) + dedutibilidade IRPJ/CSLL
  * 2. Usuários iniciais: admin, revisor e cliente demo
  * 3. Empresa demo (transporte de cargas)
+ * 4. Política de reembolso demo
+ * 5. Config da Norma PoC — uma linha de empresas_config por empresa
  */
 
 type LinhaMatriz = {
@@ -307,6 +310,31 @@ async function seed() {
     console.log("  politica demo: ATIVA (v1) para Transportes Demo Ltda");
   } else {
     console.log("  politica demo: já existe, pulando");
+  }
+
+  // ── 5. Config da Norma PoC (0008) — uma linha por empresa ────────────────
+  // A 0008 criou `empresas_config` vazia, e o consumidor que vier depois faz
+  // JOIN esperando a linha existir: sem isto, toda empresa aparece como não
+  // configurada. Idempotente por diferença (o UNIQUE de empresa_id já barraria
+  // a duplicata, mas errar de propósito para depois ignorar o erro é pior).
+  //
+  // `tarifa_km` fica NULL de propósito: o valor é decisão de política do dono,
+  // não do seed. Enquanto for NULL, quem consome trata como "não configurado".
+  const empresasTodas = await db
+    .select({ id: empresas.id, cnpj: empresas.cnpj })
+    .from(empresas);
+  const configsExistentes = await db
+    .select({ empresaId: empresasConfig.empresaId })
+    .from(empresasConfig);
+  const jaConfiguradas = new Set(configsExistentes.map((c) => c.empresaId));
+  const semConfig = empresasTodas.filter((e) => !jaConfiguradas.has(e.id));
+  if (semConfig.length > 0) {
+    await db
+      .insert(empresasConfig)
+      .values(semConfig.map((e) => ({ empresaId: e.id, cnpj: e.cnpj })));
+    console.log(`  empresas_config: ${semConfig.length} linha(s) criada(s) (tarifa_km pendente)`);
+  } else {
+    console.log("  empresas_config: todas as empresas já têm linha, pulando");
   }
 
   console.log("Done.");
