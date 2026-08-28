@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "3.2.0",
+  "objetivo": "Permitir exclusão real de usuário/empresa sem tocar no log_auditoria: trocar as FKs log_auditoria.usuario_id e log_auditoria.empresa_id de NO ACTION para ON DELETE SET NULL (as colunas já são anuláveis — não precisa alterar coluna, só a constraint). Hoje a combinação auditoria append-only + FK dura torna impossível excluir qualquer usuário com histórico, o que bloqueou a limpeza de contas em 2026-08-28 e obrigou anonimização no lugar de DELETE.",
+  "dentro": [
+    "migração aditiva: DROP das FKs log_auditoria_usuario_id e log_auditoria_empresa_id e recriação com ON DELETE SET NULL",
+    "db/schema.ts atualizado para refletir a constraint",
+    "script de reversão da migração",
+    "teste: excluir usuário com linhas de auditoria zera os campos no log e preserva as linhas"
+  ],
+  "fora": [
+    "mudança nas colunas (já são anuláveis)",
+    "qualquer DELETE ou UPDATE em log_auditoria existente",
+    "exclusão em massa de contas — esta demanda só destrava a possibilidade"
+  ],
+  "riscos": [
+    "recriar FK em tabela com muitas linhas pode segurar lock — janela curta, tabela pequena hoje",
+    "ON DELETE SET NULL errado (ex.: CASCADE) destruiria a trilha — teste obrigatório prova SET NULL"
+  ],
+  "pronto": [
+    "0009 mergeada na main (ordem de numeração de migrações)"
+  ],
+  "decisoes": [
+    "log_auditoria permanece append-only: nunca UPDATE/DELETE, mesmo nesta migração",
+    "linha de auditoria sobrevive à exclusão do usuário/empresa, com os campos de referência nulos",
+    "até esta migração, exclusão de conta = anonimização (feito em 2026-08-28 para os usuários 6-12)"
+  ],
+  "complexidade": "S",
+  "criterioDeAceite": [
+    "migração aplica e reverte em banco de teste",
+    "após a migração, DELETE em usuarios com histórico zera log_auditoria.usuario_id sem apagar a linha — teste automatizado",
+    "linhas de log_auditoria existentes permanecem intactas e com os mesmos valores",
+    "vitest e tsc passam na worktree"
+  ]
+}

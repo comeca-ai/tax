@@ -32,3 +32,6 @@ uploads/
 
 # Time Claude Code (contém caminhos/domínio do servidor — repo público)
 .claude/
+pipeline/runs/*
+!pipeline/runs/index.jsonl
+pipeline/locks/

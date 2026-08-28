@@ -5,6 +5,24 @@
 
 ---
 
+## D-015 · Exclusão de conta é anonimização; auditoria nunca perde linha — 28/08/2026
+
+**Contexto:** limpeza das contas órfãs do bug de cadastro (v1.9.2) revelou um
+conflito de desenho: `log_auditoria` é append-only (nunca UPDATE/DELETE), mas suas
+FKs para `usuarios`/`empresas` são `NO ACTION` — usuário com histórico não podia
+ser excluído sem apagar trilha.
+
+**Decisão:** exclusão operacional = **anonimização** (dados operacionais apagados,
+identidade substituída por valor neutro, trilha de auditoria intacta). A operação é
+ela mesma registrada no `log_auditoria` via INSERT. A correção estrutural — FKs do
+`log_auditoria` com `ON DELETE SET NULL` (colunas já são anuláveis) — está na fila
+em `pipeline/briefs/fk-log-auditoria-set-null.json`; depois dela, DELETE real zera
+a referência e preserva a linha. **Invalidaria:** exigência regulatória de
+esquecimento total (LGPD art. 18, VI) sobre algum dado — aí a trilha também precisa
+de política de retenção/anonimização própria.
+
+---
+
 ## D-013 · Sem aprovação fora da política; revisão manual ≠ zona cinzenta; sistema nunca toca a política — 13/08/2026
 
 **Contexto:** o desenho anterior tinha "zona cinzenta" (caso que a política não cobre
