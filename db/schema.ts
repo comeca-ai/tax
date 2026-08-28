@@ -168,44 +168,53 @@ export const notasFiscais = mysqlTable("notas_fiscais", {
 // 6. Despesas — RF-01/RF-02/RF-05
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const despesas = mysqlTable("despesas", {
-  id: serial("id").primaryKey(),
-  empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
-    .notNull()
-    .references(() => empresas.id),
-  notaFiscalId: bigint("nota_fiscal_id", { mode: "number", unsigned: true })
-    .notNull()
-    .references(() => notasFiscais.id),
-  veiculoId: bigint("veiculo_id", {
-    mode: "number",
-    unsigned: true,
-  }).references(() => veiculos.id),
-  // Nullable desde v1.7.0 (D-014): sem categoria detectável → revisão manual,
-  // ninguém preenche nada
-  categoria: categoriaDespesaEnum,
-  colaborador: varchar("colaborador", { length: 255 }),
-  centroCusto: varchar("centro_custo", { length: 255 }),
-  motivoDeslocamento: text("motivo_deslocamento"),
-  kmComercial: double("km_comercial").notNull().default(0),
-  kmNaoComercial: double("km_nao_comercial").notNull().default(0),
-  litros: double("litros"),
-  // valor_fiscal (base tributária segregada) ≠ valor_reembolsavel (tarifa/km) — §7.4
-  valorFiscal: double("valor_fiscal").notNull().default(0),
-  valorReembolsavel: double("valor_reembolsavel").notNull().default(0),
-  confianca: confiancaEnum.notNull().default("baixa"),
-  status: statusDespesaEnum.notNull().default("pendente"),
-  memorial: text("memorial"),
-  motivoRevisao: text("motivo_revisao"),
-  // Agente de Política de Reembolso (v1.1.0) — decisão posterior e independente do motor tributário
-  politicaDecisao: mysqlEnum("politica_decisao", [
-    "aprovado",
-    "negado",
-    "revisao_humana",
-  ]),
-  politicaMotivo: text("politica_motivo"),
-  politicaVersaoAplicada: int("politica_versao_aplicada"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const despesas = mysqlTable(
+  "despesas",
+  {
+    id: serial("id").primaryKey(),
+    empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => empresas.id),
+    notaFiscalId: bigint("nota_fiscal_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => notasFiscais.id),
+    veiculoId: bigint("veiculo_id", {
+      mode: "number",
+      unsigned: true,
+    }).references(() => veiculos.id),
+    // Nullable desde v1.7.0 (D-014): sem categoria detectável → revisão manual,
+    // ninguém preenche nada
+    categoria: categoriaDespesaEnum,
+    colaborador: varchar("colaborador", { length: 255 }),
+    centroCusto: varchar("centro_custo", { length: 255 }),
+    motivoDeslocamento: text("motivo_deslocamento"),
+    kmComercial: double("km_comercial").notNull().default(0),
+    kmNaoComercial: double("km_nao_comercial").notNull().default(0),
+    litros: double("litros"),
+    // valor_fiscal (base tributária segregada) ≠ valor_reembolsavel (tarifa/km) — §7.4
+    valorFiscal: double("valor_fiscal").notNull().default(0),
+    valorReembolsavel: double("valor_reembolsavel").notNull().default(0),
+    confianca: confiancaEnum.notNull().default("baixa"),
+    status: statusDespesaEnum.notNull().default("pendente"),
+    memorial: text("memorial"),
+    motivoRevisao: text("motivo_revisao"),
+    // Agente de Política de Reembolso (v1.1.0) — decisão posterior e independente do motor tributário
+    politicaDecisao: mysqlEnum("politica_decisao", [
+      "aprovado",
+      "negado",
+      "revisao_humana",
+    ]),
+    politicaMotivo: text("politica_motivo"),
+    politicaVersaoAplicada: int("politica_versao_aplicada"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  t => [
+    // Alvo da FK composta da 0009: garante que a despesa citada numa delegação
+    // seja da MESMA empresa do registro. InnoDB exige que as colunas
+    // referenciadas sejam o prefixo de um índice.
+    index("despesas_empresa_id_id_idx").on(t.empresaId, t.id),
+  ]
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 7. Regras de elegibilidade (matriz CNAE × categoria × tributo) — RF-02/RF-07
@@ -606,10 +615,14 @@ export const delegacoesDecisao = mysqlTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   t => [
-    // Multi-tenant: as duas pontas da delegação têm de ser da MESMA empresa
-    // do registro. Sem isto o banco aceita registrar que um colaborador da
-    // empresa 1 decidiu em nome de um da empresa 2, dentro da empresa 3 —
-    // provado no QA. Numa trilha de auditoria isso é inaceitável.
+    // Multi-tenant: as TRÊS pontas da delegação (quem decidiu, em nome de
+    // quem, e sobre qual despesa) têm de ser da MESMA empresa do registro.
+    // Sem isto o banco aceita registrar que um colaborador da empresa 1
+    // decidiu em nome de um da empresa 2, dentro da empresa 3 — provado no
+    // QA. Numa trilha de auditoria isso é inaceitável.
+    // A ponta `despesa_id` foi amarrada só na 0009: a 0008 a deixou como FK
+    // simples e o QA gravou, com dado real, uma delegação da empresa 1
+    // apontando despesa da empresa 2.
     foreignKey({
       name: "delegacoes_decisao_decidiu_mesma_empresa_fk",
       columns: [t.empresaId, t.decidiuColaboradorId],
@@ -619,6 +632,13 @@ export const delegacoesDecisao = mysqlTable(
       name: "delegacoes_decisao_em_nome_mesma_empresa_fk",
       columns: [t.empresaId, t.emNomeDeColaboradorId],
       foreignColumns: [colaboradores.empresaId, colaboradores.id],
+    }),
+    // `despesa_id` é nullable de propósito (delegação pode não citar despesa);
+    // com NULL o InnoDB não cobra a FK, que é o comportamento desejado.
+    foreignKey({
+      name: "delegacoes_decisao_despesa_mesma_empresa_fk",
+      columns: [t.empresaId, t.despesaId],
+      foreignColumns: [despesas.empresaId, despesas.id],
     }),
   ]
 );

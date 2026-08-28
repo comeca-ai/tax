@@ -64,6 +64,13 @@
       "when": 1787721242460,
       "tag": "0008_norma_poc_estrutura",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1787872338268,
+      "tag": "0009_delegacao_despesa_mesma_empresa",
+      "breakpoints": true
     }
   ]
 }
