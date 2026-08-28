@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "3.2.0",
+  "objetivo": "Tornar a ficha do colaborador apta a pagamento (tipoDocumento + documento), relatório e contexto (cargo), alçada por grau (nivelAprovacao), desligamento sem perda de histórico (statusVinculo) e anti-fraude por data (dataAdmissao, alimenta G4); e criar a tabela checkins_campo para registrar posição de equipe externa, somente armazenando — sem cálculo de trajeto nesta demanda.",
+  "dentro": [
+    "migração aditiva (numerada ao mergear; candidata 0010, após a 0009 entrar na main)",
+    "colaboradores: tipoDocumento enum(cpf, cnpj) + documento texto, ambos nullable — coleta tardia",
+    "colaboradores: cargo texto livre, nullable",
+    "colaboradores: nivelAprovacao inteiro nullable (1..N; grau, não alçada)",
+    "colaboradores: statusVinculo enum(ativo, desligado) NOT NULL DEFAULT 'ativo'",
+    "colaboradores: dataAdmissao data nullable",
+    "uniqueIndex (empresaId, documento) — mesmo tratamento do (empresaId, telefone) existente",
+    "checkins_campo: empresaId + colaboradorId + timestamp + latitude + longitude + precisao + origem",
+    "checkins_campo com FK composta (empresaId, colaboradorId) apoiada no índice colaboradores_empresa_id_id_idx — lição da 0008",
+    "db/schema.ts + db/relations.ts correspondentes",
+    "script de reversão da migração",
+    "testes: aplicação/reversão da migração e rejeição de check-in cross-tenant"
+  ],
+  "fora": [
+    "cálculo de trajeto (somar distâncias entre check-ins vs. kmComercial declarado) — fase 1 do roadmap, G6",
+    "valores de alçada por grau — tabela P-xxx, fase 4, gate G10",
+    "coleta conversacional do documento no fluxo do agente — demanda própria, no primeiro reembolso a pagar",
+    "bloqueio de e-mail por domínio — registrado: somente aviso amarelo",
+    "telefone obrigatório — permanece opcional enquanto WhatsApp estiver fora",
+    "telas de admin para os novos campos — demanda própria se houver"
+  ],
+  "riscos": [
+    "fonte de verdade dupla entre nivelAprovacao e a estrutura de aprovadores da Norma PoC (db/schema.ts:485-527): a spec DEVE declarar a relação entre os dois antes do dev",
+    "documento duplicado silencioso se faltar o uniqueIndex (empresaId, documento)",
+    "furo cross-tenant se a FK de checkins_campo for simples em vez de composta — mesmo padrão do erro achado na 0008",
+    "conflito de numeração se o SQL for gerado antes da 0009 mergear: gerar migration somente após o merge"
+  ],
+  "pronto": [
+    "0009 mergeada na main",
+    "relação nivelAprovacao × aprovadores PoC decidida e registrada na spec",
+    "fix/cadastro-sessao-orfas revisada e fila de deploy destravada"
+  ],
+  "decisoes": [
+    "documento coletado tarde (primeiro reembolso a pagar), não no convite",
+    "CPF para interno, CNPJ para externo PJ; CNPJ do colaborador não se confunde com o da empresa",
+    "desligamento via statusVinculo, nunca DELETE — histórico é preservado",
+    "check-ins só fazem sentido para equipe externa (motorista/entregador em rota)",
+    "escopo desta demanda é somente armazenar"
+  ],
+  "complexidade": "S",
+  "criterioDeAceite": [
+    "migração aplica e reverte em banco de teste",
+    "linhas existentes de colaboradores preservadas sem backfill obrigatório",
+    "banco rejeita check-in cujo (empresaId, colaboradorId) não pertença à mesma empresa — teste automatizado",
+    "banco rejeita documento duplicado dentro da mesma empresa e aceita o mesmo documento em empresas diferentes — teste automatizado",
+    "vitest e tsc passam na worktree",
+    "nenhum arquivo fora de db/ e contracts/ alterado"
+  ]
+}
