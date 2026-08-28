@@ -1,9 +1,9 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createRouter, protectedProcedure, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { cnaesSecundarios, empresas } from "@db/schema";
+import { cnaesSecundarios, colaboradores, empresas } from "@db/schema";
 import { cnpjConsultaInput, empresaInput } from "@contracts/types";
 import {
   cnpjValido,
@@ -20,16 +20,31 @@ function cadastroCompleto(empresa: typeof empresas.$inferSelect): boolean {
 }
 
 export const empresasRouter = createRouter({
-  /** Lista empresas do usuário (admin/revisor veem todas). */
+  /**
+   * Lista as empresas do usuário (admin/revisor veem todas). Para o cliente,
+   * são as que ele criou MAIS aquelas em que é colaborador — o convidado
+   * precisa enxergar a empresa que o convidou (v1.9.1).
+   */
   list: protectedProcedure.query(async ({ ctx }) => {
     const db = getDb();
-    const rows =
-      ctx.usuario.perfil === "cliente"
-        ? await db
-            .select()
-            .from(empresas)
-            .where(eq(empresas.usuarioId, ctx.usuario.id))
-        : await db.select().from(empresas);
+    let rows;
+    if (ctx.usuario.perfil === "cliente") {
+      const vinculos = await db
+        .select({ empresaId: colaboradores.empresaId })
+        .from(colaboradores)
+        .where(eq(colaboradores.usuarioId, ctx.usuario.id));
+      const ids = [...new Set(vinculos.map((v) => v.empresaId))];
+      rows = await db
+        .select()
+        .from(empresas)
+        .where(
+          ids.length
+            ? or(eq(empresas.usuarioId, ctx.usuario.id), inArray(empresas.id, ids))
+            : eq(empresas.usuarioId, ctx.usuario.id),
+        );
+    } else {
+      rows = await db.select().from(empresas);
+    }
     return rows.map((e) => ({ ...e, cadastroCompleto: cadastroCompleto(e) }));
   }),
 

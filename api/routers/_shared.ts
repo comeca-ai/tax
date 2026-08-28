@@ -1,15 +1,40 @@
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { empresas, logAuditoria } from "@db/schema";
+import { colaboradores, empresas, logAuditoria } from "@db/schema";
 import type { TrpcContext } from "../context";
 
 type Db = ReturnType<typeof getDb>;
 
 /**
+ * O usuário é colaborador ativo desta empresa? (v1.9.1)
+ *
+ * O vínculo nasce quando ele aceita o convite: `convites.aceitar` preenche
+ * `colaboradores.usuarioId`. É o que dá ao convidado acesso à empresa que o
+ * convidou — sem isso ele entra no painel e não enxerga nada.
+ */
+async function ehColaboradorDaEmpresa(
+  usuarioId: number,
+  empresaId: number,
+): Promise<boolean> {
+  const db = getDb();
+  const rows = await db
+    .select({ id: colaboradores.id })
+    .from(colaboradores)
+    .where(
+      and(
+        eq(colaboradores.usuarioId, usuarioId),
+        eq(colaboradores.empresaId, empresaId),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
  * Garante que o usuário tem acesso à empresa:
  * - admin/revisor: acesso a qualquer empresa
- * - cliente: apenas empresas próprias
+ * - cliente: empresas próprias e aquelas em que é colaborador (v1.9.1)
  */
 export async function assertEmpresaAcesso(
   ctx: TrpcContext,
@@ -28,7 +53,8 @@ export async function assertEmpresaAcesso(
   if (
     ctx.usuario &&
     ctx.usuario.perfil === "cliente" &&
-    empresa.usuarioId !== ctx.usuario.id
+    empresa.usuarioId !== ctx.usuario.id &&
+    !(await ehColaboradorDaEmpresa(ctx.usuario.id, empresa.id))
   ) {
     throw new TRPCError({
       code: "FORBIDDEN",
@@ -55,18 +81,31 @@ export async function assertEmpresaAcesso(
 export async function assertAdminDaEmpresa(
   ctx: TrpcContext,
   empresaId: number,
+  mensagem = "Só o administrador da empresa pode alterar as regras e ativar a política de reembolso.",
 ): Promise<typeof empresas.$inferSelect> {
   const empresa = await assertEmpresaAcesso(ctx, empresaId);
   const ehAdminDaPlataforma = ctx.usuario?.perfil === "admin";
   const ehAdminDaEmpresa = empresa.usuarioId === ctx.usuario?.id;
   if (!ehAdminDaPlataforma && !ehAdminDaEmpresa) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message:
-        "Só o administrador da empresa pode alterar as regras e ativar a política de reembolso.",
-    });
+    throw new TRPCError({ code: "FORBIDDEN", message: mensagem });
   }
   return empresa;
+}
+
+/**
+ * O usuário criou alguma empresa? (v1.9.1)
+ *
+ * É o que faz dele "admin da empresa" em `assertAdminDaEmpresa` — aqui sem
+ * empresa alvo, para responder "esta sessão pode gerenciar equipe?".
+ */
+export async function ehAdminDeAlgumaEmpresa(usuarioId: number): Promise<boolean> {
+  const db = getDb();
+  const rows = await db
+    .select({ id: empresas.id })
+    .from(empresas)
+    .where(eq(empresas.usuarioId, usuarioId))
+    .limit(1);
+  return rows.length > 0;
 }
 
 /** RF-04: trilha imutável — apenas INSERT, nunca UPDATE/DELETE. */

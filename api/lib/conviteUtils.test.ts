@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { conviteExpirado, gerarTokenConvite } from "./conviteUtils";
+import { afterEach, describe, expect, it } from "vitest";
+import { conviteExpirado, gerarTokenConvite, linkAceite } from "./conviteUtils";
 
 describe("gerarTokenConvite", () => {
   it("gera token hex de 48 caracteres", () => {
@@ -36,5 +36,27 @@ describe("conviteExpirado", () => {
   it("usa a data atual por padrão quando 'agora' não é informado", () => {
     expect(conviteExpirado(new Date(Date.now() - 1000))).toBe(true);
     expect(conviteExpirado(new Date(Date.now() + 60_000))).toBe(false);
+  });
+});
+
+/**
+ * O link de aceite é o que o gestor copia da tela e o que vai no e-mail do
+ * convite (v1.9.1) — se ele sair errado, o convidado não entra.
+ */
+describe("linkAceite", () => {
+  const original = process.env.APP_URL;
+  afterEach(() => {
+    if (original === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = original;
+  });
+
+  it("usa a APP_URL do ambiente", () => {
+    process.env.APP_URL = "https://oreembolsobot.app";
+    expect(linkAceite("abc123")).toBe("https://oreembolsobot.app/convite/abc123");
+  });
+
+  it("sem APP_URL, cai no localhost do desenvolvimento", () => {
+    delete process.env.APP_URL;
+    expect(linkAceite("abc123")).toBe("http://localhost:3000/convite/abc123");
   });
 });

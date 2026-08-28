@@ -7,20 +7,19 @@ import {
   Copy,
   Link2,
   MailPlus,
-  MessageCircle,
   RefreshCw,
   ShieldAlert,
   Users,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
-  PERFIS,
   PERFIL_LABELS,
   STATUS_CONVITE_LABELS,
   type Convite,
   type Perfil,
   type StatusConvite,
 } from "@contracts/types"
+import { perfisConvidaveis } from "@contracts/permissoes"
 import { useAuth } from "@/hooks/useAuth"
 import {
   Select,
@@ -39,7 +38,6 @@ import {
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { waCompartilhar } from "@/lib/whatsapp"
 import Colaboradores from "@/components/equipe/Colaboradores"
 import {
   mensagemErro,
@@ -84,7 +82,6 @@ async function copiarLink(link: string) {
 /** Card com o link de aceite (quando o SMTP não está configurado) + compartilhamento. */
 function LinkAceiteCard({ convite, onFechar }: { convite: ConviteComLink; onFechar: () => void }) {
   if (!convite.linkAceite) return null
-  const texto = `Você foi convidado para o reembolsa.ia como ${PERFIL_LABELS[convite.perfil]}. Acesse: ${convite.linkAceite}`
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -122,23 +119,18 @@ function LinkAceiteCard({ convite, onFechar }: { convite: ConviteComLink; onFech
         >
           <Copy className="h-4 w-4" /> Copiar link
         </button>
-        <button
-          type="button"
-          onClick={() => window.open(waCompartilhar(texto), "_blank", "noopener,noreferrer")}
-          className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-line bg-surface px-4 text-[13px] font-semibold text-text-900 transition hover:bg-paper"
-        >
-          <MessageCircle className="h-4 w-4 text-brand-500" /> Compartilhar no WhatsApp
-        </button>
       </div>
     </motion.div>
   )
 }
 
 export default function Equipe() {
-  const { perfil } = useAuth()
+  const { perfil, podeGerenciarEquipe } = useAuth()
   const queryClient = useQueryClient()
   const convites = useConvitesClient()
-  const isAdmin = perfil === "admin"
+  // Perfis da plataforma (Admin, Revisor) alcançam todas as empresas — só o
+  // suporte concede. O admin da empresa convida como Cliente (v1.9.1).
+  const perfisDisponiveis = perfisConvidaveis(perfil ?? "cliente")
 
   const [email, setEmail] = useState("")
   const [perfilConvite, setPerfilConvite] = useState<Perfil>("cliente")
@@ -148,7 +140,7 @@ export default function Equipe() {
   const lista = useQuery({
     queryKey: ["convites", "listar"],
     queryFn: () => convites.listar.query(),
-    enabled: isAdmin,
+    enabled: podeGerenciarEquipe,
     retry: false,
   })
 
@@ -219,7 +211,7 @@ export default function Equipe() {
     criar.mutate({ email: limpo, perfil: perfilConvite })
   }
 
-  if (!isAdmin) {
+  if (!podeGerenciarEquipe) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -232,11 +224,11 @@ export default function Equipe() {
         </span>
         <div className="flex flex-col gap-1">
           <h1 className="font-display text-lg font-medium tracking-[-0.01em] text-text-900">
-            Acesso restrito a administradores
+            Acesso restrito ao administrador da empresa
           </h1>
           <p className="max-w-sm text-sm text-text-500">
-            Somente administradores podem gerenciar convites da equipe. Fale com o administrador
-            da sua empresa.
+            Quem cadastra a empresa administra a equipe dela. Cadastre sua empresa para convidar
+            pessoas — ou fale com quem administra a sua.
           </p>
         </div>
         <Link
@@ -263,11 +255,12 @@ export default function Equipe() {
           Equipe
         </h1>
         <p className="text-sm text-text-500">
-          Colaboradores pedem reembolso pelo WhatsApp; usuários do painel acessam a plataforma.
+          Todo convite vai por e-mail: colaboradores enviam despesas, usuários do painel
+          administram a operação.
         </p>
       </header>
 
-      {/* Colaboradores (jornada WhatsApp — v1.6.0) */}
+      {/* Colaboradores — convite por e-mail (v1.9.1) */}
       <Colaboradores />
 
       <hr className="border-line" />
@@ -310,13 +303,18 @@ export default function Equipe() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PERFIS.map((p) => (
+              {perfisDisponiveis.map((p) => (
                 <SelectItem key={p} value={p}>
                   {PERFIL_LABELS[p]}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {perfisDisponiveis.length === 1 && (
+            <p className="text-[12px] leading-snug text-text-500">
+              Admin e Revisor alcançam todas as empresas — quem concede é o suporte.
+            </p>
+          )}
         </div>
         <button
           type="submit"

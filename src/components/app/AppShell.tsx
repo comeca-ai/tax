@@ -53,6 +53,8 @@ interface NavItem {
   end: boolean
   badge?: number
   adminOnly?: boolean
+  /** Área Equipe: admin da plataforma OU admin da própria empresa (v1.9.1). */
+  equipeOnly?: boolean
 }
 const NAV_GROUPS: { rotulo: string; itens: NavItem[] }[] = [
   {
@@ -68,7 +70,7 @@ const NAV_GROUPS: { rotulo: string; itens: NavItem[] }[] = [
     rotulo: "Configurar",
     itens: [
       { to: "/app/politica", label: "Política", icon: ScrollText, end: false },
-      { to: "/app/equipe", label: "Equipe", icon: Users, end: false, adminOnly: true },
+      { to: "/app/equipe", label: "Equipe", icon: Users, end: false, equipeOnly: true },
       { to: "/app/empresas", label: "Empresas", icon: Building2, end: false },
       { to: "/app/regras", label: "Regras & Matriz", icon: Scale, end: false, adminOnly: true },
     ],
@@ -96,10 +98,14 @@ const PAGE_TITLES: Record<string, string> = {
 
 /** Conteúdo da navegação — compartilhado entre sidebar desktop e drawer mobile. */
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const { user, logout } = useAuth()
+  const { user, logout, podeGerenciarEquipe } = useAuth()
   const grupos = NAV_GROUPS.map((g) => ({
     ...g,
-    itens: g.itens.filter((item) => !item.adminOnly || user?.perfil === "admin"),
+    itens: g.itens.filter(
+      (item) =>
+        (!item.adminOnly || user?.perfil === "admin") &&
+        (!item.equipeOnly || podeGerenciarEquipe),
+    ),
   }))
 
   return (

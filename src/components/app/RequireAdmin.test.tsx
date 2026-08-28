@@ -4,9 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Perfil } from "@contracts/types";
 import App from "@/App";
 import RequireAdmin from "./RequireAdmin";
+import RequireEquipe from "./RequireEquipe";
 
 /**
- * Guarda de perfil de /app/regras e /app/equipe (v1.8.0).
+ * Guardas de /app/regras (plataforma) e /app/equipe (empresa) — v1.8.0, revistas
+ * na v1.9.1: Equipe deixou de exigir o perfil `admin` da plataforma e passou a
+ * aceitar o administrador da própria empresa, via `auth.me.podeGerenciarEquipe`.
  *
  * O teste entra pela ÁRVORE DE ROTAS de `App.tsx`, não só pelo componente: o que
  * quebra na vida real é a rota sair de dentro de `<Route element={<RequireAdmin />}>`,
@@ -20,6 +23,7 @@ import RequireAdmin from "./RequireAdmin";
 
 const sessao = vi.hoisted(() => ({
   perfil: "admin" as Perfil | null,
+  podeGerenciarEquipe: true,
   isLoading: false,
 }));
 
@@ -35,10 +39,14 @@ vi.mock("react-router", async importOriginal => {
 
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({
-    user: sessao.perfil === null ? null : { perfil: sessao.perfil },
+    user:
+      sessao.perfil === null
+        ? null
+        : { perfil: sessao.perfil, podeGerenciarEquipe: sessao.podeGerenciarEquipe },
     isLoading: sessao.isLoading,
     isAuthenticated: sessao.perfil !== null,
     perfil: sessao.perfil,
+    podeGerenciarEquipe: sessao.podeGerenciarEquipe,
     logout: async () => {},
   }),
 }));
@@ -48,8 +56,18 @@ vi.mock("@/pages/app/Regras", () => ({ default: () => <div data-pagina="regras" 
 vi.mock("@/pages/app/Equipe", () => ({ default: () => <div data-pagina="equipe" /> }));
 vi.mock("@/pages/app/Dashboard", () => ({ default: () => <div data-pagina="dashboard" /> }));
 
-function abrir(rota: string, perfil: Perfil): string {
+/**
+ * `podeGerenciarEquipe` é derivado no SERVIDOR (perfil da plataforma OU dono de
+ * empresa); aqui ele é passado explicitamente para separar os dois eixos —
+ * perfil global × ser dono da empresa.
+ */
+function abrir(
+  rota: string,
+  perfil: Perfil,
+  podeGerenciarEquipe = perfil === "admin"
+): string {
   sessao.perfil = perfil;
+  sessao.podeGerenciarEquipe = podeGerenciarEquipe;
   return renderToStaticMarkup(
     <MemoryRouter initialEntries={[rota]}>
       <App />
@@ -61,6 +79,7 @@ const REDIRECT_DASHBOARD = '<i data-redirecionou-para="/app/dashboard" data-repl
 
 beforeEach(() => {
   sessao.perfil = "admin";
+  sessao.podeGerenciarEquipe = true;
   sessao.isLoading = false;
 });
 
@@ -71,13 +90,13 @@ describe("área restrita ao time da plataforma", () => {
     expect(html).toContain(REDIRECT_DASHBOARD);
   });
 
-  it("cliente não vê Equipe e volta para o dashboard", () => {
+  it("cliente sem empresa não vê Equipe e volta para o dashboard", () => {
     const html = abrir("/app/equipe", "cliente");
     expect(html).not.toContain('data-pagina="equipe"');
     expect(html).toContain(REDIRECT_DASHBOARD);
   });
 
-  it("revisor é barrado nas duas rotas, igual ao cliente", () => {
+  it("revisor é barrado nas duas rotas, igual ao cliente sem empresa", () => {
     const regras = abrir("/app/regras", "revisor");
     expect(regras).not.toContain('data-pagina="regras"');
     expect(regras).toContain(REDIRECT_DASHBOARD);
@@ -108,6 +127,39 @@ describe("área restrita ao time da plataforma", () => {
     const html = renderToStaticMarkup(
       <MemoryRouter>
         <RequireAdmin />
+      </MemoryRouter>
+    );
+    expect(html).toContain("Verificando permissão");
+    expect(html).not.toContain("data-redirecionou-para");
+  });
+});
+
+describe("Equipe aberta ao administrador da empresa (v1.9.1)", () => {
+  it("cliente dono de empresa entra em /app/equipe", () => {
+    const html = abrir("/app/equipe", "cliente", true);
+    expect(html).toContain('data-pagina="equipe"');
+    expect(html).not.toContain("data-redirecionou-para");
+  });
+
+  // O que abriu foi a equipe da empresa, não a matriz de regras da plataforma.
+  it("cliente dono de empresa continua barrado em /app/regras", () => {
+    const html = abrir("/app/regras", "cliente", true);
+    expect(html).not.toContain('data-pagina="regras"');
+    expect(html).toContain(REDIRECT_DASHBOARD);
+  });
+
+  it("revisor dono de empresa também entra em /app/equipe", () => {
+    const html = abrir("/app/equipe", "revisor", true);
+    expect(html).toContain('data-pagina="equipe"');
+  });
+
+  it("enquanto carrega, a guarda da Equipe segura o redirect", () => {
+    sessao.perfil = null;
+    sessao.podeGerenciarEquipe = false;
+    sessao.isLoading = true;
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <RequireEquipe />
       </MemoryRouter>
     );
     expect(html).toContain("Verificando permissão");

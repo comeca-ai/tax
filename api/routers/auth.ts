@@ -5,6 +5,7 @@ import { createRouter, protectedProcedure, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { resetsSenha, usuarios } from "@db/schema";
 import { loginInput, registroInput } from "@contracts/types";
+import { podeGerenciarEquipe } from "@contracts/permissoes";
 import { hashSenha, verificarSenha } from "../auth/password";
 import { gerarTokenConvite } from "../lib/conviteUtils";
 import { enviarResetSenhaEmail } from "../mail/mailer";
@@ -15,7 +16,7 @@ import {
   cookieSessao,
   criarTokenSessao,
 } from "../auth/session";
-import { registrarLog } from "./_shared";
+import { ehAdminDeAlgumaEmpresa, registrarLog } from "./_shared";
 
 export const authRouter = createRouter({
   /** Cadastro de usuário (perfil padrão: cliente). */
@@ -62,7 +63,15 @@ export const authRouter = createRouter({
         entidadeId: id,
       });
 
-      return { id, email, nome: input.nome.trim(), perfil };
+      // Conta recém-criada ainda não tem empresa — a área Equipe abre depois
+      // que ele cadastrar a empresa (v1.9.1).
+      return {
+        id,
+        email,
+        nome: input.nome.trim(),
+        perfil,
+        podeGerenciarEquipe: false,
+      };
     }),
 
   /** Login email/senha → cookie de sessão HttpOnly. */
@@ -98,6 +107,10 @@ export const authRouter = createRouter({
       email: usuario.email,
       nome: usuario.nome,
       perfil: usuario.perfil,
+      podeGerenciarEquipe: podeGerenciarEquipe({
+        perfil: usuario.perfil,
+        ehAdminDeEmpresa: await ehAdminDeAlgumaEmpresa(usuario.id),
+      }),
     };
   }),
 
@@ -107,8 +120,17 @@ export const authRouter = createRouter({
     return { ok: true };
   }),
 
-  /** Sessão atual (null quando não autenticado). */
-  me: publicQuery.query(({ ctx }) => ctx.usuario),
+  /** Sessão atual (null quando não autenticado) + o que ela pode fazer. */
+  me: publicQuery.query(async ({ ctx }) => {
+    if (!ctx.usuario) return null;
+    return {
+      ...ctx.usuario,
+      podeGerenciarEquipe: podeGerenciarEquipe({
+        perfil: ctx.usuario.perfil,
+        ehAdminDeEmpresa: await ehAdminDeAlgumaEmpresa(ctx.usuario.id),
+      }),
+    };
+  }),
 
   /**
    * Solicita redefinição de senha (v1.6.1). Resposta é SEMPRE a mesma,

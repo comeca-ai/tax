@@ -40,6 +40,8 @@ export function useAuth() {
     isLoading: me.isLoading,
     isAuthenticated: user !== null,
     perfil: user?.perfil ?? null,
+    /** Admin da plataforma ou da própria empresa — libera a área Equipe (v1.9.1). */
+    podeGerenciarEquipe: user?.podeGerenciarEquipe ?? false,
     logout,
   }
 }

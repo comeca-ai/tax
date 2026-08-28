@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { motion } from "framer-motion"
-import { Link2, MessageCircle, Send, UserPlus } from "lucide-react"
+import { Link2, Mail, Send, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { trpc } from "@/providers/trpc"
 import { useActiveCompany } from "@/hooks/useActiveCompany"
@@ -9,9 +9,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { mensagemErro } from "@/lib/convites"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Colaboradores (v1.6.0) — quem pede reembolso. Não precisa de login: a
-// jornada acontece no WhatsApp (docs/PRODUTO.md §3). O convite é o
-// "e-mail-isqueiro": link wa.me do agente com mensagem pré-preenchida (D-004).
+// Colaboradores (v1.6.0; convite reescrito na v1.9.1) — quem pede reembolso.
+// O WhatsApp está fora por ora: o convite vai por E-MAIL, com link de aceite
+// (`/convite/<token>`) onde a pessoa cria a senha e passa a enxergar a empresa.
+// Sem SMTP, a tela mostra o link para o gestor copiar e mandar como quiser.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface Colaborador {
@@ -29,8 +30,8 @@ interface ColaboradoresClient {
     mutate(input: {
       empresaId: number
       nome: string
-      telefone: string
-      email?: string
+      email: string
+      telefone?: string
       matricula?: string
       centroCusto?: string
     }): Promise<{ id: number }>
@@ -38,7 +39,7 @@ interface ColaboradoresClient {
   listar: { query(input: { empresaId: number }): Promise<Colaborador[]> }
   enviarConvite: {
     mutate(input: { id: number }): Promise<{
-      linkWhatsApp: string
+      linkAceite: string
       enviadoPorEmail: boolean
       email: string | null
     }>
@@ -51,8 +52,8 @@ function useColaboradoresClient(): ColaboradoresClient {
 }
 
 const STATUS_CHIP: Record<Colaborador["statusAtivacao"], { rotulo: string; cls: string }> = {
-  pendente: { rotulo: "Aguardando ativar", cls: "bg-conf-media-bg text-conf-media-text" },
-  confirmado: { rotulo: "Ativo no WhatsApp", cls: "bg-brand-500/10 text-brand-500" },
+  pendente: { rotulo: "Aguardando aceitar", cls: "bg-conf-media-bg text-conf-media-text" },
+  confirmado: { rotulo: "Acesso ativo", cls: "bg-brand-500/10 text-brand-500" },
   divergencia: { rotulo: "Revisar dados", cls: "bg-red-500/10 text-red-600" },
 }
 
@@ -66,6 +67,7 @@ export default function Colaboradores() {
   const [telefone, setTelefone] = useState("")
   const [email, setEmail] = useState("")
   const [matricula, setMatricula] = useState("")
+  const [linkConvite, setLinkConvite] = useState<{ email: string | null; link: string } | null>(null)
 
   const lista = useQuery({
     queryKey: ["colaboradores", "listar", empresaId],
@@ -81,7 +83,7 @@ export default function Colaboradores() {
       await queryClient.invalidateQueries({ queryKey: ["colaboradores"] })
       setNome(""); setTelefone(""); setEmail(""); setMatricula("")
       toast.success("Colaborador cadastrado", {
-        description: "Agora envie o convite para ele ativar no WhatsApp.",
+        description: "Agora envie o convite — ele chega por e-mail.",
       })
     },
     onError: (erro) =>
@@ -91,22 +93,26 @@ export default function Colaboradores() {
   const convite = useMutation({
     mutationFn: (id: number) => colaboradores.enviarConvite.mutate({ id }),
     onSuccess: async (res) => {
+      await queryClient.invalidateQueries({ queryKey: ["colaboradores"] })
       if (res.enviadoPorEmail) {
         toast.success("Convite enviado por e-mail", { description: res.email ?? undefined })
+        setLinkConvite(null)
+        return
       }
-      // Sempre mostra o link — útil para conferir ou compartilhar manualmente.
+      // Sem SMTP o e-mail não sai: o link fica na tela para o gestor mandar.
+      setLinkConvite({ email: res.email, link: res.linkAceite })
       try {
-        await navigator.clipboard.writeText(res.linkWhatsApp)
+        await navigator.clipboard.writeText(res.linkAceite)
         toast.success("Link do convite copiado", {
-          description: "Cole em qualquer lugar — o colaborador toca e ativa no WhatsApp.",
+          description: "O e-mail automático não saiu — mande este link para o colaborador.",
         })
       } catch {
-        window.prompt("Copie o link do convite:", res.linkWhatsApp)
+        toast.info("Copie o link do convite abaixo")
       }
     },
     onError: (erro) =>
       toast.error("Não foi possível gerar o convite", {
-        description: mensagemErro(erro, "Verifique AGENT_WHATSAPP_NUMBER no servidor."),
+        description: mensagemErro(erro, "Tente novamente."),
       }),
   })
 
@@ -114,15 +120,15 @@ export default function Colaboradores() {
     e.preventDefault()
     if (!empresaId) return
     const fone = telefone.replace(/\D/g, "")
-    if (fone.length < 10) {
+    if (fone && fone.length < 10) {
       toast.error("Telefone incompleto", { description: "Use DDD + número, ex.: 11 99777-6666" })
       return
     }
     criar.mutate({
       empresaId,
       nome: nome.trim(),
-      telefone: fone.startsWith("55") ? fone : `55${fone}`,
-      email: email.trim() || undefined,
+      email: email.trim(),
+      telefone: fone ? (fone.startsWith("55") ? fone : `55${fone}`) : undefined,
       matricula: matricula.trim() || undefined,
     })
   }
@@ -134,11 +140,11 @@ export default function Colaboradores() {
     <section className="flex flex-col gap-4">
       <header className="flex flex-col gap-1">
         <h2 className="font-display text-lg font-semibold tracking-[-0.01em] text-text-900">
-          Colaboradores no WhatsApp
+          Colaboradores
         </h2>
         <p className="text-sm text-text-500">
-          Quem pede reembolso não precisa de login — cadastre aqui e envie o convite: a pessoa
-          ativa em 1 minuto conversando com o agente.
+          Quem pede reembolso na sua empresa. Cadastre a pessoa e envie o convite — ela recebe o
+          link por e-mail, escolhe uma senha e já envia as despesas.
         </p>
       </header>
 
@@ -158,9 +164,8 @@ export default function Colaboradores() {
           />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">WhatsApp (com DDD)</span>
+          <span className="text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">Telefone (opcional)</span>
           <input
-            required
             value={telefone}
             onChange={(e) => setTelefone(e.target.value)}
             placeholder="11 99777-6666"
@@ -169,8 +174,9 @@ export default function Colaboradores() {
           />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">E-mail (para o convite)</span>
+          <span className="text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">E-mail (o convite vai por aqui)</span>
           <input
+            required
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -197,6 +203,30 @@ export default function Colaboradores() {
         </button>
       </form>
 
+      {/* Link de aceite — só aparece quando o e-mail automático não saiu */}
+      {linkConvite && (
+        <div className="flex flex-col gap-2 rounded-xl border border-brand-500/30 bg-brand-500/5 p-4">
+          <div className="flex items-center gap-2">
+            <Link2 className="h-4 w-4 text-brand-500" />
+            <span className="text-[13px] font-semibold text-text-900">
+              O e-mail automático não saiu — mande este link para {linkConvite.email ?? "o colaborador"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setLinkConvite(null)}
+              className="ml-auto text-[12px] font-semibold text-text-500 transition hover:text-text-900"
+            >
+              Fechar
+            </button>
+          </div>
+          <div className="rounded-[10px] border border-line bg-surface px-3 py-2.5">
+            <span className="break-all font-mono text-[12px] leading-relaxed text-text-900">
+              {linkConvite.link}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Lista */}
       {lista.isLoading ? (
         <div className="flex flex-col gap-3">
@@ -205,10 +235,10 @@ export default function Colaboradores() {
         </div>
       ) : itens.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-line bg-surface px-8 py-10 text-center">
-          <MessageCircle className="h-6 w-6 text-text-500/60" />
+          <Mail className="h-6 w-6 text-text-500/60" />
           <p className="max-w-md text-sm text-text-500">
-            Nenhum colaborador ainda. Cadastre o primeiro acima — quando ele ativar no WhatsApp,
-            o status muda para “Ativo” sozinho.
+            Nenhum colaborador ainda. Cadastre o primeiro acima — quando ele aceitar o convite que
+            chega por e-mail, o status muda para “Acesso ativo” sozinho.
           </p>
         </div>
       ) : (
@@ -217,7 +247,7 @@ export default function Colaboradores() {
             <thead>
               <tr className="border-b border-line">
                 <th className="h-11 px-4 text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">Nome</th>
-                <th className="h-11 px-4 text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">WhatsApp</th>
+                <th className="h-11 px-4 text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">Telefone</th>
                 <th className="h-11 px-4 text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">Matrícula</th>
                 <th className="h-11 px-4 text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">Status</th>
                 <th className="h-11 px-4 text-right text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">Convite</th>
@@ -254,7 +284,7 @@ export default function Colaboradores() {
                         ) : (
                           <Link2 className="h-3.5 w-3.5" />
                         )}
-                        {c.statusAtivacao === "pendente" ? "Enviar convite" : "Copiar link"}
+                        {c.statusAtivacao === "pendente" ? "Enviar convite" : "Reenviar convite"}
                       </button>
                     </td>
                   </motion.tr>

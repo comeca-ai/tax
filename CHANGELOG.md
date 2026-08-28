@@ -4,6 +4,56 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.9.1] — 2026-08-28
+
+**Convidar gente para a empresa deixa de ser privilégio da plataforma.** A área
+Equipe exigia `perfil = "admin"` — o perfil da plataforma, que nenhum cadastro
+recebe. Na prática nenhum cliente conseguia convidar ninguém nem montar a
+equipe da própria empresa. Nenhuma migração: só código.
+
+### Adicionado
+- **`contracts/permissoes.ts`** — `podeGerenciarEquipe` e `perfisConvidaveis`,
+  as duas regras puras que servidor e tela passam a compartilhar (8 testes)
+- **`auth.me` devolve `podeGerenciarEquipe`**, calculado no servidor (perfil da
+  plataforma OU dono de alguma empresa); `login`, `registro` e `convite.aceitar`
+  devolvem o mesmo campo
+- **`RequireEquipe`** — guarda de `/app/equipe`, separada de `RequireAdmin`, que
+  segue protegendo só `/app/regras` (Regras & Matriz é da plataforma)
+- **`api/lib/conviteAcesso.ts`** — emissão de convite de acesso compartilhada
+  pelos dois emissores (usuários do painel e colaboradores)
+- **Colaborador convidado enxerga a empresa que o convidou**: ao aceitar o
+  convite, a ficha de colaborador com o mesmo e-mail recebe `usuario_id` e passa
+  a `confirmado`; `empresas.list` e `assertEmpresaAcesso` reconhecem o vínculo
+
+### Alterado
+- **Convite do colaborador agora é por E-MAIL** (o WhatsApp está fora — decisão
+  registrada em `feabce5`): `colaboradores.enviarConvite` emite um link de
+  aceite `/convite/<token>` e o envia pelo SMTP; sem SMTP, a tela mostra o link
+  para o gestor copiar. O e-mail do colaborador passou a ser obrigatório e o
+  telefone virou opcional
+- **Textos da tela Equipe sem promessa de WhatsApp** — some o botão
+  "Compartilhar no WhatsApp", o status "Ativo no WhatsApp" vira "Acesso ativo",
+  a coluna "WhatsApp" vira "Telefone"
+- `convites.criar/listar/revogar/reenviar` e `colaboradores.criar/
+  atualizarStatus/enviarConvite` deixam de exigir o perfil da plataforma e
+  passam a exigir ser administrador **daquela** empresa
+- `assertAdminDaEmpresa` aceita mensagem de erro contextual
+
+### Segurança
+- Quem não é admin da plataforma **só vê e mexe nos convites que emitiu** —
+  convite alheio responde `NOT_FOUND`, que não confirma a existência do id
+- Perfis `admin` e `revisor` alcançam todas as empresas e continuam sendo
+  concedidos só pela plataforma: o admin da empresa convida como `cliente`
+- O admin da empresa **não** vira admin da plataforma — o perfil global fica
+  intocado, então ele não passa a enxergar as empresas dos outros
+
+### Testes
+- 318 testes (eram 304): 8 das regras de permissão, 4 das guardas de rota,
+  2 do link de aceite. `tsc -b --force` limpo
+- Verificação ponta a ponta em homologação: dono convida, colaborador aceita,
+  passa a ver só a empresa que o convidou e não administra nada; empresa
+  vizinha barrada nos dois sentidos
+
 ## [1.9.0] — 2026-08-27
 
 **Estrutura da Norma PoC.** Migração puramente aditiva: nenhum arquivo em `src/`

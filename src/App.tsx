@@ -4,6 +4,7 @@ import Layout from "@/components/Layout"
 import AppShell from "@/components/app/AppShell"
 import RequireAuth from "@/components/app/RequireAuth"
 import RequireAdmin from "@/components/app/RequireAdmin"
+import RequireEquipe from "@/components/app/RequireEquipe"
 import Home from "@/pages/Home"
 import Tese from "@/pages/Tese"
 import Login from "@/pages/Login"
@@ -44,8 +45,10 @@ export default function App() {
             <Route path="revisao" element={<Revisao />} />
             <Route path="empresas" element={<Empresas />} />
             <Route path="relatorios" element={<Relatorios />} />
-            <Route element={<RequireAdmin />}>
+            <Route element={<RequireEquipe />}>
               <Route path="equipe" element={<Equipe />} />
+            </Route>
+            <Route element={<RequireAdmin />}>
               <Route path="regras" element={<Regras />} />
             </Route>
           </Route>

@@ -236,6 +236,15 @@ export type UsuarioSessao = {
   perfil: Perfil;
 };
 
+/**
+ * Sessão como a tela recebe (v1.9.1): o usuário mais o que ele pode fazer.
+ * `podeGerenciarEquipe` é derivado no servidor (perfil da plataforma OU dono de
+ * alguma empresa) — a tela não recalcula permissão.
+ */
+export type SessaoAtual = UsuarioSessao & {
+  podeGerenciarEquipe: boolean;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Agente de Política de Reembolso (v1.1.0)
 // ─────────────────────────────────────────────────────────────────────────────
