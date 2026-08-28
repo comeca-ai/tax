@@ -1,17 +1,21 @@
 /**
- * Tradução dos erros de `empresas.create` no wizard de cadastro (/cadastro).
+ * Tradução dos erros do wizard de cadastro (/cadastro).
  *
- * O wizard cria a conta e, em seguida, a empresa. Quando o segundo passo
- * falha, o usuário fica com conta e sem empresa (viola a RF-00) — por isso
- * aqui separamos a mensagem que vai à tela do detalhe técnico que vai ao
- * console, em vez de engolir o erro.
+ * Desde a v1.9.2 o wizard grava conta e empresa numa transação só: quando
+ * falha, **nada** é gravado. As mensagens daqui refletem isso — dizer "sua
+ * conta foi criada" mandaria a pessoa tentar um login que não existe. O que
+ * se mantém é a separação entre a mensagem da tela e o detalhe técnico que
+ * vai ao console, em vez de engolir o erro.
  *
  * Erros de validação do zod chegam pelo tRPC com `message` contendo o JSON
  * das issues; o restante (`UNAUTHORIZED`, por exemplo) já vem em PT-BR.
  */
 
-/** Rótulos PT-BR dos campos de `empresaInput` (contracts/types.ts). */
+/** Rótulos PT-BR dos campos de `registroComEmpresaInput` (contracts/types.ts). */
 const ROTULOS_CAMPO: Record<string, string> = {
+  nome: "seu nome",
+  email: "e-mail",
+  senha: "senha",
   razaoSocial: "razão social",
   cnpj: "CNPJ",
   cnaePrincipal: "CNAE principal",
@@ -26,7 +30,7 @@ const ROTULOS_CAMPO: Record<string, string> = {
 const CODIGOS_OPACOS = new Set(["INTERNAL_SERVER_ERROR", "TIMEOUT"])
 
 export const ERRO_EMPRESA_GENERICO =
-  "Sua conta foi criada, mas houve uma falha ao cadastrar a empresa. Tente novamente."
+  "Não foi possível concluir seu cadastro. Nada foi gravado — tente novamente em instantes."
 
 export interface ErroEmpresa {
   /** Código tRPC (`BAD_REQUEST`, `UNAUTHORIZED`, …), quando houver. */
@@ -94,7 +98,7 @@ export function descreverErroEmpresa(erro: unknown): ErroEmpresa {
     return {
       codigo,
       tecnico,
-      mensagem: `A empresa não foi cadastrada: o servidor recusou ${enumerar(
+      mensagem: `Cadastro não concluído: o servidor recusou ${enumerar(
         campos
       )}. Revise esses dados e tente novamente.`,
     }
@@ -104,8 +108,6 @@ export function descreverErroEmpresa(erro: unknown): ErroEmpresa {
   return {
     codigo,
     tecnico,
-    mensagem: opaca
-      ? ERRO_EMPRESA_GENERICO
-      : `Sua conta foi criada, mas a empresa não: ${bruta}`,
+    mensagem: opaca ? ERRO_EMPRESA_GENERICO : `Cadastro não concluído: ${bruta}`,
   }
 }

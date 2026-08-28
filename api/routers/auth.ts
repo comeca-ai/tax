@@ -8,6 +8,7 @@ import { loginInput, registroComEmpresaInput, registroInput } from "@contracts/t
 import { podeGerenciarEquipe } from "@contracts/permissoes";
 import { hashSenha, verificarSenha } from "../auth/password";
 import { gerarTokenConvite } from "../lib/conviteUtils";
+import { ehChaveDuplicada } from "../lib/erroDb";
 import { enviarResetSenhaEmail } from "../mail/mailer";
 
 const RESET_TTL_MS = 1000 * 60 * 60; // 1 hora
@@ -108,7 +109,7 @@ export const authRouter = createRouter({
 
       const senhaHash = await hashSenha(input.senha);
 
-      const { id, empresaId } = await db.transaction(async (tx) => {
+      const gravar = async () => db.transaction(async (tx) => {
         const rUsuario = await tx.insert(usuarios).values({
           email,
           nome: input.nome.trim(),
@@ -150,6 +151,28 @@ export const authRouter = createRouter({
 
         return { id, empresaId };
       });
+
+      // A pré-checagem de e-mail é otimista: entre ela e o INSERT cabe outro
+      // cadastro do mesmo e-mail. O índice único é quem garante — mas o erro
+      // cru do driver traz o SQL e os params (inclusive o hash da senha), e
+      // ele não pode chegar ao cliente nem ao console do navegador.
+      let id: number;
+      let empresaId: number;
+      try {
+        ({ id, empresaId } = await gravar());
+      } catch (erro) {
+        if (ehChaveDuplicada(erro)) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "E-mail já cadastrado.",
+          });
+        }
+        console.error("[auth] registroComEmpresa falhou:", erro);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Não foi possível concluir o cadastro. Tente novamente.",
+        });
+      }
 
       ctx.resHeaders.append(
         "set-cookie",

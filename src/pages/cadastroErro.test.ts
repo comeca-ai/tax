@@ -74,6 +74,7 @@ describe("descreverErroEmpresa", () => {
     )
     expect(codigo).toBe("BAD_REQUEST")
     expect(mensagem).toContain("CNAEs secundários")
+    expect(mensagem).not.toContain("conta foi criada")
     expect(mensagem).not.toContain("too_big")
     // O detalhe cru fica só no console.
     expect(tecnico).toContain("BAD_REQUEST")
@@ -95,6 +96,7 @@ describe("descreverErroEmpresa", () => {
       erroTrpc("UNAUTHORIZED", "Autenticação necessária.")
     )
     expect(mensagem).toContain("Autenticação necessária.")
+    expect(mensagem).not.toContain("conta foi criada")
   })
 
   it("cai no genérico quando o servidor mascara o erro", () => {
@@ -117,5 +119,27 @@ describe("descreverErroEmpresa", () => {
   it("não lança para valores que não são Error", () => {
     expect(descreverErroEmpresa(undefined).mensagem).toBe(ERRO_EMPRESA_GENERICO)
     expect(descreverErroEmpresa("boom").mensagem).toBe(ERRO_EMPRESA_GENERICO)
+  })
+})
+
+// v1.9.2: a transação do wizard ou grava tudo ou nada. Nenhuma mensagem pode
+// afirmar que a conta existe — a pessoa tentaria logar numa conta inexistente.
+describe("mensagens depois do cadastro atômico", () => {
+  it("nenhuma mensagem promete conta criada", () => {
+    const casos: unknown[] = [
+      erroTrpc("BAD_REQUEST", '[{"path":["cnpj"],"message":"invalido"}]'),
+      erroTrpc("UNAUTHORIZED", "Autenticação necessária."),
+      erroTrpc("INTERNAL_SERVER_ERROR", "boom"),
+      new Error("Failed to fetch"),
+      undefined,
+    ]
+    for (const caso of casos) {
+      expect(descreverErroEmpresa(caso).mensagem.toLowerCase()).not.toContain("conta foi criada")
+    }
+  })
+
+  it("nomeia os campos de conta do contrato plano (v1.9.2)", () => {
+    expect(camposRecusados('[{"path":["senha"],"message":"curta"}]')).toEqual(["senha"])
+    expect(camposRecusados('[{"path":["email"],"message":"invalido"}]')).toEqual(["e-mail"])
   })
 })
