@@ -30,7 +30,11 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-3000}:3000"
+      # Bind em localhost por padrão: em produção quem recebe o tráfego é o
+      # nginx (HTTPS). Porta aberta em 0.0.0.0 derrubou o cadastro em 24–28/08
+      # (sessão morria em HTTP puro — v1.9.2). Stacks acessadas direto pelo
+      # IP (teste/homologação) precisam definir APP_BIND=0.0.0.0 no .env delas.
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3000}:3000"
     environment:
       APP_ID: ${APP_ID:-selfhosted}
       APP_SECRET: ${APP_SECRET:?defina APP_SECRET no .env (string longa e aleatória)}

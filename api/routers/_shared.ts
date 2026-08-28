@@ -110,7 +110,9 @@ export async function ehAdminDeAlgumaEmpresa(usuarioId: number): Promise<boolean
 
 /** RF-04: trilha imutável — apenas INSERT, nunca UPDATE/DELETE. */
 export async function registrarLog(
-  db: Db,
+  // Pick (e não Db) para aceitar também a transação do registroComEmpresa —
+  // o log precisa rolar junto com a gravação que ele audita (v1.9.2).
+  db: Pick<Db, "insert">,
   entrada: {
     usuarioId?: number | null;
     empresaId?: number | null;

@@ -85,6 +85,13 @@ export const empresaInput = z.object({
   declaracaoPoderes: z.boolean().optional(),
 });
 
+/**
+ * Wizard de cadastro (v1.9.2): conta + empresa numa chamada só. Shape plano
+ * de propósito — os caminhos dos issues do zod (`cnpj`, `cnaePrincipal`...)
+ * casam direto com os rótulos que a tela usa para descrever o erro.
+ */
+export const registroComEmpresaInput = registroInput.extend(empresaInput.shape);
+
 // Limite de 10 MB por arquivo → base64 ≈ 13,4 MB de caracteres (margem p/ overhead)
 export const ARQUIVO_BASE64_MAX = 14_000_000;
 const ARQUIVO_BASE64_MSG =

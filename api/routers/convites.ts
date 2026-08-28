@@ -11,7 +11,7 @@ import {
 } from "@contracts/types";
 import { perfisConvidaveis } from "@contracts/permissoes";
 import { hashSenha } from "../auth/password";
-import { cookieSessao, criarTokenSessao } from "../auth/session";
+import { cookieSessao, criarTokenSessao, requisicaoSegura } from "../auth/session";
 import { conviteExpirado } from "../lib/conviteUtils";
 import { emitirConviteAcesso } from "../lib/conviteAcesso";
 import { enviarConviteEmail } from "../mail/mailer";
@@ -288,7 +288,10 @@ export const convitesRouter = createRouter({
           and(eq(colaboradores.email, email), isNull(colaboradores.usuarioId)),
         );
 
-      ctx.resHeaders.append("set-cookie", cookieSessao(criarTokenSessao(id)));
+      ctx.resHeaders.append(
+        "set-cookie",
+        cookieSessao(criarTokenSessao(id), requisicaoSegura(ctx.req)),
+      );
       await registrarLog(db, {
         usuarioId: id,
         acao: "convite.aceitar",
