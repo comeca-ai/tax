@@ -31,6 +31,7 @@ import { buscarCnaes, cnaePorCodigo } from "@/lib/cnaes"
 import type { Cnae } from "@/lib/cnaes"
 import { cnpjValido, mascaraCnpj } from "@/lib/cnpj"
 import { useConsultaCnpj } from "@/lib/useConsultaCnpj"
+import { descreverErroEmpresa } from "@/pages/cadastroErro"
 import { cn } from "@/lib/utils"
 import {
   Select,
@@ -584,10 +585,12 @@ export default function Cadastro() {
       setEmpresa(values)
       setPasso(2)
       toast.success("Conta criada. Bem-vindo(a)!")
-    } catch {
-      setErroGeral(
-        "Sua conta foi criada, mas houve uma falha ao cadastrar a empresa. Tente novamente.",
-      )
+    } catch (error) {
+      // Não engolir: sem o código/mensagem do tRPC não há como diagnosticar
+      // uma conta que ficou órfã (criada, mas sem empresa).
+      const { mensagem, tecnico } = descreverErroEmpresa(error)
+      console.error("[cadastro] empresas.create falhou —", tecnico)
+      setErroGeral(mensagem)
     } finally {
       setEnviando(false)
     }
