@@ -500,8 +500,7 @@ export default function Cadastro() {
     },
   })
 
-  const registro = trpc.auth.registro.useMutation()
-  const criarEmpresa = trpc.empresas.create.useMutation()
+  const registro = trpc.auth.registroComEmpresa.useMutation()
 
   // ── Consulta de CNPJ na Receita (v1.3.0) ───────────────────────────────
   const { consultar, carregando: consultandoReceita, erro: erroReceita } = useConsultaCnpj()
@@ -558,14 +557,21 @@ export default function Cadastro() {
     setErroGeral(null)
     setEnviando(true)
     try {
-      const usuario = await registro.mutateAsync({
-        nome: conta.nome,
-        email: conta.email,
-        senha: conta.senha,
+      // Conta + empresa numa chamada só (v1.9.2): se qualquer parte falhar,
+      // nada é gravado — impossível ficar com conta órfã.
+      const usuario = await registro.mutateAsync({ ...conta, ...values })
+      utils.auth.me.setData(undefined, {
+        id: usuario.id,
+        email: usuario.email,
+        nome: usuario.nome,
+        perfil: usuario.perfil,
+        podeGerenciarEquipe: usuario.podeGerenciarEquipe,
       })
-      utils.auth.me.setData(undefined, usuario)
+      await utils.empresas.list.invalidate()
+      setEmpresa(values)
+      setPasso(2)
+      toast.success("Conta criada. Bem-vindo(a)!")
     } catch (error) {
-      setEnviando(false)
       const code = (error as { data?: { code?: string } }).data?.code
       if (code === "CONFLICT") {
         // E-mail duplicado: volta ao passo 1 com erro inline no campo.
@@ -575,22 +581,12 @@ export default function Cadastro() {
         })
         setPasso(0)
       } else {
-        setErroGeral("Não foi possível criar sua conta agora. Tente novamente em instantes.")
+        // Não engolir: sem o código/mensagem do tRPC não há como diagnosticar
+        // falhas de validação ou de banco no wizard.
+        const { mensagem, tecnico } = descreverErroEmpresa(error)
+        console.error("[cadastro] registroComEmpresa falhou —", tecnico)
+        setErroGeral(mensagem)
       }
-      return
-    }
-    try {
-      await criarEmpresa.mutateAsync(values)
-      await utils.empresas.list.invalidate()
-      setEmpresa(values)
-      setPasso(2)
-      toast.success("Conta criada. Bem-vindo(a)!")
-    } catch (error) {
-      // Não engolir: sem o código/mensagem do tRPC não há como diagnosticar
-      // uma conta que ficou órfã (criada, mas sem empresa).
-      const { mensagem, tecnico } = descreverErroEmpresa(error)
-      console.error("[cadastro] empresas.create falhou —", tecnico)
-      setErroGeral(mensagem)
     } finally {
       setEnviando(false)
     }

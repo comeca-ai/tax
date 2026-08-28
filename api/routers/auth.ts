@@ -3,8 +3,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { createRouter, protectedProcedure, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { resetsSenha, usuarios } from "@db/schema";
-import { loginInput, registroInput } from "@contracts/types";
+import { cnaesSecundarios, empresas, resetsSenha, usuarios } from "@db/schema";
+import { loginInput, registroComEmpresaInput, registroInput } from "@contracts/types";
 import { podeGerenciarEquipe } from "@contracts/permissoes";
 import { hashSenha, verificarSenha } from "../auth/password";
 import { gerarTokenConvite } from "../lib/conviteUtils";
@@ -15,6 +15,7 @@ import {
   cookieLimparSessao,
   cookieSessao,
   criarTokenSessao,
+  requisicaoSegura,
 } from "../auth/session";
 import { ehAdminDeAlgumaEmpresa, registrarLog } from "./_shared";
 
@@ -55,7 +56,10 @@ export const authRouter = createRouter({
       });
       const id = Number(result[0].insertId);
 
-      ctx.resHeaders.append("set-cookie", cookieSessao(criarTokenSessao(id)));
+      ctx.resHeaders.append(
+        "set-cookie",
+        cookieSessao(criarTokenSessao(id), requisicaoSegura(ctx.req)),
+      );
       await registrarLog(db, {
         usuarioId: id,
         acao: "usuario.registro",
@@ -71,6 +75,95 @@ export const authRouter = createRouter({
         nome: input.nome.trim(),
         perfil,
         podeGerenciarEquipe: false,
+      };
+    }),
+
+  /**
+   * Wizard de cadastro: conta + empresa numa transação só (v1.9.2). Antes
+   * eram duas chamadas (registro depois empresas.create) — quando a segunda
+   * falhava, a conta ficava órfã. Agora: ou grava os dois, ou nenhum.
+   * O `registro` simples continua para quem cria conta sem empresa (ex.:
+   * convite de colaborador cria a conta em convites.aceitar).
+   */
+  registroComEmpresa: publicQuery
+    .input(registroComEmpresaInput)
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const email = input.email.trim().toLowerCase();
+
+      const existente = await db
+        .select({ id: usuarios.id })
+        .from(usuarios)
+        .where(eq(usuarios.email, email))
+        .limit(1);
+      if (existente.length > 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "E-mail já cadastrado.",
+        });
+      }
+
+      const total = await db.select({ id: usuarios.id }).from(usuarios).limit(1);
+      const perfil = total.length === 0 ? ("admin" as const) : ("cliente" as const);
+
+      const senhaHash = await hashSenha(input.senha);
+
+      const { id, empresaId } = await db.transaction(async (tx) => {
+        const rUsuario = await tx.insert(usuarios).values({
+          email,
+          nome: input.nome.trim(),
+          senhaHash,
+          perfil,
+        });
+        const id = Number(rUsuario[0].insertId);
+
+        const rEmpresa = await tx.insert(empresas).values({
+          usuarioId: id,
+          razaoSocial: input.razaoSocial,
+          cnpj: input.cnpj,
+          cnaePrincipal: input.cnaePrincipal,
+          regimeTributario: input.regimeTributario,
+          uf: input.uf,
+        });
+        const empresaId = Number(rEmpresa[0].insertId);
+
+        if (input.cnaesSecundarios.length > 0) {
+          await tx.insert(cnaesSecundarios).values(
+            input.cnaesSecundarios.map((cnae) => ({ empresaId, cnae })),
+          );
+        }
+
+        await registrarLog(tx, {
+          usuarioId: id,
+          acao: "usuario.registro",
+          entidade: "usuario",
+          entidadeId: id,
+        });
+        await registrarLog(tx, {
+          usuarioId: id,
+          empresaId,
+          acao: "empresa.create",
+          entidade: "empresa",
+          entidadeId: empresaId,
+          detalhes: `CNAE ${input.cnaePrincipal}, regime ${input.regimeTributario}, UF ${input.uf}, LGPD ${input.aceiteLgpd ? "aceito" : "n/a"}, poderes ${input.declaracaoPoderes ? "declarados" : "n/a"}`,
+        });
+
+        return { id, empresaId };
+      });
+
+      ctx.resHeaders.append(
+        "set-cookie",
+        cookieSessao(criarTokenSessao(id), requisicaoSegura(ctx.req)),
+      );
+
+      // Acabou de criar a própria empresa — já é admin dela (v1.9.1).
+      return {
+        id,
+        email,
+        nome: input.nome.trim(),
+        perfil,
+        podeGerenciarEquipe: true,
+        empresa: { id: empresaId, cadastroCompleto: true },
       };
     }),
 
@@ -93,7 +186,7 @@ export const authRouter = createRouter({
 
     ctx.resHeaders.append(
       "set-cookie",
-      cookieSessao(criarTokenSessao(usuario.id)),
+      cookieSessao(criarTokenSessao(usuario.id), requisicaoSegura(ctx.req)),
     );
     await registrarLog(db, {
       usuarioId: usuario.id,

@@ -4,6 +4,34 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.9.2] — 2026-08-28
+
+**Fim das contas órfãs no cadastro.** Entre 24/08 e 28/08, 6 pessoas criaram
+conta e não conseguiram cadastrar a empresa. Causa raiz: o DNS do domínio
+ficou apontando para um IP antigo e os usu<|sep|> chegavam pela porta 3000 em
+HTTP puro; com `APP_URL` https, o cookie de sessão saía com `Secure` e o
+navegador o descartava em contexto HTTP — a sessão morria em silêncio entre
+o registro e a criação da empresa. Nenhuma<|close|>ração: só código.
+
+### Adicionado
+- **`auth.registroComEmpresa`** — wizard de cadastro em uma chamada só:
+  conta + empresa + CNAEs + trilha de<|close|>ia dentro de uma transação. Se
+  qualquer parte falhar, nada é gravado — impossível ficar órfão
+- **`requisicaoSegura(req)`** (`api/auth/session.ts`) — detecta HTTPS pelo
+  X-Forwarded-Proto do nginx (ou pelo protocolo da URL, sem proxy)
+- Testes: `api/auth/session.test.ts` (6) e `contracts/registroComEmpresa.test.ts`
+  (3, garantem o shape plano do contrato que a tela usa para descrever erros)
+
+### Alterado
+- **`cookieSessao` decide o `Secure` pela requisi**, não mais pela config
+  global (`APP_URL`): HTTPS recebe cookie `Secure`; HTTP direto (self-hosted,
+  porta exposta) recebe cookie sem `Secure` e a sessão funciona
+- **Wizard (`Cadastro.tsx`) chama `registroComEmpresa`** — some a janela
+  entre as duas chamadas; erro de validação da empresa volta com o campo
+  nomeado; e-mail duplicado volta ao passo 1 com erro inline
+- `registrarLog` aceita transação (`Pick<Db, "insert">`) — a auditoria rola
+  junto com a gravação que ela audita
+
 ## [1.9.1] — 2026-08-28
 
 **Convidar gente para a empresa deixa de ser privilégio da plataforma.** A área
