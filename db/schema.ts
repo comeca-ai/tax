@@ -276,16 +276,19 @@ export const evidenciasDocumentais = mysqlTable("evidencias_documentais", {
 // 10. Log de auditoria imutável — RF-04 (nunca UPDATE/DELETE no app)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ON DELETE SET NULL nas duas FKs (v1.8, migração 0010): a exclusão real de
+// usuário/empresa zera os campos de referência e a LINHA sobrevive — a trilha
+// é append-only e não pode depender do cadastro continuar existindo.
 export const logAuditoria = mysqlTable("log_auditoria", {
   id: serial("id").primaryKey(),
   usuarioId: bigint("usuario_id", {
     mode: "number",
     unsigned: true,
-  }).references(() => usuarios.id),
+  }).references(() => usuarios.id, { onDelete: "set null" }),
   empresaId: bigint("empresa_id", {
     mode: "number",
     unsigned: true,
-  }).references(() => empresas.id),
+  }).references(() => empresas.id, { onDelete: "set null" }),
   acao: varchar("acao", { length: 100 }).notNull(),
   entidade: varchar("entidade", { length: 100 }).notNull(),
   entidadeId: bigint("entidade_id", { mode: "number", unsigned: true }),

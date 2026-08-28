@@ -71,6 +71,13 @@
       "when": 1787872338268,
       "tag": "0009_delegacao_despesa_mesma_empresa",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1787948166982,
+      "tag": "0010_log_auditoria_fk_set_null",
+      "breakpoints": true
     }
   ]
 }
