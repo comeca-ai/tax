@@ -5,6 +5,35 @@
 
 ---
 
+## D-017 · Reembolso é o motor de captura e defesa; os demais motores consomem sua evidência — 29/08/2026
+
+**Contexto:** discussão de arquitetura sobre o papel do reembolso na
+plataforma: ele é o motor que está sendo construído primeiro e que depois
+gera insumo para os demais módulos — o fiscal é o primeiro deles (D-014).
+
+**Decisão (do usuário):** sim, e fica registrado o sentido exato:
+1. **O reembolso é o motor de captura e defesa.** É ele que toca o
+   funcionário (a superfície de adesão — o interesse dele é o motor, D-004),
+   extrai a evidência, decide contra a política citando a regra e grava a
+   trilha versionada (regra citada + versão da política + quem decidiu).
+2. **Os demais motores entram a jusante, como consumidores** dessa evidência
+   já decidida. O fiscal (créditos, CFOP/NCM/CST, elegibilidade por regime)
+   opera sobre uma base que chega defensável; motores futuros idem.
+3. **É fluxo de dados, não pipeline de decisão** (reafirma D-014): cada
+   motor decide com regras próprias e trilhas independentes. Um cupom
+   reprovado no reembolso ainda pode ter tratamento fiscal próprio — um
+   motor nunca herda a decisão do outro.
+4. **O dossiê (D-016) é o ponto de encontro das camadas**: consolida decisão
+   de reembolso (política citada) + apuração fiscal (regras fiscais), sem
+   misturar os critérios.
+
+**Motivo estrutural da ordem:** sem captura boa não há matéria-prima — o
+reembolso é o único motor com um usuário motivado a alimentar o sistema.
+**Invalidaria:** um fluxo real em que o fiscal precise decidir antes do
+reembolso, ou qualquer acoplamento de decisão entre motores.
+
+---
+
 ## D-016 · Contador é destinatário do dossiê, não usuário — 29/08/2026
 
 **Contexto:** D-003 deixou em aberto se o contador recebe o kit zip

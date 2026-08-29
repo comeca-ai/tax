@@ -72,6 +72,26 @@ Toda saída de aprovação/reprovação carrega **regraCitada** — nenhuma deci
 fundamento textual. Esse contrato é consumido pelo agente (resposta imediata no
 WhatsApp) e pelo web (fila de revisão) — mesma decisão, duas renderizações.
 
+### O fluxo entre motores (D-017, 29/08/2026)
+
+```
+funcionário ──▶ REEMBOLSO ──▶ evidência decidida e versionada ──▶ FISCAL ──▶ …
+ (captura)      extrai+verifica   (regra citada + versão da        créditos,
+                contra a política   política + trilha = insumo)    CFOP/NCM…
+                                    │
+                                    ▼
+                              DOSSIÊ (D-016): encontro das camadas,
+                              critérios não se misturam
+```
+
+- O **reembolso** é o motor de captura e defesa: único com usuário motivado a
+  alimentar o sistema (D-004). Sem captura boa, os demais motores não têm
+  matéria-prima — por isso ele é construído primeiro.
+- Os demais motores (fiscal é o primeiro) entram **a jusante**, consumindo
+  evidência que já chega defensável.
+- **Fluxo de dados, não pipeline de decisão**: cada motor decide com regras
+  e trilhas próprias (D-014). Nenhum herda a decisão do outro.
+
 ---
 
 ## 3. AGENT — máquina de estados da conversa
