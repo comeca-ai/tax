@@ -4,6 +4,35 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.10.0] — 2026-08-29
+
+**Exclusão real de conta destravada, sem tocar na trilha.** As FKs do
+`log_auditoria` (`usuario_id`, `empresa_id`) passam de `NO ACTION` para
+`ON DELETE SET NULL` — DELETE em usuário/empresa zera os campos de referência
+e a linha de auditoria sobrevive (D-015). Até aqui, excluir qualquer conta
+com histórico era impossível e exigia anonimização manual (28/08). Migração
+reversível (`rollback/rollback_0010.sql`), re-executável no boot (DROPs
+guardados por `information_schema`).
+
+### Adicionado
+- **Migração 0010** — `log_auditoria` com `ON DELETE SET NULL` nas duas FKs;
+  snapshot, journal e `db/schema.ts` coerentes; 10 testes de guarda novos
+  (365/365 no container `reembolsa/check:c54d70d`)
+- **`scripts/pulso-dia.mjs`** — pulso diário de produtividade do time:
+  headline "entregas limpas" (deploys APTO sem rollback) + 5 vitais de guarda
+  (WIP parado > 24h, lead time, retrabalho, telemetria, modo degradado)
+
+### Alterado
+- **Checklist de onboarding**: docstring passa a explicar por que veículo saiu
+  dos primeiros passos (a mudança funcional já tinha entrado na v1.9.0; a
+  branch `feat/onboarding-sem-veiculo` foi descartada como obsoleta)
+- **Brief da ficha do colaborador renumerado para 0011** (a 0010 é esta
+  migração); proposta de relação `nivelAprovacao` × aprovadores PoC arquivada
+  em `pipeline/runs/fila-briefs-rascunho-ficha-0011.patch`
+
+### Removido
+- Brief `fk-log-auditoria-set-null` sai da fila — implementado nesta release
+
 ## [1.9.2] — 2026-08-28
 
 **Fim das contas órfãs no cadastro.** Entre 24/08 e 28/08, 6 pessoas criaram

@@ -5,6 +5,25 @@
 
 ---
 
+## D-016 · Contador é destinatário do dossiê, não usuário — 29/08/2026
+
+**Contexto:** D-003 deixou em aberto se o contador recebe o kit zip
+(destinatário) ou ganha login no produto (usuário/portal). A resposta
+define o escopo da v1.8.0 e o modelo de `dossies`.
+
+**Decisão (do usuário):** **destinatário**. O dossiê é um zip 1-botão,
+entregue por download ou link temporário. Sem portal, sem login de contador,
+sem permissão por escritório.
+
+**Motivos:** portal é um segundo produto (auth, sessão, multi-escritório)
+para um valor ainda não validado; o zip entrega a defesa completa sem virar
+sistema que o contador precise aprender; mantém D-003 pura — o produto
+prepara e defende, o contador decide e assina. **Invalidaria:** escritório
+contábil com várias empresas clientes pedindo visão consolidada — aí o
+painel do escritório nasce como produto separado, não como feature.
+
+---
+
 ## D-015 · Exclusão de conta é anonimização; auditoria nunca perde linha — 28/08/2026
 
 **Contexto:** limpeza das contas órfãs do bug de cadastro (v1.9.2) revelou um

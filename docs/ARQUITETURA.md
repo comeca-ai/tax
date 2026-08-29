@@ -228,5 +228,7 @@ WhatsApp; sem motor não há revisões; sem revisões resolvidas o dossiê sai i
 3. **Decisor conservador por construção (D-013)** — só aprova com regra explícita;
    qualquer dúvida material vira revisão manual. Uma devolução a mais custa um clique
    do gestor; uma falsa aprovação custa uma glosa.
-4. **Contador: destinatário ou usuário?** (decisão de produto em aberto no PRODUTO.md —
-   afeta se `dossies` vira só arquivo ou portal de acesso).
+4. ~~**Contador: destinatário ou usuário?**~~ **decidido (D-016, 29/08): destinatário** —
+   zip 1-botão com link temporário; `dossies` é arquivo gerado + checksum +
+   destinatário, não portal. Portal de escritório, se um dia fizer sentido, é
+   produto separado.
