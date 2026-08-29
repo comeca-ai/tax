@@ -599,3 +599,160 @@ describe("migração 0009 — aditiva (delegação × despesa)", () => {
     expect(entrada!.tag).toBe(tag);
   });
 });
+
+/**
+ * Guarda da migração 0010 — FKs do log_auditoria com ON DELETE SET NULL.
+ *
+ * Destrava a exclusão real de usuário/empresa (até aqui era anonimização):
+ * a linha de auditoria sobrevive, com os campos de referência zerados.
+ * A trilha continua append-only — a migração não toca em linha alguma.
+ *
+ * Diferença estrutural para 0008/0009: esta migração tem DROP FOREIGN KEY,
+ * que o drizzle emite pelado e que NÃO é re-executável (2ª passada do boot
+ * devolve ER_CANT_DROP_FIELD_OR_KEY, 1091, fora da allowlist do apply.ts).
+ * Por isso os DROPs foram reescritos à mão como statement preparado guardado
+ * por information_schema — o teste abaixo falha se a guarda se perder.
+ */
+const arquivos0010 = readdirSync(DIR).filter(f => /^0010_.*\.sql$/.test(f));
+
+describe("migração 0010 — SET NULL nas FKs do log_auditoria", () => {
+  it("existe exatamente UM arquivo 0010_*.sql", () => {
+    expect(arquivos0010).toHaveLength(1);
+  });
+
+  const sql = semComentarios(
+    readFileSync(path.join(DIR, arquivos0010[0]!), "utf8")
+  );
+  const statements = sql
+    .split("--> statement-breakpoint")
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  it("tem 10 statements: 2 blocos de guarda (SET/PREPARE/EXECUTE/DEALLOCATE) e 2 ADD CONSTRAINT", () => {
+    expect(statements).toHaveLength(10);
+    expect(statements.filter(s => s.startsWith("SET @sql_fk_"))).toHaveLength(2);
+    expect(statements.filter(s => s.startsWith("PREPARE "))).toHaveLength(2);
+    expect(statements.filter(s => s.startsWith("EXECUTE "))).toHaveLength(2);
+    expect(statements.filter(s => s.startsWith("DEALLOCATE PREPARE "))).toHaveLength(2);
+    expect(statements.filter(s => /ADD CONSTRAINT/.test(s))).toHaveLength(2);
+  });
+
+  it("as duas FKs são recriadas com ON DELETE SET NULL — prova do comportamento", () => {
+    // Se alguém trocar para `no action` (silencia o problema) ou `cascade`
+    // (DESTRÓI a trilha), este teste pega. Nomes exatos das constraints, pois
+    // o rollback e as guardas de information_schema dependem deles.
+    expect(sql).toMatch(
+      /ADD CONSTRAINT `log_auditoria_usuario_id_usuarios_id_fk` FOREIGN KEY \(`usuario_id`\) REFERENCES `usuarios`\(`id`\) ON DELETE set null/
+    );
+    expect(sql).toMatch(
+      /ADD CONSTRAINT `log_auditoria_empresa_id_empresas_id_fk` FOREIGN KEY \(`empresa_id`\) REFERENCES `empresas`\(`id`\) ON DELETE set null/
+    );
+    expect(sql).not.toMatch(/log_auditoria[^;]*ON DELETE cascade/is);
+  });
+
+  it("nenhum DROP FOREIGN KEY pelado: todos guardados por information_schema", () => {
+    // DROP pelado quebra o boot na 2ª passada (1091, fora da allowlist).
+    for (const s of statements) {
+      expect(s, `statement começa com DROP: ${s.slice(0, 60)}`).not.toMatch(
+        /^ALTER TABLE .*DROP/i
+      );
+    }
+    // Os DROPs existem, mas só DENTRO da string do statement preparado.
+    const drops = [...sql.matchAll(/DROP FOREIGN KEY `([a-z_]+)`/g)].map(
+      m => m[1]
+    );
+    expect(drops).toEqual([
+      "log_auditoria_usuario_id_usuarios_id_fk",
+      "log_auditoria_empresa_id_empresas_id_fk",
+    ]);
+    for (const nome of drops) {
+      const guarda = statements.find(
+        s => s.startsWith("SET @sql_fk_") && s.includes(nome!)
+      );
+      expect(guarda, `DROP de ${nome} sem guarda`).toBeDefined();
+      expect(guarda).toMatch(/information_schema\.table_constraints/);
+      expect(guarda).toMatch(/'DO 0'/);
+    }
+  });
+
+  it("todo statement é um statement simples executável por conn.query (sem multi-statement)", () => {
+    // apply.ts chama conn.query() por breakpoint: mysql2 sem
+    // multipleStatements rejeita mais de um comando por chamada.
+    for (const s of statements) {
+      const pontoEVirgula = (s.match(/;/g) ?? []).length;
+      // SET tem exatamente 1 `;` no fim; os demais idem. Dentro das strings
+      // dos preparados não pode haver `;`.
+      expect(pontoEVirgula, `multi-statement: ${s.slice(0, 60)}`).toBe(1);
+      expect(s.endsWith(";")).toBe(true);
+    }
+  });
+
+  it("as guardas vêm ANTES dos ADD CONSTRAINT que recriam as FKs", () => {
+    const posAddUsuario = statements.findIndex(s =>
+      s.includes("ADD CONSTRAINT `log_auditoria_usuario_id_usuarios_id_fk`")
+    );
+    const posDropUsuario = statements.findIndex(
+      s => s.startsWith("EXECUTE st_fk_usuario")
+    );
+    expect(posDropUsuario).toBeGreaterThanOrEqual(0);
+    expect(posAddUsuario).toBeGreaterThan(posDropUsuario);
+    const posAddEmpresa = statements.findIndex(s =>
+      s.includes("ADD CONSTRAINT `log_auditoria_empresa_id_empresas_id_fk`")
+    );
+    const posDropEmpresa = statements.findIndex(
+      s => s.startsWith("EXECUTE st_fk_empresa")
+    );
+    expect(posDropEmpresa).toBeGreaterThanOrEqual(0);
+    expect(posAddEmpresa).toBeGreaterThan(posDropEmpresa);
+  });
+
+  it("não toca em dados nem em outra tabela (append-only preservado)", () => {
+    // Fora do guardado, nada de DELETE/UPDATE/INSERT — e os ALTERs são só os
+    // dois ADD CONSTRAINT em log_auditoria.
+    expect(sql).not.toMatch(/^\s*(DELETE|UPDATE|INSERT|TRUNCATE)\b/im);
+    for (const s of statements) {
+      if (!/ADD CONSTRAINT/.test(s)) continue;
+      expect(s).toMatch(/^ALTER TABLE `log_auditoria` ADD CONSTRAINT /);
+    }
+  });
+
+  it("o rollback manual existe e também é guardado", () => {
+    const rb = readFileSync(
+      path.join(DIR, "rollback", "rollback_0010.sql"),
+      "utf8"
+    );
+    // Devolve NO ACTION nas duas pontas, sem tocar em linha.
+    expect(rb).toMatch(/ON DELETE no action/);
+    expect(rb).toMatch(/information_schema\.table_constraints/);
+    expect(rb).not.toMatch(/^\s*(DELETE|UPDATE|INSERT|TRUNCATE)\b/im);
+    // Nome fora do glob do entrypoint: rollback não pode começar com dígito.
+    expect(/^rollback_0010\.sql$/.test("rollback_0010.sql")).toBe(true);
+  });
+
+  it("o snapshot e o journal da 0010 foram commitados juntos", () => {
+    const tag = arquivos0010[0]!.replace(/\.sql$/, "");
+    expect(existsSync(path.join(DIR, "meta", "0010_snapshot.json"))).toBe(true);
+    const journal = JSON.parse(
+      readFileSync(path.join(DIR, "meta", "_journal.json"), "utf8")
+    ) as { entries: { idx: number; tag: string }[] };
+    const entrada = journal.entries.find(e => e.idx === 10);
+    expect(entrada, "journal sem entrada idx=10").toBeDefined();
+    expect(entrada!.tag).toBe(tag);
+  });
+
+  it("o snapshot registra onDelete=set null nas duas FKs", () => {
+    const snap = lerSnapshot("0010") as unknown as {
+      tables: Record<
+        string,
+        { foreignKeys: Record<string, { onDelete?: string }> }
+      >;
+    };
+    const fks = snap.tables["log_auditoria"]!.foreignKeys;
+    expect(fks["log_auditoria_usuario_id_usuarios_id_fk"]!.onDelete).toBe(
+      "set null"
+    );
+    expect(fks["log_auditoria_empresa_id_empresas_id_fk"]!.onDelete).toBe(
+      "set null"
+    );
+  });
+});
