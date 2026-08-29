@@ -756,3 +756,133 @@ describe("migração 0010 — SET NULL nas FKs do log_auditoria", () => {
     );
   });
 });
+
+/**
+ * Guarda da migração 0011 — ficha do colaborador + check-ins de campo.
+ *
+ * Dois blocos: (a) as 6 colunas novas de `colaboradores` (documento para
+ * pagamento tardio, cargo, grau de aprovação, status de vínculo sem DELETE,
+ * data de admissão anti-fraude) com o unique (empresa_id, documento);
+ * (b) a tabela `checkins_campo`, que SOMENTE armazena posição de equipe
+ * externa — com FK composta (empresa_id, colaborador_id), a lição da 0008:
+ * FK simples em colaborador_id deixaria check-in da empresa A apontar
+ * colaborador da empresa B.
+ *
+ * Como 0008/0009: guarda estática (SQL × schema.ts). A prova de rejeição
+ * cross-tenant e a aplicação/reversão dupla contra MySQL real acontecem no
+ * portão de QA (banco scratch), não aqui.
+ */
+const arquivos0011 = readdirSync(DIR).filter(f => /^0011_.*\.sql$/.test(f));
+
+describe("migração 0011 — ficha do colaborador + checkins_campo", () => {
+  it("existe exatamente UM arquivo 0011_*.sql", () => {
+    expect(arquivos0011).toHaveLength(1);
+  });
+
+  const sql = semComentarios(
+    readFileSync(path.join(DIR, arquivos0011[0]!), "utf8")
+  );
+  const statements = sql
+    .split("--> statement-breakpoint")
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  it("nenhum statement é destrutivo (migração aditiva)", () => {
+    for (const s of statements) {
+      const limpo = s
+        .replace(/ON DELETE no action/g, "")
+        .replace(/ON UPDATE no action/g, "");
+      expect(limpo, `statement destrutivo: ${s.slice(0, 60)}`).not.toMatch(
+        /\b(DROP|MODIFY|CHANGE|RENAME|TRUNCATE|DELETE|UPDATE)\b/i
+      );
+    }
+  });
+
+  it("colaboradores ganha as 6 colunas da ficha, com os tipos certos", () => {
+    expect(sql).toMatch(/ADD `tipo_documento` enum\('cpf','cnpj'\)/);
+    expect(sql).toMatch(/ADD `documento` varchar\(14\)/);
+    expect(sql).toMatch(/ADD `cargo` varchar\(100\)/);
+    expect(sql).toMatch(/ADD `nivel_aprovacao` int/);
+    // Desligamento é status, NUNCA DELETE — a coluna é obrigatória com default.
+    expect(sql).toMatch(
+      /ADD `status_vinculo` enum\('ativo','desligado'\) DEFAULT 'ativo' NOT NULL/
+    );
+    expect(sql).toMatch(/ADD `data_admissao` date/);
+    // Coleta tardia (decisão do brief): documento e tipo NÃO podem ser NOT NULL.
+    expect(sql).not.toMatch(/ADD `tipo_documento`[^;]*NOT NULL/);
+    expect(sql).not.toMatch(/ADD `documento`[^;]*NOT NULL/);
+  });
+
+  it("documento tem unique por empresa — sem ele, duplicidade passa em silêncio", () => {
+    expect(sql).toMatch(
+      /ADD CONSTRAINT `colaboradores_empresa_documento_unique` UNIQUE\(`empresa_id`,`documento`\)/
+    );
+  });
+
+  it("checkins_campo só armazena posição: colunas mínimas do brief", () => {
+    expect(sql).toMatch(/CREATE TABLE `checkins_campo`/);
+    for (const col of [
+      "`empresa_id` bigint unsigned NOT NULL",
+      "`colaborador_id` bigint unsigned NOT NULL",
+      "`latitude` double NOT NULL",
+      "`longitude` double NOT NULL",
+      "`precisao` double",
+      "`origem` varchar(30) NOT NULL",
+    ]) {
+      expect(sql, `coluna ausente: ${col}`).toContain(col);
+    }
+  });
+
+  it("a guarda cross-tenant: FK composta aponta para colaboradores(empresa_id, id)", () => {
+    expect(sql).toMatch(
+      /ADD CONSTRAINT `checkins_campo_mesma_empresa_fk` FOREIGN KEY \(`empresa_id`,`colaborador_id`\) REFERENCES `colaboradores`\(`empresa_id`,`id`\)/
+    );
+    // O alvo existe desde a 0008 — se alguém o remover, esta FK quebra o boot.
+    expect(schema.colaboradores).toBeDefined();
+  });
+
+  it("todo statement é re-executável sob a allowlist do apply.ts", () => {
+    // CREATE TABLE repetido → ER_TABLE_EXISTS_ERROR; ADD coluna →
+    // ER_DUP_FIELDNAME; ADD CONSTRAINT/INDEX → ER_DUP_KEYNAME/ER_FK_DUP_NAME.
+    // Todos tolerados: a 2ª passada do boot não mata o container.
+    for (const s of statements) {
+      expect(s).toMatch(
+        /^(CREATE TABLE|ALTER TABLE `[a-z_]+` ADD|CREATE INDEX)/
+      );
+    }
+  });
+
+  it("nenhum identificador passa de 64 caracteres", () => {
+    for (const [, nome] of sql.matchAll(/`([a-z_]{40,})`/g)) {
+      expect(nome!.length, `identificador longo: ${nome}`).toBeLessThanOrEqual(
+        64
+      );
+    }
+  });
+
+  it("o rollback existe e NUNCA roda no boot (nome fora do glob 0*.sql)", () => {
+    expect(
+      existsSync(path.join(DIR, "rollback", "rollback_0011.sql"))
+    ).toBe(true);
+    expect(/^rollback_0011\.sql$/.test("rollback_0011.sql")).toBe(true);
+  });
+
+  it("o snapshot e o journal da 0011 foram commitados juntos", () => {
+    const tag = arquivos0011[0]!.replace(/\.sql$/, "");
+    expect(existsSync(path.join(DIR, "meta", "0011_snapshot.json"))).toBe(true);
+    const journal = JSON.parse(
+      readFileSync(path.join(DIR, "meta", "_journal.json"), "utf8")
+    ) as { entries: { idx: number; tag: string }[] };
+    const entrada = journal.entries.find(e => e.idx === 11);
+    expect(entrada, "journal sem entrada idx=11").toBeDefined();
+    expect(entrada!.tag).toBe(tag);
+  });
+
+  it("o snapshot registra a FK composta da checkins_campo", () => {
+    const snap = lerSnapshot("0011") as unknown as {
+      tables: Record<string, { foreignKeys: Record<string, unknown> }>;
+    };
+    const fks = snap.tables["checkins_campo"]!.foreignKeys;
+    expect(fks["checkins_campo_mesma_empresa_fk"]).toBeDefined();
+  });
+});
