@@ -405,6 +405,16 @@ export const statusAtivacaoEnum = mysqlEnum("status_ativacao", [
   "divergencia", // contestou os dados no onboarding — admin precisa revisar
 ]);
 
+export const tipoDocumentoColaboradorEnum = mysqlEnum("tipo_documento", [
+  "cpf", // interno
+  "cnpj", // externo PJ — não se confunde com o CNPJ da empresa
+]);
+
+export const statusVinculoEnum = mysqlEnum("status_vinculo", [
+  "ativo",
+  "desligado", // desligamento NUNCA é DELETE: o histórico é preservado
+]);
+
 export const colaboradores = mysqlTable(
   "colaboradores",
   {
@@ -421,6 +431,23 @@ export const colaboradores = mysqlTable(
     telefone: varchar("telefone", { length: 20 }),
     matricula: varchar("matricula", { length: 50 }),
     centroCusto: varchar("centro_custo", { length: 100 }),
+    // Documento para pagamento (v1.8, migração 0011): coleta TARDIA, no
+    // primeiro reembolso a pagar — ambos nullable de propósito, ninguém
+    // preenche no convite. O unique (empresa_id, documento) abaixo tolera
+    // NULLs repetidos, como o de telefone.
+    tipoDocumento: tipoDocumentoColaboradorEnum,
+    documento: varchar("documento", { length: 14 }),
+    cargo: varchar("cargo", { length: 100 }),
+    // Grau na ficha do colaborador (1..N), NÃO alçada. Relação declarada com a
+    // estrutura de aprovadores da Norma PoC (seção 16, empresas_config.
+    // analista_id/aprovador_id): aquela tabela é a CONFIGURAÇÃO do fluxo
+    // (quem analisa/aprova em cada empresa); nivelAprovacao é o GRAU da pessoa,
+    // fonte para as alçadas por grau da fase 4 (tabela P-xxx, gate G10). Os
+    // valores de alçada ficam FORA desta demanda — aqui só se armazena.
+    nivelAprovacao: int("nivel_aprovacao"),
+    statusVinculo: statusVinculoEnum.notNull().default("ativo"),
+    // Anti-fraude por data (alimenta G4): despesa anterior à admissão é sinal.
+    dataAdmissao: date("data_admissao", { mode: "string" }),
     statusAtivacao: statusAtivacaoEnum.notNull().default("pendente"),
     papelFluxo: papelFluxoEnum.notNull().default("solicitante"),
     equipe: equipeColaboradorEnum.notNull().default("externa"),
@@ -431,6 +458,12 @@ export const colaboradores = mysqlTable(
     uniqueIndex("colaboradores_empresa_telefone_unique").on(
       t.empresaId,
       t.telefone
+    ),
+    // Mesmo tratamento do (empresa_id, telefone): sem isto o banco aceita o
+    // mesmo documento duas vezes dentro da MESMA empresa, em silêncio.
+    uniqueIndex("colaboradores_empresa_documento_unique").on(
+      t.empresaId,
+      t.documento
     ),
     // Alvo das FKs compostas da Norma PoC: garante que analista, aprovador e
     // as duas pontas de uma delegação sejam da MESMA empresa. InnoDB exige
@@ -642,6 +675,49 @@ export const delegacoesDecisao = mysqlTable(
       name: "delegacoes_decisao_despesa_mesma_empresa_fk",
       columns: [t.empresaId, t.despesaId],
       foreignColumns: [despesas.empresaId, despesas.id],
+    }),
+  ]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 19. Check-ins de campo (v1.11.0, migração 0011) — posição de equipe externa.
+// SOMENTE armazena: sem cálculo de trajeto nesta demanda (trajeto vs.
+// kmComercial declarado é a fase 1 do roadmap, gate G6). Faz sentido para
+// equipe externa (motorista/entregador em rota).
+// `registrado_em` é o momento da posição; o nome evita a palavra reservada
+// `timestamp` como identificador.
+// FK composta (empresa_id, colaborador_id): lição da 0008 — FK simples em
+// colaborador_id permitiria check-in da empresa A apontando colaborador da B.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const checkinsCampo = mysqlTable(
+  "checkins_campo",
+  {
+    id: serial("id").primaryKey(),
+    empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => empresas.id),
+    colaboradorId: bigint("colaborador_id", {
+      mode: "number",
+      unsigned: true,
+    })
+      .notNull()
+      .references(() => colaboradores.id),
+    registradoEm: timestamp("registrado_em").notNull().defaultNow(),
+    latitude: double("latitude").notNull(),
+    longitude: double("longitude").notNull(),
+    // Precisão do GPS em metros, quando o dispositivo informa.
+    precisao: double("precisao"),
+    // Vocabulário técnico do software (não do cliente): whatsapp, app, importacao.
+    origem: varchar("origem", { length: 30 }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  t => [
+    index("checkins_campo_colab_tempo_idx").on(t.empresaId, t.colaboradorId, t.registradoEm),
+    foreignKey({
+      name: "checkins_campo_mesma_empresa_fk",
+      columns: [t.empresaId, t.colaboradorId],
+      foreignColumns: [colaboradores.empresaId, colaboradores.id],
     }),
   ]
 );

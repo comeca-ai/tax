@@ -12,6 +12,8 @@ import {
   logAuditoria,
   politicasReembolso,
   convites,
+  colaboradores,
+  checkinsCampo,
 } from "./schema";
 
 export const usuariosRelations = relations(usuarios, ({ many }) => ({
@@ -134,5 +136,28 @@ export const convitesRelations = relations(convites, ({ one }) => ({
   criadoPor: one(usuarios, {
     fields: [convites.createdById],
     references: [usuarios.id],
+  }),
+}));
+
+// migração 0011 — ficha do colaborador + check-ins de campo (somente armazena)
+export const colaboradoresRelations = relations(
+  colaboradores,
+  ({ one, many }) => ({
+    empresa: one(empresas, {
+      fields: [colaboradores.empresaId],
+      references: [empresas.id],
+    }),
+    checkins: many(checkinsCampo),
+  }),
+);
+
+export const checkinsCampoRelations = relations(checkinsCampo, ({ one }) => ({
+  empresa: one(empresas, {
+    fields: [checkinsCampo.empresaId],
+    references: [empresas.id],
+  }),
+  colaborador: one(colaboradores, {
+    fields: [checkinsCampo.colaboradorId],
+    references: [colaboradores.id],
   }),
 }));
