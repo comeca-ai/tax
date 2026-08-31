@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "3.2.0",
+  "objetivo": "Tornar mensuráveis as cinco dimensões da Seção 4 do escopo da PoC. Hoje nenhuma é: statusDespesaEnum (db/schema.ts:48) vai só até aprovada/rejeitada — não existe estado de pagamento, logo 'tempo entre submissão e pagamento' não tem como ser medido; não há contagem de adoção, nem amostragem de auditoria, nem relatório de distribuição de confiança. Sem isto a PoC termina com o sistema funcionando e sem resposta sobre o conceito.",
+  "dentro": [
+    "migração aditiva (numerada ao mergear): statusDespesaEnum ganha 'paga'; colunas pago_em (timestamp null) e pago_por_usuario_id em despesas",
+    "transição aprovada → paga como ato explícito e auditado — nunca automático",
+    "métrica 1 (adoção): colaboradores com status_ativacao confirmado sobre colaboradores de vínculo ativo, e despesas por colaborador no período",
+    "métrica 3 (precisão da IA Reembolsa): marcação de auditoria por amostra — o revisor marca uma decisão automática como confere / não confere, em coluna própria, SEM alterar o status da despesa",
+    "métrica 4 (fricção): created_at → pago_em com percentis, por empresa e período",
+    "métrica 5 (cobertura do ICP): distribuição de despesas por confianca (alta/media/baixa) e por categoria no período",
+    "endpoint único relatorios.reguaPoC(empresaId, periodo) devolvendo as cinco, com tenant validado por assertEmpresaAcesso",
+    "um painel só, com as cinco linhas e o número medido ao lado da meta acordada"
+  ],
+  "fora": [
+    "integração com meio de pagamento — 'paga' é registro do ato, não execução financeira",
+    "as METAS numéricas: são acordo comercial com a Empresa Contratante, não código (o escopo da PoC as marca 'a definir')",
+    "métrica 2 (precisão do Motor Fiscal): depende do parecer jurídico, gate externo",
+    "checkin de campo como fonte de adoção — depende do canal WhatsApp; aqui a adoção é medida sobre o que já existe"
+  ],
+  "riscos": [
+    "adicionar valor ao enum de status em tabela quente exige ALTER medido, não assumido — mesma lição registrada no brief 0012",
+    "se 'paga' for gravada automaticamente na aprovação, a métrica 4 vira zero e não mede nada",
+    "amostragem de auditoria que altere o status da despesa contamina as outras quatro métricas — tem de ser coluna à parte"
+  ],
+  "pronto": [
+    "idealmente depois de poc-modo-operacao (a métrica 3 só tem massa com decisões automáticas gravadas em M0/M1), mas não bloqueia"
+  ],
+  "decisoes": [
+    "a instrumentação entra ANTES do início da PoC — é o callout da Seção 4 do escopo",
+    "metas ficam fora do código: o painel mostra o medido; a meta é parâmetro"
+  ],
+  "complexidade": "M",
+  "criterioDeAceite": [
+    "despesa aprovada não vira paga sozinha — teste",
+    "pago_em e pago_por gravados no ato, com linha em log_auditoria",
+    "reguaPoC devolve as cinco dimensões para a empresa autorizada e rejeita empresa de outro tenant — teste de API",
+    "marcação de auditoria por amostra não altera status nem valor da despesa — teste",
+    "migração aplica e reverte em banco de teste; lock do ALTER em despesas medido e registrado",
+    "vitest e tsc passam no container de check"
+  ]
+}

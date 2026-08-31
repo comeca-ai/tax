@@ -4,6 +4,28 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.11.0] — 2026-08-29
+
+**A ficha do colaborador fica pronta para pagar reembolso — e equipe externa
+passa a registrar posição.** Seis campos novos em `colaboradores` e a tabela
+`checkins_campo`, com a guarda cross-tenant aprendida na 0008: FK **composta**
+`(empresa_id, colaborador_id)` — check-in da empresa A não aponta colaborador
+da B (provado em banco). Migração reversível (`rollback/rollback_0011.sql`,
+re-executável).
+
+### Adicionado
+- **`colaboradores`: ficha apta a pagamento e alçada** — `tipo_documento`
+  (cpf/cnpj) + `documento` com coleta tardia (nullable de propósito: ninguém
+  preenche no convite; pede-se no primeiro reembolso a pagar), `cargo`,
+  `nivel_aprovacao` (grau 1..N, não alçada — a configuração do fluxo vive na
+  Norma PoC), `status_vinculo` (desligamento é status, **nunca DELETE**),
+  `data_admissao` (anti-fraude: despesa anterior à admissão é sinal, gate G4)
+- **Unique `(empresa_id, documento)`** — mesmo documento duas vezes na mesma
+  empresa é rejeitado; em empresas diferentes, aceito (provado em banco)
+- **`checkins_campo`** — posição de equipe externa (latitude, longitude,
+  precisão, origem), somente armazenando: cálculo de trajeto é fase posterior
+  (gate G6)
+
 ## [1.10.0] — 2026-08-29
 
 **Exclusão real de conta destravada, sem tocar na trilha.** As FKs do

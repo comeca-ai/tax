@@ -5,6 +5,90 @@
 
 ---
 
+## D-020 · WhatsApp é o canal principal, mas produção espera homologação — 29/08/2026
+
+**Contexto:** o posicionamento do produto foi reafirmado como fintech de
+reembolsos para times de campo: experiência simples, rápida e sem login pelo
+WhatsApp. A integração precisa permanecer pronta, mas o canal ainda está em
+processo de homologação e não pode ser tratado como disponível em produção.
+
+**Decisão (do usuário):**
+1. **WhatsApp continua sendo a superfície principal do colaborador de campo.**
+   E-mail e painel são contingência operacional durante a homologação, não uma
+   redefinição do produto.
+2. **Sem login não significa sem identidade.** O vínculo entre número, convite,
+   colaborador e empresa precisa ser validado antes de aceitar uma despesa.
+3. Adapter, webhook, sessões e máquina de estados ficam preparados e isolados do
+   restante do produto, mas o tráfego real permanece desabilitado até o portão de
+   homologação.
+4. O canal só é liberado depois de credenciais/número aprovados e teste ponta a
+   ponta controlado. Até lá, nenhuma comunicação comercial afirma que o fluxo
+   produtivo por WhatsApp já está disponível.
+
+**Consequência:** a pausa operacional registrada em 27/08 não revoga D-002/D-004;
+ela vira um estado temporário de implantação. D-010/D-011 permanecem históricas
+quanto ao adapter e ao isolamento, mas não autorizam uso produtivo antes da
+homologação. **Invalidaria:** decisão explícita de abandonar o WhatsApp como canal
+do colaborador.
+
+---
+
+## D-019 · Equipe fica no menu principal, fora de Empresas — 29/08/2026
+
+**Contexto:** hoje `Equipe` já aparece como rota própria no grupo **Configurar**
+do menu principal, mas a tela `Empresas` também mantém uma aba `Equipe`. A
+duplicação mistura cadastro/configuração da empresa com gestão de pessoas e cria
+duas superfícies para o mesmo trabalho.
+
+**Decisão (do usuário):** **Equipe permanece como item próprio no menu principal,
+como está agora, e sai de dentro de Empresas.** `Empresas` concentra cadastro e
+configurações da pessoa jurídica; `Equipe` concentra colaboradores, usuários do
+painel, convites, vínculos, hierarquia, alçadas e estado de ativação.
+
+**Consequências:** permissões continuam aplicadas à rota própria de Equipe; links
+contextuais podem levar até ela, mas não se mantém uma segunda tela de gestão
+dentro de Empresas. A remoção visual é demanda de implementação futura — este ADR
+registra a decisão sem alterar código.
+
+---
+
+## D-018 · Núcleo por metadata migra sem big bang — 29/08/2026
+
+**Contexto:** a política em PDF é a fonte normativa da empresa; os agentes operam
+sobre uma representação estruturada, validada e versionada dessa política. O
+modelo atual congela categorias em enum compartilhado por reembolso e fiscal.
+Trocar esse enum diretamente por `categoria_id` faria banco, contratos, telas e
+motor fiscal mudarem ao mesmo tempo.
+
+**Decisão (do usuário):** o núcleo será multiempresa e orientado a metadata, no
+estilo Salesforce — entidades estáveis, particularidades por empresa como dados,
+sem DDL por cliente — e a migração seguirá **expandir → preencher → duplicar →
+comparar → liberar gradualmente → retirar legado**:
+
+1. **Expandir:** criar tabelas/relacionamentos de metadata e referências novas
+   nullable, preservando integralmente o enum e os fluxos atuais.
+2. **Backfill verificável:** criar a metadata equivalente por empresa, ligar dados
+   históricos e bloquear avanço diante de órfão ou associação cross-tenant.
+3. **Escrita dupla:** para categorias legadas, gravar modelo antigo e novo. Categoria
+   nova pode existir apenas na metadata; sem tradução fiscal, fica `fiscal_pendente`,
+   nunca crédito zero ou decisão fiscal implícita.
+4. **Modo sombra:** executar a leitura/decisão nova sem afetar o usuário e comparar
+   seus resultados com o legado.
+5. **Canário por empresa:** ativar a metadata por flag, primeiro em ambiente interno
+   e piloto; rollback operacional é desligar a flag, não desfazer dados.
+6. **Tradução fiscal separada:** categoria de reembolso é vocabulário do cliente;
+   categoria fiscal é taxonomia interna, ligada por mapeamento explícito.
+7. **Contrair só no fim:** remover enum e compatibilidade apenas depois de todas as
+   empresas migrarem, o fiscal usar a tradução e a observabilidade provar estabilidade.
+
+**Invariantes:** PDF original imutável + hash; ativação transacional; regra
+estruturada sempre rastreável ao documento; histórico nunca reclassificado em
+silêncio; FKs compostas em toda relação multiempresa. **Consequência:** o brief
+0012 não pode executar conversão destrutiva do enum antes da camada fiscal 0013;
+deve ser revisado para uma primeira etapa aditiva e compatível.
+
+---
+
 ## D-017 · Reembolso é o motor de captura e defesa; os demais motores consomem sua evidência — 29/08/2026
 
 **Contexto:** discussão de arquitetura sobre o papel do reembolso na
