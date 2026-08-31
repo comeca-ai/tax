@@ -55,6 +55,8 @@ interface NavItem {
   adminOnly?: boolean
   /** Área Equipe: admin da plataforma OU admin da própria empresa (v1.9.1). */
   equipeOnly?: boolean
+  /** Fila de Revisão: aprovador/analista designado ou admin (v1.12.0). */
+  revisaoOnly?: boolean
 }
 const NAV_GROUPS: { rotulo: string; itens: NavItem[] }[] = [
   {
@@ -63,7 +65,7 @@ const NAV_GROUPS: { rotulo: string; itens: NavItem[] }[] = [
       { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard, end: false },
       { to: "/app/rapido", label: "Envio Rápido", icon: Zap, end: false },
       { to: "/app/despesas", label: "Despesas", icon: Receipt, end: true },
-      { to: "/app/revisao", label: "Fila de Revisão", icon: ClipboardCheck, end: false, badge: 3 },
+      { to: "/app/revisao", label: "Fila de Revisão", icon: ClipboardCheck, end: false, badge: 3, revisaoOnly: true },
     ],
   },
   {
@@ -98,13 +100,14 @@ const PAGE_TITLES: Record<string, string> = {
 
 /** Conteúdo da navegação — compartilhado entre sidebar desktop e drawer mobile. */
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const { user, logout, podeGerenciarEquipe } = useAuth()
+  const { user, logout, podeGerenciarEquipe, podeRevisarDespesas } = useAuth()
   const grupos = NAV_GROUPS.map((g) => ({
     ...g,
     itens: g.itens.filter(
       (item) =>
         (!item.adminOnly || user?.perfil === "admin") &&
-        (!item.equipeOnly || podeGerenciarEquipe),
+        (!item.equipeOnly || podeGerenciarEquipe) &&
+        (!item.revisaoOnly || podeRevisarDespesas),
     ),
   }))
 

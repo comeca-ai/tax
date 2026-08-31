@@ -5,6 +5,7 @@ import AppShell from "@/components/app/AppShell"
 import RequireAuth from "@/components/app/RequireAuth"
 import RequireAdmin from "@/components/app/RequireAdmin"
 import RequireEquipe from "@/components/app/RequireEquipe"
+import RequireRevisao from "@/components/app/RequireRevisao"
 import Home from "@/pages/Home"
 import Tese from "@/pages/Tese"
 import Login from "@/pages/Login"
@@ -42,7 +43,9 @@ export default function App() {
             <Route path="despesas/nova" element={<NovaDespesa />} />
             <Route path="rapido" element={<EnvioRapido />} />
             <Route path="politica" element={<Politica />} />
-            <Route path="revisao" element={<Revisao />} />
+            <Route element={<RequireRevisao />}>
+              <Route path="revisao" element={<Revisao />} />
+            </Route>
             <Route path="empresas" element={<Empresas />} />
             <Route path="relatorios" element={<Relatorios />} />
             <Route element={<RequireEquipe />}>

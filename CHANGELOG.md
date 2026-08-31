@@ -4,6 +4,51 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.12.0] — 2026-08-31
+
+**Fila de revisão por empresa — fecha o furo multi-tenant.** `revisao.fila`
+mostrava as despesas `em_revisao` de TODAS as empresas para qualquer
+`revisor`/`admin` da plataforma, e barrava o próprio aprovador designado
+(perfil cliente). Agora fila e decisão são por papel NA empresa: aprovador ou
+analista designado (`empresas_config`), admin da empresa (fallback — caminho
+normal enquanto não há designado) ou admin da plataforma (suporte). Nenhuma
+migração: primeira leitura de `empresas_config.aprovador_id`/`analista_id` e
+primeira escrita em `delegacoes_decisao`, ambas criadas na 0008/0009.
+
+### Adicionado
+- **`podeRevisarDespesas` / `exigeMotivoDelegacao`** (`contracts/permissoes.ts`)
+  — regras puras compartilhadas entre servidor e tela (decisões do dono de 31/08)
+- **`papelRevisaoNaEmpresa` / `ehDesignadoDeAlgumaEmpresa`** (`api/routers/_shared.ts`)
+  — papel de revisão por empresa (FORBIDDEN para quem não participa) e flag
+  de sessão "designado de alguma empresa"
+- **Motivo de delegação** (Norma PoC §6.1): quem decide sem ser o aprovador
+  designado informa o motivo (campo novo no Dialog de decisão) e a decisão
+  grava `delegacoes_decisao` com `em_nome_de_colaborador_id` = aprovador
+  designado — só há delegação quando HÁ designado; sem designado o admin é o
+  caminho normal e nada é gravado além do `log_auditoria` de sempre
+- **`RequireRevisao`** — gate de `/app/revisao` por `auth.me.podeRevisarDespesas`
+  (padrão RequireEquipe); item "Fila de Revisão" do menu vira condicional
+- Testes: `contracts/permissoes.test.ts` (9 casos novos) e
+  `src/components/app/RequireRevisao.test.tsx` (4)
+
+### Alterado
+- **`revisao.fila`** — `protectedProcedure` com `{ empresaId }`; devolve
+  `{ itens, papel }` só com despesas da empresa consultada
+- **`revisao.decidir`** — `protectedProcedure`; exige `empresaId`; despesa de
+  outra empresa responde NOT_FOUND ("Despesa não encontrada.", sem vazar
+  existência); escritas (despesa + créditos + delegação + log) agora rodam em
+  `db.transaction` — resultado observável idêntico ao anterior
+- **`auth.me`/`login`/`registro`/`registroComEmpresa`** devolvem
+  `podeRevisarDespesas` (mesmo padrão de `podeGerenciarEquipe` da v1.9.1)
+- **`Revisao.tsx`** — a fila segue a empresa selecionada no Topbar; aprovador
+  designado com perfil cliente passa a VER a fila; sem papel na empresa
+  selecionada, empty-state "A fila desta empresa é do aprovador designado"
+
+### Efeito nas contas existentes
+- **`revisor@reembolsa.ia.br` perde o acesso global à fila** — intencional:
+  era o furo multi-tenant. `admin@` mantém o acesso (suporte). Cliente
+  aprovador/analista designado e admin da empresa passam a ter acesso.
+
 ## [1.11.0] — 2026-08-29
 
 **A ficha do colaborador fica pronta para pagar reembolso — e equipe externa

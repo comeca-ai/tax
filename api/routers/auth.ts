@@ -5,7 +5,7 @@ import { createRouter, protectedProcedure, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { cnaesSecundarios, empresas, resetsSenha, usuarios } from "@db/schema";
 import { loginInput, registroComEmpresaInput, registroInput } from "@contracts/types";
-import { podeGerenciarEquipe } from "@contracts/permissoes";
+import { podeGerenciarEquipe, podeRevisarDespesas } from "@contracts/permissoes";
 import { hashSenha, verificarSenha } from "../auth/password";
 import { gerarTokenConvite } from "../lib/conviteUtils";
 import { ehChaveDuplicada } from "../lib/erroDb";
@@ -18,7 +18,11 @@ import {
   criarTokenSessao,
   requisicaoSegura,
 } from "../auth/session";
-import { ehAdminDeAlgumaEmpresa, registrarLog } from "./_shared";
+import {
+  ehAdminDeAlgumaEmpresa,
+  ehDesignadoDeAlgumaEmpresa,
+  registrarLog,
+} from "./_shared";
 
 export const authRouter = createRouter({
   /** Cadastro de usuário (perfil padrão: cliente). */
@@ -69,13 +73,15 @@ export const authRouter = createRouter({
       });
 
       // Conta recém-criada ainda não tem empresa — a área Equipe abre depois
-      // que ele cadastrar a empresa (v1.9.1).
+      // que ele cadastrar a empresa (v1.9.1); a fila de revisão, quando
+      // houver empresa ou designação (v1.12.0).
       return {
         id,
         email,
         nome: input.nome.trim(),
         perfil,
         podeGerenciarEquipe: false,
+        podeRevisarDespesas: false,
       };
     }),
 
@@ -179,13 +185,15 @@ export const authRouter = createRouter({
         cookieSessao(criarTokenSessao(id), requisicaoSegura(ctx.req)),
       );
 
-      // Acabou de criar a própria empresa — já é admin dela (v1.9.1).
+      // Acabou de criar a própria empresa — já é admin dela (v1.9.1), o que
+      // também o coloca na fila de revisão dela (v1.12.0).
       return {
         id,
         email,
         nome: input.nome.trim(),
         perfil,
         podeGerenciarEquipe: true,
+        podeRevisarDespesas: true,
         empresa: { id: empresaId, cadastroCompleto: true },
       };
     }),
@@ -218,6 +226,10 @@ export const authRouter = createRouter({
       entidadeId: usuario.id,
     });
 
+    const [ehAdminDaEmpresa, designado] = await Promise.all([
+      ehAdminDeAlgumaEmpresa(usuario.id),
+      ehDesignadoDeAlgumaEmpresa(usuario.id),
+    ]);
     return {
       id: usuario.id,
       email: usuario.email,
@@ -225,7 +237,13 @@ export const authRouter = createRouter({
       perfil: usuario.perfil,
       podeGerenciarEquipe: podeGerenciarEquipe({
         perfil: usuario.perfil,
-        ehAdminDeEmpresa: await ehAdminDeAlgumaEmpresa(usuario.id),
+        ehAdminDeEmpresa: ehAdminDaEmpresa,
+      }),
+      podeRevisarDespesas: podeRevisarDespesas({
+        perfil: usuario.perfil,
+        ehAdminDaEmpresa,
+        ehAprovadorDesignado: designado.aprovador,
+        ehAnalistaDesignado: designado.analista,
       }),
     };
   }),
@@ -239,11 +257,21 @@ export const authRouter = createRouter({
   /** Sessão atual (null quando não autenticado) + o que ela pode fazer. */
   me: publicQuery.query(async ({ ctx }) => {
     if (!ctx.usuario) return null;
+    const [ehAdminDaEmpresa, designado] = await Promise.all([
+      ehAdminDeAlgumaEmpresa(ctx.usuario.id),
+      ehDesignadoDeAlgumaEmpresa(ctx.usuario.id),
+    ]);
     return {
       ...ctx.usuario,
       podeGerenciarEquipe: podeGerenciarEquipe({
         perfil: ctx.usuario.perfil,
-        ehAdminDeEmpresa: await ehAdminDeAlgumaEmpresa(ctx.usuario.id),
+        ehAdminDeEmpresa: ehAdminDaEmpresa,
+      }),
+      podeRevisarDespesas: podeRevisarDespesas({
+        perfil: ctx.usuario.perfil,
+        ehAdminDaEmpresa,
+        ehAprovadorDesignado: designado.aprovador,
+        ehAnalistaDesignado: designado.analista,
       }),
     };
   }),

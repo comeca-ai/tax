@@ -42,6 +42,8 @@ export function useAuth() {
     perfil: user?.perfil ?? null,
     /** Admin da plataforma ou da própria empresa — libera a área Equipe (v1.9.1). */
     podeGerenciarEquipe: user?.podeGerenciarEquipe ?? false,
+    /** Aprovador/analista designado ou admin — libera a Fila de Revisão (v1.12.0). */
+    podeRevisarDespesas: user?.podeRevisarDespesas ?? false,
     logout,
   }
 }

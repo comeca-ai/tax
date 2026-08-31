@@ -566,6 +566,7 @@ export default function Cadastro() {
         nome: usuario.nome,
         perfil: usuario.perfil,
         podeGerenciarEquipe: usuario.podeGerenciarEquipe,
+        podeRevisarDespesas: usuario.podeRevisarDespesas,
       })
       await utils.empresas.list.invalidate()
       setEmpresa(values)

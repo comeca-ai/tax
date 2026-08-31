@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { PERFIS } from "./types";
-import { podeGerenciarEquipe, perfisConvidaveis } from "./permissoes";
+import {
+  exigeMotivoDelegacao,
+  podeGerenciarEquipe,
+  podeRevisarDespesas,
+  perfisConvidaveis,
+} from "./permissoes";
 
 /**
  * As duas regras da área Equipe (v1.9.1). Ficam aqui, puras, porque servidor
@@ -44,5 +49,69 @@ describe("perfisConvidaveis", () => {
     const lista = perfisConvidaveis("admin");
     lista.push("cliente");
     expect(PERFIS).toHaveLength(3);
+  });
+});
+
+/**
+ * As duas regras da fila de revisão por empresa (A1, v1.12.0). Decisões do
+ * dono de 31/08: fallback do admin da empresa; admin da plataforma mantém o
+ * acesso (suporte) e o `revisor` perde o passe global — era ele o furo
+ * multi-tenant de `revisao.fila`.
+ */
+describe("podeRevisarDespesas", () => {
+  const semPapel = {
+    ehAdminDaEmpresa: false,
+    ehAprovadorDesignado: false,
+    ehAnalistaDesignado: false,
+  };
+
+  it("admin da plataforma revisa mesmo sem vínculo — suporte", () => {
+    expect(podeRevisarDespesas({ perfil: "admin", ...semPapel })).toBe(true);
+  });
+
+  it("revisor da plataforma sem designação NÃO revisa — o furo fechado", () => {
+    expect(podeRevisarDespesas({ perfil: "revisor", ...semPapel })).toBe(false);
+  });
+
+  it("cliente aprovador designado revisa", () => {
+    expect(
+      podeRevisarDespesas({ perfil: "cliente", ...semPapel, ehAprovadorDesignado: true }),
+    ).toBe(true);
+  });
+
+  it("cliente analista designado revisa", () => {
+    expect(
+      podeRevisarDespesas({ perfil: "cliente", ...semPapel, ehAnalistaDesignado: true }),
+    ).toBe(true);
+  });
+
+  it("cliente admin da empresa sem designados revisa — fallback do dia 1", () => {
+    expect(
+      podeRevisarDespesas({ perfil: "cliente", ...semPapel, ehAdminDaEmpresa: true }),
+    ).toBe(true);
+  });
+
+  it("cliente colaborador comum não revisa", () => {
+    expect(podeRevisarDespesas({ perfil: "cliente", ...semPapel })).toBe(false);
+  });
+});
+
+describe("exigeMotivoDelegacao", () => {
+  it("há designado e não sou ele: decide com motivo registrado", () => {
+    expect(
+      exigeMotivoDelegacao({ temAprovadorDesignado: true, ehAprovadorDesignado: false }),
+    ).toBe(true);
+  });
+
+  it("sou o próprio aprovador designado: sem delegação", () => {
+    expect(
+      exigeMotivoDelegacao({ temAprovadorDesignado: true, ehAprovadorDesignado: true }),
+    ).toBe(false);
+  });
+
+  it("sem designado: o fallback é o caminho normal, não uma delegação", () => {
+    expect(
+      exigeMotivoDelegacao({ temAprovadorDesignado: false, ehAprovadorDesignado: false }),
+    ).toBe(false);
   });
 });
