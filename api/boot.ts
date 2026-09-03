@@ -87,7 +87,7 @@ app.post("/api/whatsapp/webhook", async (c) => {
   return c.json({ received: true }, 200);
 });
 
-// ── Webhook 360dialog (WhatsApp Business Cloud API) — v1.10.0 ───────────────
+// ── Webhook 360dialog (WhatsApp Business Cloud API) — v1.13.0 ───────────────
 // Canal dedicado da plataforma (+55 21 96848 3003) — evento de PLATAFORMA, não
 // por empresa (sem tenant nesta demanda). Só persiste cru; não roteia, não
 // libera tráfego real de negócio (D-020). Bloco independente: não altera os

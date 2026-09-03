@@ -50,9 +50,10 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       # Webhook WhatsApp (opcional — fundação do bot, v1.2.0)
       WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
-      # Webhook 360dialog (opcional — v1.10.0). Sem DIALOG_360_WEBHOOK_SECRET,
+      # Webhook 360dialog (opcional — v1.13.0). Sem DIALOG_360_WEBHOOK_SECRET,
       # /api/webhooks/360dialog fica fail-closed (403 sempre). O valor deve ser
-      # o MESMO já configurado no header Authorization da conta 360dialog.
+      # o header Authorization COMPLETO e literal configurado na conta 360dialog
+      # (ex.: "Bearer abc123xyz", com o prefixo — não só o token).
       DIALOG_360_WEBHOOK_SECRET: ${DIALOG_360_WEBHOOK_SECRET:-}
       DIALOG_360_API_KEY: ${DIALOG_360_API_KEY:-}
       # Consulta CNPJ na Receita via ReceitaWS (opcional — v1.3.0)

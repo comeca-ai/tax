@@ -257,10 +257,10 @@ Contrato completo dos tipos em `contracts/types.ts`. Detalhes de implementação
 - **Cadastro de colaboradores**: API `colaboradores.criar/listar` (admin) — nome, telefone, e-mail, matrícula, centro de custo. Upload em lote chega na v1.9.0 (ver `docs/ARQUITETURA.md` §8).
 - **Legado Meta**: o webhook `/api/webhooks/whatsapp` (verificação `hub.challenge` da Cloud API) continua ativo para a migração futura.
 
-### Webhook 360dialog — WhatsApp Business Cloud API (v1.10.0)
+### Webhook 360dialog — WhatsApp Business Cloud API (v1.13.0)
 
 - **`POST /api/webhooks/360dialog`** — canal dedicado da plataforma (`+55 21 96848 3003`), evento de PLATAFORMA, não por empresa. Só recebe, valida a origem e persiste cru todo evento em `whatsapp_webhook_events`, sem processar conteúdo — não implementa `WhatsappProvider`, não é wireado em `getWhatsappProvider()`, e não roteia nem libera tráfego real de negócio (D-020).
-- **Autenticação**: header `Authorization` deve ser **exatamente igual** a `DIALOG_360_WEBHOOK_SECRET` (o mesmo valor já configurado no campo Authorization da conta 360dialog). **Fail-closed**: sem essa variável no ambiente, a rota responde sempre `403` — diferente do `WHATSAPP_WEBHOOK_SECRET` do Evolution (opcional/aberto quando ausente), porque este é o único mecanismo de defesa deste endpoint público.
+- **Autenticação**: header `Authorization` deve ser **exatamente igual, caractere a caractere**, a `DIALOG_360_WEBHOOK_SECRET`. O valor de `DIALOG_360_WEBHOOK_SECRET` é o header `Authorization` **completo e literal** configurado no campo `headers` da conta 360dialog (`POST /v1/configs/webhook`) — a 360dialog ecoa esse valor de volta em todo POST que faz para o webhook; não é OAuth, HMAC nem Basic-auth nativo, é um header customizado definido por quem configura o webhook. Ex.: se na 360dialog o header configurado é `Authorization: Bearer abc123xyz`, então `DIALOG_360_WEBHOOK_SECRET=Bearer abc123xyz` (com o prefixo `Bearer `, não só o token). **Fail-closed**: sem essa variável no ambiente, a rota responde sempre `403` — diferente do `WHATSAPP_WEBHOOK_SECRET` do Evolution (opcional/aberto quando ausente), porque este é o único mecanismo de defesa deste endpoint público.
 - **Sempre 200 em <5s**: a resposta nunca espera a extração nem a gravação no banco (best-effort, `console.error` se a gravação falhar depois do 200) — garante o SLA mesmo com o MySQL lento, e encerra o retry da 360dialog mesmo para payload malformado.
 - **Configuração**: opcional `DIALOG_360_API_KEY`, reservada para uso futuro (envio) — não consumida por este webhook.
 

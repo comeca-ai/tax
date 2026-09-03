@@ -188,6 +188,33 @@ describe("processarWebhookDialog360", () => {
     expect(r).toEqual({ status: 200, corpo: { received: true } });
   });
 
+  it("header no formato realista 'Bearer <token longo>', igual ao segredo → 200 (comparação é do valor completo, sem parsing de prefixo)", () => {
+    const tokenRealista =
+      "Bearer eyJhbGciOiJIUzI1NiJ9.QYxN2ZkOWItNzNhMS00ZjBjLWI4ZDktZmM3ZTk4YzEyMzQ1.k7Rz9mLp3XqW8vD2nF6sT1uB4cA0eJyH";
+    const r = processarWebhookDialog360(
+      tokenRealista,
+      payloadMensagem().payload,
+      tokenRealista,
+    );
+    expect(r).toEqual({ status: 200, corpo: { received: true } });
+  });
+
+  it("header no formato realista mas DIFERENTE do segredo (token trocado, e sem o prefixo 'Bearer ') → 403", () => {
+    const segredoEsperado =
+      "Bearer eyJhbGciOiJIUzI1NiJ9.QYxN2ZkOWItNzNhMS00ZjBjLWI4ZDktZmM3ZTk4YzEyMzQ1.k7Rz9mLp3XqW8vD2nF6sT1uB4cA0eJyH";
+
+    const tokenErrado =
+      "Bearer eyJhbGciOiJIUzI1NiJ9.OUTRO9ITEM-73a1-4f0c-b8d9-fc7e98c99999.zzzz9mLp3XqW8vD2nF6sT1uB4cA0eJyH";
+    expect(
+      processarWebhookDialog360(tokenErrado, payloadMensagem().payload, segredoEsperado),
+    ).toEqual({ status: 403, corpo: { error: "Forbidden" } });
+
+    const semPrefixo = segredoEsperado.replace(/^Bearer /, "");
+    expect(
+      processarWebhookDialog360(semPrefixo, payloadMensagem().payload, segredoEsperado),
+    ).toEqual({ status: 403, corpo: { error: "Forbidden" } });
+  });
+
   it("a chamada retorna de forma SÍNCRONA (não é uma Promise) — nunca espera a persistência", () => {
     const r = processarWebhookDialog360(
       "segredo-certo",
