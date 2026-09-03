@@ -100,6 +100,37 @@ guardados por `information_schema`).
 ### Removido
 - Brief `fk-log-auditoria-set-null` sai da fila — implementado nesta release
 
+## [1.13.0] — 2026-09-03
+
+**Webhook definitivo 360dialog (WhatsApp Business Cloud API).** Canal dedicado
+da plataforma (`+55 21 96848 3003`), que hoje aponta para um túnel Cloudflare
+provisório. Esta entrega prepara o destino definitivo — receber, validar a
+origem e persistir cru todo evento, sem processar conteúdo — para o reponte
+(troca de URL na conta 360dialog) ser feito depois, fora deste trabalho de
+dev. Migração `0012`, aditiva.
+
+### Adicionado
+- **`POST /api/webhooks/360dialog`** (`api/boot.ts`) — bloco independente dos
+  dois webhooks de WhatsApp já existentes (legado Meta e Evolution); sempre
+  responde em <5s, sem aguardar a extração nem a gravação no banco
+- **`api/modules/reembolso/whatsapp/dialog360.ts`** — `extrairEventosDialog360`
+  (pura, tolera qualquer payload malformado sem lançar), `persistirEventosDialog360`
+  (grava em `whatsapp_webhook_events`) e `processarWebhookDialog360` (decide a
+  resposta; fail-closed sem `DIALOG_360_WEBHOOK_SECRET` configurado)
+- **`whatsapp_webhook_events`** (`db/schema.ts`) — tabela nova dedicada, sem FK
+  para `empresas`/`colaboradores`: evento de PLATAFORMA, não por empresa.
+  `payload` guarda o `value` inteiro do change; sem índice único (duplicidade
+  aceita — volume baixo, 1 canal)
+- `DIALOG_360_WEBHOOK_SECRET` / `DIALOG_360_API_KEY` (opcionais) em
+  `api/lib/env.ts`, `docker-compose.yml`, `.env.example`, `.env.docker.example`
+
+### O que não muda
+- `getWhatsappProvider()` e `processarMensagemRecebida` (agente de reembolso
+  via Evolution) não são tocados — `dialog360.ts` não implementa
+  `WhatsappProvider` e não é wireado nele
+- `/api/webhooks/whatsapp` (legado Meta) e `/api/whatsapp/webhook` (Evolution)
+  continuam exatamente como estavam
+
 ## [1.9.2] — 2026-08-28
 
 **Fim das contas órfãs no cadastro.** Entre 24/08 e 28/08, 6 pessoas criaram

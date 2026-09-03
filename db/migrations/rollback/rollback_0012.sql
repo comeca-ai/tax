@@ -1,0 +1,22 @@
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║  ROLLBACK MANUAL DA MIGRAÇÃO 0012 (webhook 360dialog)                     ║
+-- ║                                                                          ║
+-- ║  Barato e sem risco para o resto do produto: `whatsapp_webhook_events`    ║
+-- ║  não tem FK (evento de PLATAFORMA, sem tenant) e nada em src/ ou no       ║
+-- ║  restante de api/ lê esta tabela — só `dialog360.ts` escreve nela.        ║
+-- ║  Dropar apaga o histórico bruto já persistido, não o motor de negócio.    ║
+-- ║                                                                          ║
+-- ║  Não exige voltar o código primeiro: com o código no ar e a tabela        ║
+-- ║  ausente, `persistirEventosDialog360` falha no INSERT — mas o erro é      ║
+-- ║  engolido pelo `.catch` em `processarWebhookDialog360` e só vai para      ║
+-- ║  `console.error`; o 200 para a 360dialog já foi enviado antes. A rota     ║
+-- ║  segue respondendo 200 (ou 403 sem o segredo), só para de persistir.      ║
+-- ║                                                                          ║
+-- ║  NUNCA roda no boot: o docker-entrypoint.sh usa o glob                    ║
+-- ║  `db/migrations/0*.sql`, não recursivo — nem o diretório nem o arquivo    ║
+-- ║  começam com `0`. Mesmo raciocínio das rollbacks anteriores.              ║
+-- ║                                                                          ║
+-- ║  É re-executável: `DROP TABLE IF EXISTS` é idempotente por natureza.      ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+
+DROP TABLE IF EXISTS `whatsapp_webhook_events`;

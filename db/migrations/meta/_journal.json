@@ -85,6 +85,13 @@
       "when": 1787974754431,
       "tag": "0011_ficha_colaborador_checkins",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1788400028112,
+      "tag": "0012_whatsapp_webhook_events",
+      "breakpoints": true
     }
   ]
 }

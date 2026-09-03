@@ -11,6 +11,7 @@ import {
   colaboradores,
   veiculos,
   despesas,
+  whatsappWebhookEvents,
 } from "../schema";
 
 /**
@@ -884,5 +885,100 @@ describe("migração 0011 — ficha do colaborador + checkins_campo", () => {
     };
     const fks = snap.tables["checkins_campo"]!.foreignKeys;
     expect(fks["checkins_campo_mesma_empresa_fk"]).toBeDefined();
+  });
+});
+
+/**
+ * Guarda da migração 0012 — webhook definitivo 360dialog.
+ *
+ * Tabela nova, dedicada, sem FK: evento de PLATAFORMA (canal único), não por
+ * empresa — não há terceira ponta multi-tenant para fechar aqui, ao
+ * contrário das 0008/0009. Só CREATE TABLE, sem índice (duplicidade aceita).
+ */
+const arquivos0012 = readdirSync(DIR).filter(f => /^0012_.*\.sql$/.test(f));
+
+describe("migração 0012 — whatsapp_webhook_events", () => {
+  it("existe exatamente UM arquivo 0012_*.sql", () => {
+    expect(arquivos0012).toHaveLength(1);
+  });
+
+  const sql = semComentarios(
+    readFileSync(path.join(DIR, arquivos0012[0]!), "utf8")
+  );
+  const statements = sql
+    .split("--> statement-breakpoint")
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  it("tem exatamente 1 statement: 1 CREATE TABLE", () => {
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).toMatch(/^CREATE TABLE `whatsapp_webhook_events`/);
+  });
+
+  it("nenhum statement é destrutivo", () => {
+    for (const s of statements) {
+      expect(s, `statement destrutivo: ${s.slice(0, 60)}`).not.toMatch(
+        /\b(DROP|MODIFY|CHANGE|RENAME|TRUNCATE|DELETE|UPDATE)\b/i
+      );
+    }
+  });
+
+  it("não tem FK nem CREATE INDEX — evento de plataforma, sem tenant", () => {
+    expect(sql).not.toMatch(/ADD CONSTRAINT/);
+    expect(sql).not.toMatch(/REFERENCES/);
+    expect(sql).not.toMatch(/^CREATE INDEX/m);
+  });
+
+  it("todo statement é re-executável sob a allowlist do apply.ts", () => {
+    // CREATE TABLE repetido → ER_TABLE_EXISTS_ERROR, na allowlist.
+    for (const s of statements) {
+      expect(s).toMatch(/^CREATE TABLE /);
+    }
+  });
+
+  it("nenhum identificador passa de 64 caracteres", () => {
+    for (const [, nome] of sql.matchAll(/`([a-z_]{40,})`/g)) {
+      expect(nome!.length, `identificador longo: ${nome}`).toBeLessThanOrEqual(
+        64
+      );
+    }
+  });
+
+  it("o CREATE TABLE bate coluna a coluna com getTableColumns(whatsappWebhookEvents)", () => {
+    const [, nome, corpo] =
+      sql.match(/CREATE TABLE `([a-z_]+)` \(([\s\S]*?)\n\);/) ?? [];
+    expect(nome).toBe("whatsapp_webhook_events");
+    const colunasNoSql = [
+      ...(corpo ?? "").matchAll(/^\t`([a-z_]+)`/gm),
+    ].map(m => m[1]);
+    const colunasNoSchema = Object.values(
+      getTableColumns(whatsappWebhookEvents)
+    ).map(c => c.name);
+    expect(colunasNoSql.slice().sort()).toEqual(colunasNoSchema.slice().sort());
+  });
+
+  it("payload é NOT NULL; as demais colunas (exceto id/tipo_evento/created_at) são nullable", () => {
+    const c = getTableColumns(whatsappWebhookEvents);
+    expect(c.tipoEvento.notNull).toBe(true);
+    expect(c.payload.notNull).toBe(true);
+    for (const opcional of [
+      "statusEntrega",
+      "mensagemId",
+      "telefone",
+      "canalTelefone",
+    ] as const) {
+      expect(c[opcional].notNull).toBe(false);
+    }
+  });
+
+  it("o snapshot e o journal da 0012 foram commitados juntos", () => {
+    const tag = arquivos0012[0]!.replace(/\.sql$/, "");
+    expect(existsSync(path.join(DIR, "meta", "0012_snapshot.json"))).toBe(true);
+    const journal = JSON.parse(
+      readFileSync(path.join(DIR, "meta", "_journal.json"), "utf8")
+    ) as { entries: { idx: number; tag: string }[] };
+    const entrada = journal.entries.find(e => e.idx === 12);
+    expect(entrada, "journal sem entrada idx=12").toBeDefined();
+    expect(entrada!.tag).toBe(tag);
   });
 });

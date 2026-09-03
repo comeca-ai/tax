@@ -7,6 +7,7 @@ import { createContext } from "./context";
 import { env } from "./lib/env";
 import { getWhatsappProvider, parseEvolutionPayload } from "./modules/reembolso/whatsapp";
 import { processarMensagemRecebida } from "./modules/reembolso/agente";
+import { processarWebhookDialog360 } from "./modules/reembolso/whatsapp/dialog360";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -84,6 +85,23 @@ app.post("/api/whatsapp/webhook", async (c) => {
     console.error("[whatsapp] Falha ao processar webhook Evolution:", err);
   }
   return c.json({ received: true }, 200);
+});
+
+// ── Webhook 360dialog (WhatsApp Business Cloud API) — v1.10.0 ───────────────
+// Canal dedicado da plataforma (+55 21 96848 3003) — evento de PLATAFORMA, não
+// por empresa (sem tenant nesta demanda). Só persiste cru; não roteia, não
+// libera tráfego real de negócio (D-020). Bloco independente: não altera os
+// dois webhooks de WhatsApp acima. Fail-closed: sem DIALOG_360_WEBHOOK_SECRET
+// configurado, a rota fica sempre 403. Decisão isolada em
+// processarWebhookDialog360 (testável sem montar o app Hono).
+app.post("/api/webhooks/360dialog", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const resultado = processarWebhookDialog360(
+    c.req.header("Authorization"),
+    body,
+    env.dialog360WebhookSecret,
+  );
+  return c.json(resultado.corpo, resultado.status);
 });
 
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));

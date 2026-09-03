@@ -721,3 +721,29 @@ export const checkinsCampo = mysqlTable(
     }),
   ]
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 20. Eventos brutos do webhook 360dialog (WhatsApp Business Cloud API) — v1.13.0
+// Evento de PLATAFORMA (canal único, `+55 21 96848 3003`), não por empresa: sem
+// FK para `empresas`/`colaboradores` — não há conceito de tenant aqui. Só
+// ingestão crua, sem processar conteúdo (D-020: preparado e isolado do resto
+// do produto; D-013/D-014 intactas — zero decisão/roteamento nesta tabela).
+// `tipo_evento`/`status_entrega` são varchar livre (mesma escolha de
+// `checkins_campo.origem`), para não exigir migração a cada tipo/status novo
+// que a Meta adicionar. `payload` guarda o `value` inteiro do change (não só o
+// item) — zero perda de campo não previsto pela extração, ao custo de pequena
+// redundância entre linhas irmãs (aceitável: volume baixo, 1 canal). Sem
+// índice único: a 360dialog pode reenviar o mesmo evento e a duplicidade é
+// aceita (nada aqui é idempotente por natureza — é log bruto).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const whatsappWebhookEvents = mysqlTable("whatsapp_webhook_events", {
+  id: serial("id").primaryKey(),
+  tipoEvento: varchar("tipo_evento", { length: 50 }).notNull(),
+  statusEntrega: varchar("status_entrega", { length: 50 }),
+  mensagemId: varchar("mensagem_id", { length: 128 }),
+  telefone: varchar("telefone", { length: 20 }),
+  canalTelefone: varchar("canal_telefone", { length: 20 }),
+  payload: json("payload").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
