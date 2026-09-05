@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  interpretarConsumo,
   interpretarSimNao,
-  normalizarPlaca,
   proximoPasso,
   type ContextoConversa,
   type EstadoConversa,
@@ -47,21 +45,7 @@ describe("interpretarSimNao", () => {
   });
 });
 
-describe("normalizarPlaca / interpretarConsumo", () => {
-  it("aceita placas Mercosul e antigas, com ou sem hífen", () => {
-    expect(normalizarPlaca("ABC1D23")).toBe("ABC1D23");
-    expect(normalizarPlaca("abc-1234")).toBe("ABC1234");
-    expect(normalizarPlaca("AB-12")).toBeNull();
-  });
-  it("interpreta consumo com vírgula ou ponto e rejeita absurdos", () => {
-    expect(interpretarConsumo("12,5")).toBe(12.5);
-    expect(interpretarConsumo("faz 10 por litro")).toBe(10);
-    expect(interpretarConsumo("abc")).toBeNull();
-    expect(interpretarConsumo("99")).toBeNull();
-  });
-});
-
-describe("onboarding conversacional — fluxo feliz com veículo", () => {
+describe("onboarding conversacional — fluxo feliz", () => {
   it("percorre todos os estados até pronto", () => {
     // 1. Primeira mensagem → saudação + confirmação de dados
     const p1 = passo("inicio", "oi");
@@ -85,41 +69,14 @@ describe("onboarding conversacional — fluxo feliz com veículo", () => {
     expect(p4.estado).toBe("declarando_refeicao");
     expect(p4.contexto.viagem).toBe(false);
 
-    // 5. Refeição = sim → salva declarações e pede placa (declarou combustível)
-    const p5 = passo("declarando_refeicao", "sim", p4.contexto);
-    expect(p5.estado).toBe("coletando_veiculo_placa");
-    expect(p5.acoes).toEqual([{ tipo: "salvar_declaracoes" }]);
-
-    // 6. Placa → descrição
-    const p6 = passo("coletando_veiculo_placa", "ABC1D23", p5.contexto);
-    expect(p6.estado).toBe("coletando_veiculo_descricao");
-    expect(p6.contexto.veiculoPlaca).toBe("ABC1D23");
-
-    // 7. Descrição → consumo
-    const p7 = passo("coletando_veiculo_descricao", "Onix prata 2022", p6.contexto);
-    expect(p7.estado).toBe("coletando_veiculo_consumo");
-    expect(p7.contexto.veiculoDescricao).toBe("Onix prata 2022");
-
-    // 8. Consumo → cria veículo, confirma, pronto
-    const p8 = passo("coletando_veiculo_consumo", "12,5", p7.contexto);
-    expect(p8.estado).toBe("pronto");
-    expect(p8.contexto.veiculoConsumo).toBe(12.5);
-    expect(p8.acoes).toEqual([{ tipo: "criar_veiculo" }, { tipo: "marcar_confirmado" }]);
-    expect(p8.respostas.join(" ")).toContain("ABC1D23");
-  });
-});
-
-describe("onboarding — sem combustível pula o veículo (D-001)", () => {
-  it("declarou não para combustível → pronto direto, sem pedir placa", () => {
-    const p3 = passo("declarando_combustivel", "não");
-    const p4 = passo("declarando_viagem", "não", p3.contexto);
+    // 5. Refeição = sim → salva declarações, confirma e encerra
     const p5 = passo("declarando_refeicao", "sim", p4.contexto);
     expect(p5.estado).toBe("pronto");
+    expect(p5.contexto.refeicao).toBe(true);
     expect(p5.acoes).toEqual([
       { tipo: "salvar_declaracoes" },
       { tipo: "marcar_confirmado" },
     ]);
-    expect(p5.respostas.join(" ")).not.toContain("placa");
   });
 });
 
@@ -128,11 +85,6 @@ describe("onboarding — robustez", () => {
     const p = passo("declarando_combustivel", "sei lá");
     expect(p.estado).toBe("declarando_combustivel");
     expect(p.contexto.combustivel).toBeUndefined();
-  });
-
-  it("placa inválida não avança", () => {
-    const p = passo("coletando_veiculo_placa", "minha placa é essa");
-    expect(p.estado).toBe("coletando_veiculo_placa");
   });
 
   it("dados errados → marca divergência e segue o fluxo (D-005)", () => {

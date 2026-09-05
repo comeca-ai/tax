@@ -1,0 +1,515 @@
+import { regraExtraidaSchema, type RegraExtraida } from "@contracts/types";
+
+/**
+ * Espelho ESTRUTURAL da política 13 (empresa 2, 70 regras, versão ativa em 24/08/2026):
+ * mesma distribuição de categoria × reembolsavel × valor × moeda × unidade × tema.
+ * `condicao` sempre null e nenhum dado identificável de empresa/pessoa — o repositório é público.
+ * As regras entram SEM `escopo` de propósito: o parse prova que a política gravada antes
+ * desta versão continua válida e nasce com escopo "item".
+ *
+ * Distribuição (conferida na política real): combustivel 1 sim + 1 exceção · alimentacao 9 sim ·
+ * hospedagem 5 sim + 2 exceção + 6 vedado · pedagio 1 sim · uber 1 sim + 1 vedado · taxi 0 ·
+ * sem categoria 43.
+ */
+const BRUTAS = [
+  // ── combustível (1 sim + 1 exceção) ──────────────────────────────────────
+  {
+    id: "abastecimento-deslocamento",
+    tema: "transporte-e-deslocamento",
+    categoria: "combustivel",
+    descricao: "Abastecimento em deslocamento a serviço",
+    reembolsavel: "sim",
+  },
+  {
+    id: "combustivel-frota-corporativa",
+    tema: "transporte-e-deslocamento",
+    categoria: "combustivel",
+    descricao: "Combustível para frota corporativa",
+    reembolsavel: "excecao",
+  },
+
+  // ── alimentação (9 sim; maior valor BRL = 70, origem do limite antigo) ────
+  {
+    id: "almoco-viagem",
+    tema: "alimentacao",
+    categoria: "alimentacao",
+    descricao: "Almoço em viagem a serviço",
+    reembolsavel: "sim",
+    valorLimite: 70,
+    unidadeLimite: "dia",
+  },
+  {
+    id: "jantar-viagem",
+    tema: "alimentacao",
+    categoria: "alimentacao",
+    descricao: "Jantar em viagem a serviço",
+    reembolsavel: "sim",
+    valorLimite: 70,
+    unidadeLimite: "dia",
+  },
+  {
+    id: "cafe-da-manha",
+    tema: "alimentacao",
+    categoria: "alimentacao",
+    descricao: "Café da manhã quando não incluso na hospedagem",
+    reembolsavel: "sim",
+    valorLimite: 30,
+    unidadeLimite: "dia",
+  },
+  {
+    id: "refeicao-treinamento",
+    tema: "alimentacao",
+    categoria: "alimentacao",
+    descricao: "Refeição em treinamento fora da sede",
+    reembolsavel: "sim",
+    valorLimite: 50,
+    unidadeLimite: "dia",
+  },
+  {
+    id: "refeicao-hora-extra",
+    tema: "alimentacao",
+    categoria: "alimentacao",
+    descricao: "Refeição em plantão ou hora extra autorizada",
+    reembolsavel: "sim",
+    valorLimite: 40,
+    unidadeLimite: "dia",
+  },
+  {
+    id: "agua-e-cafe-reuniao",
+    tema: "alimentacao",
+    categoria: "alimentacao",
+    descricao: "Água e café em reunião interna",
+    reembolsavel: "sim",
+    valorLimite: 25,
+    unidadeLimite: "evento",
+  },
+  {
+    id: "refeicao-viagem-internacional",
+    tema: "alimentacao",
+    categoria: "alimentacao",
+    descricao: "Refeição em viagem internacional",
+    reembolsavel: "sim",
+    valorLimite: 50,
+    moeda: "USD",
+    unidadeLimite: "dia",
+  },
+  {
+    id: "lanche-em-conexao",
+    tema: "alimentacao",
+    categoria: "alimentacao",
+    descricao: "Lanche em conexão aérea acima de quatro horas",
+    reembolsavel: "sim",
+    valorLimite: 30,
+    unidadeLimite: "dia",
+  },
+  {
+    id: "refeicao-fechamento-projeto",
+    tema: "alimentacao",
+    categoria: "alimentacao",
+    descricao: "Refeição de equipe em fechamento de projeto",
+    reembolsavel: "sim",
+    valorLimite: 60,
+    unidadeLimite: "evento",
+  },
+
+  // ── hospedagem (5 sim + 2 exceção + 6 vedado) ────────────────────────────
+  // "Lavanderia em viagens nacionais" é o sub-item de R$ 30 que a semântica antiga
+  // promovia a teto da categoria e negava um extrato de hotel de R$ 691,17.
+  {
+    id: "lavanderia-viagem-nacional",
+    tema: "hospedagem-e-viagem",
+    categoria: "hospedagem",
+    descricao: "Lavanderia em viagens nacionais",
+    reembolsavel: "sim",
+    valorLimite: 30,
+    unidadeLimite: "dia",
+  },
+  {
+    id: "estacionamento-do-hotel",
+    tema: "hospedagem-e-viagem",
+    categoria: "hospedagem",
+    descricao: "Estacionamento do hotel",
+    reembolsavel: "sim",
+  },
+  {
+    id: "internet-do-hotel",
+    tema: "hospedagem-e-viagem",
+    categoria: "hospedagem",
+    descricao: "Internet do hotel para trabalho",
+    reembolsavel: "sim",
+  },
+  {
+    id: "taxa-de-turismo",
+    tema: "hospedagem-e-viagem",
+    categoria: "hospedagem",
+    descricao: "Taxa de turismo cobrada pelo hotel",
+    reembolsavel: "sim",
+  },
+  {
+    id: "lavanderia-viagem-internacional",
+    tema: "hospedagem-e-viagem",
+    categoria: "hospedagem",
+    descricao: "Lavanderia em viagens internacionais",
+    reembolsavel: "sim",
+    valorLimite: 15,
+    moeda: "USD",
+    unidadeLimite: "dia",
+  },
+  // A regra real do hotel: exceção SEM valor — "exige aprovação superior", não "teto de R$ 30".
+  // Precede a outra exceção porque é ela que a derivação cita para a categoria.
+  {
+    id: "hospedagem-em-viagens",
+    tema: "hospedagem-e-viagem",
+    categoria: "hospedagem",
+    descricao: "Hospedagem em viagens",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "hospedagem-por-temporada",
+    tema: "hospedagem-e-viagem",
+    categoria: "hospedagem",
+    descricao: "Hospedagem em imóvel por temporada",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "frigobar",
+    tema: "hospedagem-e-viagem",
+    categoria: "hospedagem",
+    descricao: "Frigobar e itens de consumo pessoal",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "entretenimento-do-quarto",
+    tema: "hospedagem-e-viagem",
+    categoria: "hospedagem",
+    descricao: "Filmes e serviços de entretenimento do quarto",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "spa-e-lazer-do-hotel",
+    tema: "hospedagem-e-viagem",
+    categoria: "hospedagem",
+    descricao: "Spa, academia e serviços de lazer do hotel",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "bagagem-extra",
+    tema: "hospedagem-e-viagem",
+    categoria: "hospedagem",
+    descricao: "Bagagem extra não autorizada previamente",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "hospedagem-de-dependentes",
+    tema: "hospedagem-e-viagem",
+    categoria: "hospedagem",
+    descricao: "Hospedagem de acompanhantes e dependentes",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "upgrade-de-quarto",
+    tema: "hospedagem-e-viagem",
+    categoria: "hospedagem",
+    descricao: "Upgrade de categoria de quarto sem autorização",
+    reembolsavel: "vedado",
+  },
+
+  // ── pedágio (1 sim) ──────────────────────────────────────────────────────
+  {
+    id: "pedagio-trajeto-a-servico",
+    tema: "transporte-e-deslocamento",
+    categoria: "pedagio",
+    descricao: "Pedágio em trajeto a serviço",
+    reembolsavel: "sim",
+  },
+
+  // ── uber (1 sim + 1 vedado — o par que a regra literal negaria 100%) ─────
+  {
+    id: "aplicativos-de-transporte",
+    tema: "transporte-e-deslocamento",
+    categoria: "uber",
+    descricao: "Aplicativos de transporte (Uber, 99, etc.)",
+    reembolsavel: "sim",
+  },
+  {
+    id: "gorjetas-motoristas-aplicativo",
+    tema: "transporte-e-deslocamento",
+    categoria: "uber",
+    descricao: "Gorjetas para motoristas de aplicativos de mobilidade urbana",
+    reembolsavel: "vedado",
+  },
+
+  // ── sem categoria (43) ───────────────────────────────────────────────────
+  {
+    id: "passagem-aerea-economica",
+    tema: "transporte-e-deslocamento",
+    descricao: "Passagem aérea em classe econômica",
+    reembolsavel: "sim",
+  },
+  {
+    id: "passagem-aerea-executiva",
+    tema: "transporte-e-deslocamento",
+    descricao: "Passagem aérea em classe executiva",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "locacao-de-automovel",
+    tema: "transporte-e-deslocamento",
+    descricao: "Locação de automóvel em viagem a serviço",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "multas-de-transito",
+    tema: "transporte-e-deslocamento",
+    descricao: "Multas de trânsito e infrações",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "transporte-intermunicipal",
+    tema: "transporte-e-deslocamento",
+    descricao: "Transporte terrestre intermunicipal a serviço",
+    reembolsavel: "sim",
+  },
+  {
+    id: "seguro-adicional-locacao",
+    tema: "transporte-e-deslocamento",
+    descricao: "Seguro adicional de locação de automóvel",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "bebidas-alcoolicas",
+    tema: "alimentacao",
+    descricao: "Bebidas alcoólicas",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "refeicao-de-terceiro",
+    tema: "alimentacao",
+    descricao: "Refeição de pessoa não incluída na viagem a serviço",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "gorjeta-em-restaurante",
+    tema: "alimentacao",
+    descricao: "Gorjeta em restaurante até 10% da conta",
+    reembolsavel: "sim",
+    valorLimite: 10,
+    unidadeLimite: "percentual",
+  },
+  {
+    id: "seguro-viagem-internacional",
+    tema: "hospedagem-e-viagem",
+    descricao: "Seguro viagem para deslocamento internacional",
+    reembolsavel: "sim",
+  },
+  {
+    id: "vistos-e-taxas-consulares",
+    tema: "hospedagem-e-viagem",
+    descricao: "Vistos e taxas consulares para viagem a serviço",
+    reembolsavel: "sim",
+  },
+  {
+    id: "diaria-viagem-internacional",
+    tema: "hospedagem-e-viagem",
+    descricao: "Diária de viagem internacional",
+    reembolsavel: "excecao",
+    valorLimite: 120,
+    moeda: "USD",
+    unidadeLimite: "dia",
+  },
+  {
+    id: "extensao-de-estadia-pessoal",
+    tema: "hospedagem-e-viagem",
+    descricao: "Extensão de estadia por motivo pessoal",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "vacinas-para-viagem",
+    tema: "saude",
+    descricao: "Vacinas exigidas para viagem internacional",
+    reembolsavel: "sim",
+  },
+  {
+    id: "medicamentos-de-uso-pessoal",
+    tema: "saude",
+    descricao: "Medicamentos de uso pessoal",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "consulta-de-urgencia-em-viagem",
+    tema: "saude",
+    descricao: "Consulta médica de urgência durante viagem a serviço",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "exames-periodicos",
+    tema: "saude",
+    descricao: "Exames periódicos ocupacionais",
+    reembolsavel: "sim",
+  },
+  {
+    id: "cursos-e-certificacoes",
+    tema: "educacao-e-desenvolvimento",
+    descricao: "Cursos e certificações relacionados à função",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "inscricao-em-congresso",
+    tema: "educacao-e-desenvolvimento",
+    descricao: "Inscrição em congresso técnico da área",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "material-didatico",
+    tema: "educacao-e-desenvolvimento",
+    descricao: "Material didático de curso aprovado",
+    reembolsavel: "sim",
+  },
+  {
+    id: "mensalidade-de-graduacao",
+    tema: "educacao-e-desenvolvimento",
+    descricao: "Mensalidade de graduação ou pós-graduação",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "plataforma-de-cursos-online",
+    tema: "educacao-e-desenvolvimento",
+    descricao: "Assinatura de plataforma de cursos on-line",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "material-de-escritorio",
+    tema: "tecnologia-e-escritorio",
+    descricao: "Material de escritório para trabalho remoto",
+    reembolsavel: "sim",
+  },
+  {
+    id: "internet-residencial",
+    tema: "tecnologia-e-escritorio",
+    descricao: "Internet residencial em regime de trabalho remoto",
+    reembolsavel: "sim",
+    valorLimite: 50,
+    unidadeLimite: "percentual",
+  },
+  {
+    id: "compra-de-notebook-ou-celular",
+    tema: "tecnologia-e-escritorio",
+    descricao: "Compra de notebook ou celular",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "acessorios-ergonomicos",
+    tema: "tecnologia-e-escritorio",
+    descricao: "Acessórios ergonômicos para posto de trabalho",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "assinatura-de-software",
+    tema: "tecnologia-e-escritorio",
+    descricao: "Assinatura de software para uso profissional",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "reparo-de-equipamento-pessoal",
+    tema: "tecnologia-e-escritorio",
+    descricao: "Reparo de equipamento pessoal",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "refeicao-com-cliente",
+    tema: "eventos-e-relacionamento",
+    descricao: "Almoço ou jantar com cliente",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "brindes-institucionais",
+    tema: "eventos-e-relacionamento",
+    descricao: "Brindes institucionais para clientes",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "presentes-a-agentes-publicos",
+    tema: "eventos-e-relacionamento",
+    descricao: "Presentes a agentes públicos",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "patrocinio-de-evento",
+    tema: "eventos-e-relacionamento",
+    descricao: "Patrocínio de evento em nome da empresa",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "confraternizacao-de-equipe",
+    tema: "eventos-e-relacionamento",
+    descricao: "Confraternização de equipe",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "frete-de-mudanca",
+    tema: "mudanca-e-transferencia",
+    descricao: "Frete de mudança em transferência de cidade",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "hospedagem-temporaria-transferencia",
+    tema: "mudanca-e-transferencia",
+    descricao: "Hospedagem temporária durante transferência",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "instalacao-em-nova-residencia",
+    tema: "mudanca-e-transferencia",
+    descricao: "Despesas de instalação em nova residência",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "passagem-da-familia",
+    tema: "mudanca-e-transferencia",
+    descricao: "Passagem da família em transferência definitiva",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "comprovante-obrigatorio",
+    tema: "governanca-do-processo",
+    descricao: "Nota fiscal ou recibo obrigatório para qualquer reembolso",
+    reembolsavel: "sim",
+    exigeComprovante: true,
+  },
+  {
+    id: "prazo-de-prestacao-de-contas",
+    tema: "governanca-do-processo",
+    descricao: "Prazo de envio da prestação de contas",
+    reembolsavel: "sim",
+    valorLimite: 30,
+    unidadeLimite: "dias_para_pagamento",
+  },
+  {
+    id: "antecedencia-de-passagem",
+    tema: "governanca-do-processo",
+    descricao: "Antecedência mínima para compra de passagem",
+    reembolsavel: "sim",
+    valorLimite: 15,
+    unidadeLimite: "dias_antecedencia",
+  },
+  {
+    id: "despesa-sem-comprovacao",
+    tema: "governanca-do-processo",
+    descricao: "Despesas sem comprovação legível",
+    reembolsavel: "vedado",
+  },
+  {
+    id: "adiantamento-de-viagem",
+    tema: "governanca-do-processo",
+    descricao: "Solicitação de adiantamento de viagem",
+    reembolsavel: "excecao",
+  },
+  {
+    id: "credito-do-reembolso",
+    tema: "governanca-do-processo",
+    descricao: "Reembolso creditado junto com a folha do mês seguinte",
+    reembolsavel: "sim",
+  },
+];
+
+export const REGRAS_POLITICA_13: RegraExtraida[] = regraExtraidaSchema.array().parse(BRUTAS);

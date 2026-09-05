@@ -63,10 +63,29 @@ export function lerCookie(req: Request, nome: string): string | null {
   return null;
 }
 
-export function cookieSessao(token: string): string {
+/**
+ * A requisição chegou por HTTPS? Atrás do nginx o `req.url` é sempre http —
+ * quem informa o protocolo original é o X-Forwarded-Proto. Sem proxy, cai no
+ * protocolo da própria URL.
+ */
+export function requisicaoSegura(req: Request): boolean {
+  const xfp = req.headers.get("x-forwarded-proto");
+  if (xfp) return xfp.split(",")[0].trim().toLowerCase() === "https";
+  try {
+    return new URL(req.url).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export function cookieSessao(token: string, secure: boolean): string {
   const maxAge = Math.floor(SESSION_TTL_MS / 1000);
-  const secure = env.isProduction ? "; Secure" : "";
-  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+  // O Secure é decidido pela REQUISIÇÃO, não por config global: com APP_URL
+  // https e acesso direto por http://IP:3000 o navegador descartava o cookie
+  // Secure e a sessão morria em silêncio — causa das contas órfãs do wizard.
+  // E em HTTP self-hosted (sem proxy) o Secure também não pode ir.
+  const flag = secure ? "; Secure" : "";
+  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${flag}`;
 }
 
 export function cookieLimparSessao(): string {

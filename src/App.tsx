@@ -3,6 +3,9 @@ import { Toaster } from "@/components/ui/sonner"
 import Layout from "@/components/Layout"
 import AppShell from "@/components/app/AppShell"
 import RequireAuth from "@/components/app/RequireAuth"
+import RequireAdmin from "@/components/app/RequireAdmin"
+import RequireEquipe from "@/components/app/RequireEquipe"
+import RequireRevisao from "@/components/app/RequireRevisao"
 import Home from "@/pages/Home"
 import Tese from "@/pages/Tese"
 import Login from "@/pages/Login"
@@ -16,7 +19,6 @@ import EnvioRapido from "@/pages/app/EnvioRapido"
 import Equipe from "@/pages/app/Equipe"
 import Politica from "@/pages/app/Politica"
 import Revisao from "@/pages/app/Revisao"
-import Veiculos from "@/pages/app/Veiculos"
 import Empresas from "@/pages/app/Empresas"
 import Relatorios from "@/pages/app/Relatorios"
 import Regras from "@/pages/app/Regras"
@@ -40,13 +42,18 @@ export default function App() {
             <Route path="despesas" element={<Despesas />} />
             <Route path="despesas/nova" element={<NovaDespesa />} />
             <Route path="rapido" element={<EnvioRapido />} />
-            <Route path="equipe" element={<Equipe />} />
             <Route path="politica" element={<Politica />} />
-            <Route path="revisao" element={<Revisao />} />
-            <Route path="veiculos" element={<Veiculos />} />
+            <Route element={<RequireRevisao />}>
+              <Route path="revisao" element={<Revisao />} />
+            </Route>
             <Route path="empresas" element={<Empresas />} />
             <Route path="relatorios" element={<Relatorios />} />
-            <Route path="regras" element={<Regras />} />
+            <Route element={<RequireEquipe />}>
+              <Route path="equipe" element={<Equipe />} />
+            </Route>
+            <Route element={<RequireAdmin />}>
+              <Route path="regras" element={<Regras />} />
+            </Route>
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

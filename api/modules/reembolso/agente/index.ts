@@ -5,7 +5,6 @@ import {
   declaracoesPerfil,
   empresas,
   sessoesConversa,
-  veiculos,
 } from "@db/schema";
 import type { MensagemRecebida, WhatsappProvider } from "../whatsapp/types";
 import { registrarLog } from "../../../routers/_shared";
@@ -95,17 +94,6 @@ async function executarAcoes(
             .values({ colaboradorId, categoria })
             .onDuplicateKeyUpdate({ set: { colaboradorId } });
         }
-        break;
-      }
-      case "criar_veiculo": {
-        if (!contexto.veiculoPlaca || !contexto.veiculoConsumo) break;
-        await db.insert(veiculos).values({
-          empresaId,
-          placa: contexto.veiculoPlaca,
-          descricao: contexto.veiculoDescricao ?? null,
-          kmPorLitroDeclarado: contexto.veiculoConsumo,
-          tarifaReembolsoKm: 0,
-        });
         break;
       }
       case "marcar_confirmado":

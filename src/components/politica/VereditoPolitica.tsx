@@ -16,6 +16,7 @@ import {
   type RegraAplicada,
 } from "@contracts/types"
 import { cn } from "@/lib/utils"
+import { detalheLegivel, rotuloRegraAplicada } from "./veredito"
 
 interface VereditoPoliticaProps {
   decisao: DecisaoPolitica
@@ -164,7 +165,7 @@ export default function VereditoPolitica({
                         />
                         <div className="flex flex-col gap-0.5">
                           <span className="font-mono text-[12px] font-semibold leading-snug text-text-dark-100">
-                            {regra.regra}
+                            {rotuloRegraAplicada(regra.regra)}
                             <span
                               className={cn(
                                 "ml-2 text-[10px] uppercase tracking-[0.04em]",
@@ -175,7 +176,7 @@ export default function VereditoPolitica({
                             </span>
                           </span>
                           <span className="font-mono text-[11px] leading-relaxed text-text-dark-400">
-                            {regra.detalhe}
+                            {detalheLegivel(regra.detalhe)}
                           </span>
                         </div>
                       </li>

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "3.2.0",
+  "objetivo": "Categoria de despesa sai de enum congelado em código para metadata por empresa: categorias_despesa (vocabulário do cliente, semeado pelo parser da política) + politica_categorias (rastreabilidade por versão). Especificação completa e aprovada em banco_meta.md (v2, com 3 travas). Princípio: categoria de reembolso é configuração/dado da empresa; categoria fiscal é vocabulário interno do motor fiscal (fronteira 0012/0013).",
+  "dentro": [
+    "migração aditiva (numerada ao mergear; após a 0011): CREATE categorias_despesa (id, empresa_id, slug varchar(64), rotulo, origem enum(parser_politica, manual_admin, migration_backfill), ativa) com UNIQUE(empresa_id, slug) e UNIQUE(empresa_id, id); CREATE politica_categorias (politica_id, categoria_id, rotulo_no_documento, PK composta)",
+    "backfill SOMENTE legado: 6 categorias atuais para empresas existentes, origem=migration_backfill; empresa nova nasce com ZERO categorias ativas até a primeira política ativar",
+    "despesas.categoria e declaracoes_perfil.categoria: enum → categoria_id, com FK composta (empresa_id, categoria_id) → categorias_despesa(empresa_id, id) — lição 0008/0009",
+    "sequência exigida: CREATE → backfill → ASSERT sem consumidor órfão → converter consumidores → índices → FKs → ASSERT integridade; lock do ALTER em despesas MEDIDO e registrado (versão do MySQL verificada)",
+    "fluxo transacional de ativação de política: parse → validação → persistência da versão → ativação transacional → recomputação das ativas (parser concluído ≠ política ativada)",
+    "slug 100% no código: normalizarCategoria(rótulo do LLM) → [a-z0-9_]; colisão determinística (Táxi/Taxi → mesmo registro)",
+    "semeadura pelo parser no upload: LLM devolve rótulo do documento; upsert por (empresa_id, slug); origem=parser_politica",
+    "decisor de reembolso valida categoria contra as ativas da empresa; OCR de visão (visao.ts) injeta a lista de slugs da empresa no prompt; fora da lista → categoria_id NULL + revisão manual (nunca 'outros' automático)",
+    "endpoints novos derivam tenant de ctx.empresaId (sessão), nunca do input do cliente web",
+    "contratos (types.ts:20) e telas: enum zod → validação runtime por empresa; select de categoria via tRPC por ctx",
+    "testes conforme §10 do banco_meta.md, incluindo o cenário obrigatório v1 → upload quebrado → v1 intacta → v2 válida → categoria antiga histórica preservada"
+  ],
+  "fora": [
+    "QUALQUER conhecimento fiscal na 0012 (TRAVA 2): sem coluna temporária, sem slug fiscal, sem compatibilidade provisória com regras_elegibilidade — ela segue INTOCADA no enum legado até a 0013",
+    "0013: categorias_fiscais + mapeamento_categoria_fiscal + migração de regras_elegibilidade + adaptação do motor fiscal",
+    "km como categoria — km é modalidade/base de reembolso (transporte → quilometragem → quantidade × tarifa); regras de km do parser viram atributo de modalidade (detalhar na spec)",
+    "'outros' como fallback técnico — só existe se a política da empresa o definir literalmente",
+    "motorizacaoEnum / kmPorLitroDeclarado NOT NULL (elétrico) e equipeColaboradorEnum — follow-ups do mesmo padrão",
+    "endurecimento dos routers que recebem empresaId pelo input (colaboradores.ts:17 etc.) — demanda própria, blast radius separado",
+    "inferência de categoria fora do documento da política — proibida (D-013)",
+    "template de onboarding de categorias — se um dia existir, é 'template' explícito, nunca verdade de política"
+  ],
+  "riscos": [
+    "FK composta errada → furo cross-tenant (precedente: 0008) — teste de guarda obrigatório no banco E na API",
+    "backfill incorreto deixa linhas históricas órfãs ao ligar a FK — teste aplica/reverte em banco com dados",
+    "literais de categoria esquecidos no engine fiscal/prompts viram terceiro vocabulário — grep de encerramento é critério de aceite",
+    "ALTER em despesas (tabela quente) pode envolver rebuild/lock conforme versão do MySQL — medir, não assumir",
+    "ativação não transacional deixaria categorias e política vigente divergindo — TRAVA 1: somente a ativação altera o conjunto vigente"
+  ],
+  "pronto": [
+    "0011 (ficha do colaborador) mergeada na main — ordem de numeração",
+    "especificação banco_meta.md v2 aprovada pelo dono (29/08/2026) com as 3 travas"
+  ],
+  "decisoes": [
+    "TRAVA 1 (dono): ativação de nova versão da política é transacional com a atualização de politica_categorias/estado das categorias; parser concluído não pode significar política ativada",
+    "TRAVA 2 (dono): a 0012 não antecipa conhecimento fiscal — fronteira limpa com a 0013",
+    "TRAVA 3 (dono): ativa = 'presente na política atualmente vigente / disponível para uso corrente' (cache derivado, recomputado a cada ativação); politica_categorias é a fonte histórica; ativa nunca substitui histórico",
+    "consumidores guardam categoria_id (não slug): slug é identificador externo estável e pode ser renomeado; UNIQUE(empresa_id, id) é o alvo da FK composta",
+    "sem seed canônico para empresa nova: união das duas listas divergentes (enum × prompts dos parsers) é dívida técnica, não verdade de política (D-013)",
+    "backfill usa origem=migration_backfill — nenhum admin criou essas linhas à mão (auditoria verdadeira)",
+    "divisão aprovada: 0012 (M) vocabulário do cliente; 0013 (M) tradução fiscal"
+  ],
+  "complexidade": "M",
+  "criterioDeAceite": [
+    "migração aplica e reverte em banco de teste com dados; boot re-executa sem erro; lock do ALTER medido e registrado",
+    "CENÁRIO OBRIGATÓRIO: política v1 (alimentacao, hospedagem, estacionamento) ativa as três → upload de v2 com parsing quebrado deixa tudo exatamente como v1 → v2 validada (alimentacao, hospedagem) deixa estacionamento fora da vigente, no banco, com despesas históricas válidas e legíveis",
+    "banco rejeita categoria cross-tenant (FK composta) e API rejeita leitura cross-tenant (tenant do ctx) — dois testes separados",
+    "reupload idempotente da mesma política = zero mudanças; retries simultâneos não duplicam nem desativam indevidamente",
+    "empresas A e B com o mesmo slug convivem com rótulos/regras diferentes",
+    "colisão de normalização de slug (Táxi/Taxi) → mesmo registro, rótulo atualizado",
+    "categoria não classificada → categoria_id NULL + revisão manual (nunca 'outros' automático)",
+    "upload de política com categoria nova (ex.: estacionamento) torna despesa dessa categoria aprovável citando a regra, sem deploy",
+    "regressão: fixtures da política 13 intactas; nenhum literal de categoria fora de seeds/fixtures no diff final; vitest e tsc passam no container de check"
+  ]
+}

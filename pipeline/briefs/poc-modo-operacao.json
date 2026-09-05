@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "3.2.0",
+  "objetivo": "Modo de operação por empresa — M0_SOMBRA (decide e grava, não comunica nem altera status), M1_ASSISTIDO (decide e sugere; humano confirma), M2_AUTONOMO (decide e aplica). A PoC começa observando e é promovida por evidência, não por deploy. Exigência da Seção 2.5 do escopo da PoC (v1.1) e primeira demanda a consumir a Norma PoC em código: empresas_config existe desde a 0008 e nenhum arquivo em api/ ou src/ a referencia hoje.",
+  "dentro": [
+    "migração aditiva (numerada ao mergear): coluna modo_operacao enum('M0_SOMBRA','M1_ASSISTIDO','M2_AUTONOMO') NOT NULL DEFAULT 'M0_SOMBRA' em empresas_config — nenhuma empresa nasce autônoma",
+    "backfill: garantir linha de empresas_config para toda empresa existente (db/seed.ts:315 cria uma por empresa no seed; empresas criadas depois da 0008 podem não ter)",
+    "helper modoDaEmpresa(empresaId) — primeiro consumidor de empresas_config no código; empresa sem linha é tratada como M0_SOMBRA, nunca como M2",
+    "despesas.processarAutomatica (api/routers/despesas.ts:321) lê o modo: o decisor roda SEMPRE e a decisão é SEMPRE gravada (politica_decisao / politica_motivo / politica_versao_aplicada). O modo governa o EFEITO: M0 mantém status pendente e não comunica nada; M1 leva a em_revisao com a decisão do agente visível como sugestão; M2 é o comportamento atual (aprovada / rejeitada / em_revisao)",
+    "log_auditoria registra o modo vigente no momento de cada decisão",
+    "seletor do modo na área de configuração da empresa, com confirmação explícita ao promover, e badge do modo vigente no painel",
+    "troca de modo é ato auditado (registrarLog) com usuário, horário, modo anterior e novo"
+  ],
+  "fora": [
+    "promoção automática de modo por métrica — promover é ato humano, sempre",
+    "qualquer mudança no decisor: ele permanece função pura e ignorante do modo (o modo governa o efeito, nunca o veredito)",
+    "reprocessamento de histórico ao trocar de modo",
+    "flag global de aplicação — o modo é POR EMPRESA, coerente com o canário por empresa do D-018",
+    "alçadas por grau (colaboradores.nivel_aprovacao) — fase 4, gate G10"
+  ],
+  "riscos": [
+    "se o modo vazar para dentro do decisor passam a existir dois vereditos para a mesma evidência e a tese anti-achismo morre (D-002) — o teste tem de provar veredito idêntico nos três modos",
+    "M0 que não grava a decisão não prova nada: o valor do modo sombra é exatamente a série histórica de vereditos não aplicados",
+    "empresas_config é 1:1 com empresas mas nada no código garante a linha — o helper precisa assumir default seguro sem quebrar"
+  ],
+  "pronto": [
+    "nenhuma dependência de outra demanda — é a primeira a consumir a estrutura da Norma PoC"
+  ],
+  "decisoes": [
+    "default é M0_SOMBRA: a PoC começa observando (Seção 2.5 do escopo da PoC v1.1)",
+    "o modo governa o EFEITO da decisão, nunca a decisão — o decisor continua puro",
+    "por empresa, não global — mesmo padrão de canário do D-018"
+  ],
+  "complexidade": "M",
+  "criterioDeAceite": [
+    "decisor devolve veredito idêntico nos três modos para a mesma entrada — teste automatizado",
+    "M0: despesa processada mantém status pendente E tem politica_decisao gravada — teste em banco",
+    "M1: despesa vai a em_revisao com a sugestão do agente legível pelo revisor",
+    "M2: comportamento idêntico ao de hoje — regressão sobre a suíte existente de processarAutomatica",
+    "empresa sem linha em empresas_config é tratada como M0 — teste",
+    "troca de modo aparece no log_auditoria com usuário, horário, modo anterior e novo",
+    "migração aplica e reverte em banco de teste; boot re-executa sem erro",
+    "vitest e tsc passam no container de check"
+  ]
+}

@@ -10,7 +10,6 @@ import {
   notasFiscais,
   politicasReembolso,
   regrasElegibilidade,
-  veiculos,
 } from "@db/schema";
 import {
   CATEGORIAS_DESPESA,
@@ -21,6 +20,7 @@ import {
   uploadNotaInput,
   type ResultadoPolitica,
   type StatusDespesa,
+  type TipoDocumento,
 } from "@contracts/types";
 import {
   processarDespesa,
@@ -28,7 +28,8 @@ import {
 } from "../modules/fiscal/engine";
 import { getOcrProvider } from "../modules/fiscal/ocr";
 import { avaliarDespesa } from "../modules/reembolso/policy/agent";
-import { decidirReembolso } from "../modules/reembolso/decisor";
+import { consolidarRegras } from "../modules/reembolso/policy/derivar";
+import { confiancaDaNota, decidirReembolso } from "../modules/reembolso/decisor";
 import { assertEmpresaAcesso, registrarLog } from "./_shared";
 
 export const despesasRouter = createRouter({
@@ -61,6 +62,8 @@ export const despesasRouter = createRouter({
           dataFatoGerador: extracao.dataFatoGerador,
           categoriaSugerida: extracao.categoriaSugerida,
           litros: extracao.litros,
+          tipoDocumento: extracao.tipoDocumento ?? null,
+          confiancaTipo: extracao.confiancaTipo ?? null,
           arquivoNome: input.arquivoNome,
           arquivoMime: input.arquivoMime,
           arquivoBase64: input.arquivoBase64,
@@ -133,24 +136,6 @@ export const despesasRouter = createRouter({
         });
       }
 
-      let veiculo: typeof veiculos.$inferSelect | null = null;
-      if (input.veiculoId) {
-        const rows = await db
-          .select()
-          .from(veiculos)
-          .where(
-            and(
-              eq(veiculos.id, input.veiculoId),
-              eq(veiculos.empresaId, input.empresaId),
-            ),
-          )
-          .limit(1);
-        veiculo = rows[0] ?? null;
-        if (!veiculo) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Veículo não encontrado." });
-        }
-      }
-
       // Atualiza a nota com os campos confirmados pelo usuário
       await db
         .update(notasFiscais)
@@ -193,12 +178,7 @@ export const despesasRouter = createRouter({
           kmComercial: input.kmComercial,
           kmNaoComercial: input.kmNaoComercial,
         },
-        veiculo
-          ? {
-              kmPorLitroDeclarado: veiculo.kmPorLitroDeclarado,
-              tarifaReembolsoKm: veiculo.tarifaReembolsoKm,
-            }
-          : null,
+        null,
         regras,
       );
 
@@ -226,12 +206,16 @@ export const despesasRouter = createRouter({
       let politicaResultado: ResultadoPolitica | null = null;
       let statusFinal: StatusDespesa = resultado.statusSugerido;
       if (politicaAtiva) {
-        const regrasPolitica = regrasPoliticaSchema.parse(politicaAtiva.regras ?? {});
+        // Os parâmetros do agente nascem das regras extraídas SEMPRE na leitura:
+        // políticas gravadas antes desta versão têm limites derivados pela semântica
+        // antiga (sub-item virava teto da categoria). Consolidar aqui corrige sem migração.
+        const regrasPolitica = consolidarRegras(
+          regrasPoliticaSchema.parse(politicaAtiva.regras ?? {}),
+        );
         politicaResultado = avaliarDespesa(
           { categoria: input.categoria, valorNota: input.valorNota },
           regrasPolitica,
           {
-            temVeiculo: veiculo !== null,
             // A despesa ainda não existe → impossível ter evidência anexada
             // neste ponto; evidências são anexadas depois (addEvidencia).
             temEvidencia: false,
@@ -249,7 +233,6 @@ export const despesasRouter = createRouter({
       const insertDespesa = await db.insert(despesas).values({
         empresaId: input.empresaId,
         notaFiscalId: input.notaFiscalId,
-        veiculoId: input.veiculoId ?? null,
         categoria: input.categoria,
         colaborador: input.colaborador ?? null,
         centroCusto: input.centroCusto ?? null,
@@ -340,7 +323,6 @@ export const despesasRouter = createRouter({
       z.object({
         empresaId: z.number().int().positive(),
         notaFiscalId: z.number().int().positive(),
-        veiculoId: z.number().int().positive().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -386,22 +368,13 @@ export const despesasRouter = createRouter({
         .orderBy(desc(politicasReembolso.versao))
         .limit(1);
       const politicaAtiva = politicaRows[0] ?? null;
+      // Os parâmetros do agente nascem das regras extraídas SEMPRE na leitura:
+      // políticas gravadas antes desta versão têm limites derivados pela semântica antiga
+      // (sub-item virava teto da categoria) e não trazem `exigeDocumentoFiscal` no JSON.
+      // Consolidar aqui corrige as duas coisas sem migração de dados.
       const regrasPolitica = politicaAtiva
-        ? regrasPoliticaSchema.parse(politicaAtiva.regras ?? {})
+        ? consolidarRegras(regrasPoliticaSchema.parse(politicaAtiva.regras ?? {}))
         : null;
-
-      // Veículo (opcional — só faz sentido para combustível)
-      let temVeiculo = false;
-      if (input.veiculoId) {
-        const v = await db
-          .select({ id: veiculos.id })
-          .from(veiculos)
-          .where(
-            and(eq(veiculos.id, input.veiculoId), eq(veiculos.empresaId, input.empresaId)),
-          )
-          .limit(1);
-        temVeiculo = v.length > 0;
-      }
 
       // ── Decisor de reembolso (função pura — módulo reembolso) ──────────
       const decisao = decidirReembolso(
@@ -410,11 +383,13 @@ export const despesasRouter = createRouter({
           valor: nota.valor,
           dataFatoGerador: nota.dataFatoGerador,
           cnpjEmitente: nota.cnpjEmitente,
-          confiancaExtracao: nota.valor != null && nota.cnpjEmitente ? "alta" : "baixa",
+          confiancaExtracao: confiancaDaNota(nota),
           camposPendentes: [],
+          tipoDocumento: (nota.tipoDocumento as TipoDocumento | null) ?? null,
+          confiancaTipo: (nota.confiancaTipo as "alta" | "media" | "baixa" | null) ?? null,
         },
         regrasPolitica,
-        { temVeiculo },
+        { politicaVersao: politicaAtiva?.versao ?? null },
       );
 
       const statusFinal: StatusDespesa =
@@ -474,10 +449,16 @@ export const despesasRouter = createRouter({
           ].join("\n")
         : null;
 
+      // Ressalvas entram no motivo como linha própria: separam "por que decidi"
+      // de "o que você confere" nas superfícies que já existem (tooltip, drawer).
+      const linhasMotivo = [
+        ...decisao.motivos,
+        ...decisao.ressalvas.map((r) => `Ressalva: ${r}`),
+      ];
+
       const insert = await db.insert(despesas).values({
         empresaId: input.empresaId,
         notaFiscalId: input.notaFiscalId,
-        veiculoId: input.veiculoId ?? null,
         categoria: decisao.categoria,
         kmComercial: 0,
         kmNaoComercial: 0,
@@ -488,14 +469,14 @@ export const despesasRouter = createRouter({
         status: statusFinal,
         memorial,
         motivoRevisao:
-          decisao.decisao === "revisao_manual" ? decisao.motivos.join("\n") : null,
+          decisao.decisao === "revisao_manual" ? linhasMotivo.join("\n") : null,
         politicaDecisao:
           decisao.decisao === "revisao_manual"
             ? "revisao_humana"
             : decisao.decisao === "negado"
               ? "negado"
               : "aprovado",
-        politicaMotivo: decisao.motivos.join("\n"),
+        politicaMotivo: linhasMotivo.join("\n"),
         politicaVersaoAplicada: politicaAtiva?.versao ?? null,
       });
       const despesaId = Number(insert[0].insertId);
@@ -530,6 +511,8 @@ export const despesasRouter = createRouter({
         detalhes: JSON.stringify({
           decisao: decisao.decisao,
           motivos: decisao.motivos,
+          ressalvas: decisao.ressalvas,
+          confianca: decisao.confianca,
           regrasAplicadas: decisao.regrasAplicadas,
           politicaId: politicaAtiva?.id ?? null,
         }),
@@ -540,6 +523,8 @@ export const despesasRouter = createRouter({
         despesaId,
         decisao: decisao.decisao,
         motivos: decisao.motivos,
+        ressalvas: decisao.ressalvas,
+        confianca: decisao.confianca,
         regrasAplicadas: decisao.regrasAplicadas,
         politicaVersao: politicaAtiva?.versao ?? null,
         categoria: decisao.categoria,
@@ -598,7 +583,7 @@ export const despesasRouter = createRouter({
       }
       await assertEmpresaAcesso(ctx, despesa.empresaId);
 
-      const [nota, creditos, evidencias, veiculo] = await Promise.all([
+      const [nota, creditos, evidencias] = await Promise.all([
         db
           .select({
             id: notasFiscais.id,
@@ -630,13 +615,6 @@ export const despesasRouter = createRouter({
           })
           .from(evidenciasDocumentais)
           .where(eq(evidenciasDocumentais.despesaId, despesa.id)),
-        despesa.veiculoId
-          ? db
-              .select()
-              .from(veiculos)
-              .where(eq(veiculos.id, despesa.veiculoId))
-              .limit(1)
-          : Promise.resolve([]),
       ]);
 
       return {
@@ -644,7 +622,6 @@ export const despesasRouter = createRouter({
         nota: nota[0] ?? null,
         creditos,
         evidencias,
-        veiculo: veiculo[0] ?? null,
       };
     }),
 

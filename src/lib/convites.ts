@@ -23,6 +23,10 @@ export interface AceiteResultado {
   email: string
   nome: string
   perfil: Perfil
+  /** Sempre false no aceite: conta nova ainda não tem empresa (v1.9.1). */
+  podeGerenciarEquipe: boolean
+  /** True quando a ficha vinculada é a do aprovador/analista designado (v1.12.0). */
+  podeRevisarDespesas: boolean
 }
 
 interface ConvitesClient {

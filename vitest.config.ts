@@ -14,6 +14,21 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["api/**/*.test.ts", "api/**/*.spec.ts"],
+    // A imagem roda com NODE_ENV=production (é assim que os testes rodam neste
+    // servidor) e `api/lib/env.ts` exige as variáveis nesse modo — sem isto,
+    // qualquer teste que importe `env` falha só aqui, e o de sessão é um deles.
+    env: {
+      APP_ID: "vitest",
+      APP_SECRET: "vitest-app-secret",
+      DATABASE_URL: "mysql://vitest:vitest@127.0.0.1:3306/vitest",
+    },
+    include: [
+      "db/**/*.test.ts",
+      "api/**/*.test.ts",
+      "api/**/*.spec.ts",
+      "contracts/**/*.test.ts",
+      "src/**/*.test.ts",
+      "src/**/*.test.tsx",
+    ],
   },
 });

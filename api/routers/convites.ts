@@ -1,27 +1,21 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { createRouter, perfilProcedure, publicQuery } from "../middleware";
+import { createRouter, equipeProcedure, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { convites, usuarios } from "@db/schema";
+import { colaboradores, convites, usuarios } from "@db/schema";
 import {
   conviteAceitarInput,
   conviteCriarInput,
   type Convite,
 } from "@contracts/types";
+import { perfisConvidaveis, podeRevisarDespesas } from "@contracts/permissoes";
 import { hashSenha } from "../auth/password";
-import { cookieSessao, criarTokenSessao } from "../auth/session";
-import { conviteExpirado, gerarTokenConvite } from "../lib/conviteUtils";
+import { cookieSessao, criarTokenSessao, requisicaoSegura } from "../auth/session";
+import { conviteExpirado } from "../lib/conviteUtils";
+import { emitirConviteAcesso } from "../lib/conviteAcesso";
 import { enviarConviteEmail } from "../mail/mailer";
-import { registrarLog } from "./_shared";
-
-const CONVITE_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 dias
-
-/** Link absoluto de aceite exibido ao admin quando não há SMTP configurado. */
-function linkAceite(token: string): string {
-  const appUrl = process.env.APP_URL || "http://localhost:3000";
-  return `${appUrl}/convite/${token}`;
-}
+import { ehDesignadoDeAlgumaEmpresa, registrarLog } from "./_shared";
 
 function paraConvite(row: typeof convites.$inferSelect): Convite {
   return {
@@ -34,21 +28,36 @@ function paraConvite(row: typeof convites.$inferSelect): Convite {
   };
 }
 
-/** Revoga todos os convites pendentes de um e-mail (re-emissão/substituição). */
-async function revogarPendentes(db: ReturnType<typeof getDb>, email: string) {
-  await db
-    .update(convites)
-    .set({ status: "revogado" })
-    .where(and(eq(convites.email, email), eq(convites.status, "pendente")));
+/**
+ * Quem não é admin da plataforma só mexe no convite que ele mesmo enviou —
+ * responder NOT_FOUND, e não FORBIDDEN, não confirma que o id existe (v1.9.1).
+ */
+function podeMexer(
+  ctx: { usuario: { id: number; perfil: string } },
+  convite: typeof convites.$inferSelect,
+): boolean {
+  return ctx.usuario.perfil === "admin" || convite.createdById === ctx.usuario.id;
 }
 
 export const convitesRouter = createRouter({
-  /** Admin convida um e-mail com um perfil (v1.2.0). */
-  criar: perfilProcedure("admin")
+  /**
+   * Admin da plataforma ou da empresa convida um e-mail com um perfil
+   * (v1.2.0; aberto ao admin da empresa na v1.9.1).
+   */
+  criar: equipeProcedure
     .input(conviteCriarInput)
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const email = input.email.trim().toLowerCase();
+
+      // `admin` e `revisor` alcançam todas as empresas — só a plataforma concede.
+      if (!perfisConvidaveis(ctx.usuario.perfil).includes(input.perfil)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Você pode convidar pessoas como Cliente. Perfis da plataforma são concedidos pelo suporte.",
+        });
+      }
 
       const existente = await db
         .select({ id: usuarios.id })
@@ -62,21 +71,11 @@ export const convitesRouter = createRouter({
         });
       }
 
-      // Substitui convites pendentes anteriores do mesmo e-mail.
-      await revogarPendentes(db, email);
-
-      const token = gerarTokenConvite();
-      const expiresAt = new Date(Date.now() + CONVITE_TTL_MS);
-      const result = await db.insert(convites).values({
+      const { id, link } = await emitirConviteAcesso(db, {
         email,
         perfil: input.perfil,
-        token,
         createdById: ctx.usuario.id,
-        expiresAt,
       });
-      const id = Number(result[0].insertId);
-
-      const link = linkAceite(token);
       const { enviado } = await enviarConviteEmail({
         para: email,
         link,
@@ -103,18 +102,23 @@ export const convitesRouter = createRouter({
       };
     }),
 
-  /** Lista todos os convites, mais recentes primeiro (admin). */
-  listar: perfilProcedure("admin").query(async () => {
+  /**
+   * Convites mais recentes primeiro. O admin da plataforma vê todos; o admin
+   * da empresa vê só os que ele mesmo enviou — a lista traz e-mail de pessoa
+   * convidada por outra empresa (v1.9.1).
+   */
+  listar: equipeProcedure.query(async ({ ctx }) => {
     const db = getDb();
-    const rows = await db
-      .select()
-      .from(convites)
-      .orderBy(desc(convites.createdAt), desc(convites.id));
+    const base = db.select().from(convites);
+    const rows = await (ctx.usuario.perfil === "admin"
+      ? base
+      : base.where(eq(convites.createdById, ctx.usuario.id))
+    ).orderBy(desc(convites.createdAt), desc(convites.id));
     return rows.map(paraConvite);
   }),
 
-  /** Revoga um convite pendente (admin). */
-  revogar: perfilProcedure("admin")
+  /** Revoga um convite pendente (o próprio, se não for admin da plataforma). */
+  revogar: equipeProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -124,7 +128,7 @@ export const convitesRouter = createRouter({
         .where(eq(convites.id, input.id))
         .limit(1);
       const convite = rows[0];
-      if (!convite) {
+      if (!convite || !podeMexer(ctx, convite)) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Convite não encontrado.",
@@ -150,8 +154,8 @@ export const convitesRouter = createRouter({
       return { ok: true };
     }),
 
-  /** Reenvia: revoga o atual (se pendente) e cria um novo convite (admin). */
-  reenviar: perfilProcedure("admin")
+  /** Reenvia: revoga o atual (se pendente) e cria um novo convite. */
+  reenviar: equipeProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
@@ -161,31 +165,17 @@ export const convitesRouter = createRouter({
         .where(eq(convites.id, input.id))
         .limit(1);
       const atual = rows[0];
-      if (!atual) {
+      if (!atual || !podeMexer(ctx, atual)) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Convite não encontrado.",
         });
       }
-      if (atual.status === "pendente") {
-        await db
-          .update(convites)
-          .set({ status: "revogado" })
-          .where(eq(convites.id, atual.id));
-      }
-
-      const token = gerarTokenConvite();
-      const expiresAt = new Date(Date.now() + CONVITE_TTL_MS);
-      const result = await db.insert(convites).values({
+      const { id, link } = await emitirConviteAcesso(db, {
         email: atual.email,
         perfil: atual.perfil,
-        token,
         createdById: ctx.usuario.id,
-        expiresAt,
       });
-      const id = Number(result[0].insertId);
-
-      const link = linkAceite(token);
       const { enviado } = await enviarConviteEmail({
         para: atual.email,
         link,
@@ -288,7 +278,20 @@ export const convitesRouter = createRouter({
         .set({ status: "aceito", acceptedAt: new Date() })
         .where(eq(convites.id, convite.id));
 
-      ctx.resHeaders.append("set-cookie", cookieSessao(criarTokenSessao(id)));
+      // Convite de colaborador (v1.9.1): a ficha da pessoa na empresa já existe,
+      // só faltava a conta. O e-mail é a chave — é por ele que o convite foi
+      // emitido. Só preenche ficha ainda sem usuário, nunca rouba vínculo.
+      await db
+        .update(colaboradores)
+        .set({ usuarioId: id, statusAtivacao: "confirmado" })
+        .where(
+          and(eq(colaboradores.email, email), isNull(colaboradores.usuarioId)),
+        );
+
+      ctx.resHeaders.append(
+        "set-cookie",
+        cookieSessao(criarTokenSessao(id), requisicaoSegura(ctx.req)),
+      );
       await registrarLog(db, {
         usuarioId: id,
         acao: "convite.aceitar",
@@ -297,6 +300,22 @@ export const convitesRouter = createRouter({
         detalhes: `${email} (${convite.perfil})`,
       });
 
-      return { id, email, nome, perfil: convite.perfil };
+      // Conta nova, sem empresa: a área Equipe só abre depois que ela cadastrar
+      // a própria empresa (v1.9.1). A fila de revisão abre já no aceite se a
+      // ficha vinculada for a do aprovador/analista designado (v1.12.0).
+      const designado = await ehDesignadoDeAlgumaEmpresa(id);
+      return {
+        id,
+        email,
+        nome,
+        perfil: convite.perfil,
+        podeGerenciarEquipe: false,
+        podeRevisarDespesas: podeRevisarDespesas({
+          perfil: convite.perfil,
+          ehAdminDaEmpresa: false,
+          ehAprovadorDesignado: designado.aprovador,
+          ehAnalistaDesignado: designado.analista,
+        }),
+      };
     }),
 });

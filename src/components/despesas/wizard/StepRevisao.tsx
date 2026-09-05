@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { motion } from "framer-motion"
 import {
   CircleAlert,
@@ -9,7 +9,6 @@ import {
   TriangleAlert,
 } from "lucide-react"
 import { Link } from "react-router"
-import { trpc } from "@/providers/trpc"
 import {
   Select,
   SelectContent,
@@ -17,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { formatBRL } from "@/lib/format"
 import { CATEGORIA_META, CATEGORIA_OPTIONS, confiancaParaPct, formatNumero } from "../meta"
@@ -30,7 +28,6 @@ import {
 
 interface StepRevisaoProps {
   nota: NotaProcessada
-  empresaId: number
   form: FormState
   onChange: (form: FormState) => void
   editados: Set<string>
@@ -95,7 +92,6 @@ function CampoOcr({ campo, label, obrigatorio, pendente, editado, confianca, chi
 
 export default function StepRevisao({
   nota,
-  empresaId,
   form,
   onChange,
   editados,
@@ -107,11 +103,6 @@ export default function StepRevisao({
   onProcessar,
 }: StepRevisaoProps) {
   const [zoom, setZoom] = useState(1)
-  const veiculosQuery = trpc.veiculos.list.useQuery(
-    { empresaId },
-    { enabled: empresaId > 0, retry: false },
-  )
-  const veiculos = useMemo(() => veiculosQuery.data ?? [], [veiculosQuery.data])
 
   const extracao = nota.extracao
   const confBase = confiancaParaPct(extracao.confiancaExtracao)
@@ -140,7 +131,7 @@ export default function StepRevisao({
   const baseFiscal = pctComercial !== null ? (valorNota * kmComercial) / kmTotal : null
 
   const isImagem = nota.arquivoMime.startsWith("image/")
-  const mostraVeiculo = ["combustivel", "pedagio", "uber", "taxi"].includes(form.categoria)
+  const mostraUsoVeiculo = ["combustivel", "pedagio", "uber", "taxi"].includes(form.categoria)
   const mostraLitros = form.categoria === "combustivel"
 
   const campoProps = (campo: string) => ({
@@ -312,7 +303,7 @@ export default function StepRevisao({
         </motion.fieldset>
 
         {/* 3 · Uso do veículo */}
-        {mostraVeiculo && (
+        {mostraUsoVeiculo && (
           <motion.fieldset
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -323,28 +314,7 @@ export default function StepRevisao({
             <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-500">
               Uso do veículo
             </span>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <CampoOcr campo="veiculoId" label="Veículo vinculado" pendente={false} editado={editados.has("veiculoId")} confianca={100}>
-                {veiculosQuery.isLoading ? (
-                  <Skeleton className="h-11 w-full rounded-[10px]" />
-                ) : (
-                  <Select value={form.veiculoId} onValueChange={(v) => set("veiculoId", v === "nenhum" ? "" : v)}>
-                    <SelectTrigger className="h-11 w-full border-line text-[13px]">
-                      <SelectValue placeholder="Selecione…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="nenhum">Sem veículo</SelectItem>
-                      {veiculos.map((v) => (
-                        <SelectItem key={v.id} value={String(v.id)}>
-                          <span className="font-mono tabular">
-                            {v.placa} · {formatNumero(v.kmPorLitroDeclarado)} km/L
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </CampoOcr>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <CampoOcr campo="kmComercial" label="km comercial" pendente={false} editado={editados.has("kmComercial")} confianca={100}>
                 <input
                   inputMode="decimal"

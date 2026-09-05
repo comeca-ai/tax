@@ -3,10 +3,12 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { createRouter, protectedProcedure, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { resetsSenha, usuarios } from "@db/schema";
-import { loginInput, registroInput } from "@contracts/types";
+import { cnaesSecundarios, empresas, resetsSenha, usuarios } from "@db/schema";
+import { loginInput, registroComEmpresaInput, registroInput } from "@contracts/types";
+import { podeGerenciarEquipe, podeRevisarDespesas } from "@contracts/permissoes";
 import { hashSenha, verificarSenha } from "../auth/password";
 import { gerarTokenConvite } from "../lib/conviteUtils";
+import { ehChaveDuplicada } from "../lib/erroDb";
 import { enviarResetSenhaEmail } from "../mail/mailer";
 
 const RESET_TTL_MS = 1000 * 60 * 60; // 1 hora
@@ -14,8 +16,13 @@ import {
   cookieLimparSessao,
   cookieSessao,
   criarTokenSessao,
+  requisicaoSegura,
 } from "../auth/session";
-import { registrarLog } from "./_shared";
+import {
+  ehAdminDeAlgumaEmpresa,
+  ehDesignadoDeAlgumaEmpresa,
+  registrarLog,
+} from "./_shared";
 
 export const authRouter = createRouter({
   /** Cadastro de usuário (perfil padrão: cliente). */
@@ -54,7 +61,10 @@ export const authRouter = createRouter({
       });
       const id = Number(result[0].insertId);
 
-      ctx.resHeaders.append("set-cookie", cookieSessao(criarTokenSessao(id)));
+      ctx.resHeaders.append(
+        "set-cookie",
+        cookieSessao(criarTokenSessao(id), requisicaoSegura(ctx.req)),
+      );
       await registrarLog(db, {
         usuarioId: id,
         acao: "usuario.registro",
@@ -62,7 +72,130 @@ export const authRouter = createRouter({
         entidadeId: id,
       });
 
-      return { id, email, nome: input.nome.trim(), perfil };
+      // Conta recém-criada ainda não tem empresa — a área Equipe abre depois
+      // que ele cadastrar a empresa (v1.9.1); a fila de revisão, quando
+      // houver empresa ou designação (v1.12.0).
+      return {
+        id,
+        email,
+        nome: input.nome.trim(),
+        perfil,
+        podeGerenciarEquipe: false,
+        podeRevisarDespesas: false,
+      };
+    }),
+
+  /**
+   * Wizard de cadastro: conta + empresa numa transação só (v1.9.2). Antes
+   * eram duas chamadas (registro depois empresas.create) — quando a segunda
+   * falhava, a conta ficava órfã. Agora: ou grava os dois, ou nenhum.
+   * O `registro` simples continua para quem cria conta sem empresa (ex.:
+   * convite de colaborador cria a conta em convites.aceitar).
+   */
+  registroComEmpresa: publicQuery
+    .input(registroComEmpresaInput)
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const email = input.email.trim().toLowerCase();
+
+      const existente = await db
+        .select({ id: usuarios.id })
+        .from(usuarios)
+        .where(eq(usuarios.email, email))
+        .limit(1);
+      if (existente.length > 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "E-mail já cadastrado.",
+        });
+      }
+
+      const total = await db.select({ id: usuarios.id }).from(usuarios).limit(1);
+      const perfil = total.length === 0 ? ("admin" as const) : ("cliente" as const);
+
+      const senhaHash = await hashSenha(input.senha);
+
+      const gravar = async () => db.transaction(async (tx) => {
+        const rUsuario = await tx.insert(usuarios).values({
+          email,
+          nome: input.nome.trim(),
+          senhaHash,
+          perfil,
+        });
+        const id = Number(rUsuario[0].insertId);
+
+        const rEmpresa = await tx.insert(empresas).values({
+          usuarioId: id,
+          razaoSocial: input.razaoSocial,
+          cnpj: input.cnpj,
+          cnaePrincipal: input.cnaePrincipal,
+          regimeTributario: input.regimeTributario,
+          uf: input.uf,
+        });
+        const empresaId = Number(rEmpresa[0].insertId);
+
+        if (input.cnaesSecundarios.length > 0) {
+          await tx.insert(cnaesSecundarios).values(
+            input.cnaesSecundarios.map((cnae) => ({ empresaId, cnae })),
+          );
+        }
+
+        await registrarLog(tx, {
+          usuarioId: id,
+          acao: "usuario.registro",
+          entidade: "usuario",
+          entidadeId: id,
+        });
+        await registrarLog(tx, {
+          usuarioId: id,
+          empresaId,
+          acao: "empresa.create",
+          entidade: "empresa",
+          entidadeId: empresaId,
+          detalhes: `CNAE ${input.cnaePrincipal}, regime ${input.regimeTributario}, UF ${input.uf}, LGPD ${input.aceiteLgpd ? "aceito" : "n/a"}, poderes ${input.declaracaoPoderes ? "declarados" : "n/a"}`,
+        });
+
+        return { id, empresaId };
+      });
+
+      // A pré-checagem de e-mail é otimista: entre ela e o INSERT cabe outro
+      // cadastro do mesmo e-mail. O índice único é quem garante — mas o erro
+      // cru do driver traz o SQL e os params (inclusive o hash da senha), e
+      // ele não pode chegar ao cliente nem ao console do navegador.
+      let id: number;
+      let empresaId: number;
+      try {
+        ({ id, empresaId } = await gravar());
+      } catch (erro) {
+        if (ehChaveDuplicada(erro)) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "E-mail já cadastrado.",
+          });
+        }
+        console.error("[auth] registroComEmpresa falhou:", erro);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Não foi possível concluir o cadastro. Tente novamente.",
+        });
+      }
+
+      ctx.resHeaders.append(
+        "set-cookie",
+        cookieSessao(criarTokenSessao(id), requisicaoSegura(ctx.req)),
+      );
+
+      // Acabou de criar a própria empresa — já é admin dela (v1.9.1), o que
+      // também o coloca na fila de revisão dela (v1.12.0).
+      return {
+        id,
+        email,
+        nome: input.nome.trim(),
+        perfil,
+        podeGerenciarEquipe: true,
+        podeRevisarDespesas: true,
+        empresa: { id: empresaId, cadastroCompleto: true },
+      };
     }),
 
   /** Login email/senha → cookie de sessão HttpOnly. */
@@ -84,7 +217,7 @@ export const authRouter = createRouter({
 
     ctx.resHeaders.append(
       "set-cookie",
-      cookieSessao(criarTokenSessao(usuario.id)),
+      cookieSessao(criarTokenSessao(usuario.id), requisicaoSegura(ctx.req)),
     );
     await registrarLog(db, {
       usuarioId: usuario.id,
@@ -93,11 +226,25 @@ export const authRouter = createRouter({
       entidadeId: usuario.id,
     });
 
+    const [ehAdminDaEmpresa, designado] = await Promise.all([
+      ehAdminDeAlgumaEmpresa(usuario.id),
+      ehDesignadoDeAlgumaEmpresa(usuario.id),
+    ]);
     return {
       id: usuario.id,
       email: usuario.email,
       nome: usuario.nome,
       perfil: usuario.perfil,
+      podeGerenciarEquipe: podeGerenciarEquipe({
+        perfil: usuario.perfil,
+        ehAdminDeEmpresa: ehAdminDaEmpresa,
+      }),
+      podeRevisarDespesas: podeRevisarDespesas({
+        perfil: usuario.perfil,
+        ehAdminDaEmpresa,
+        ehAprovadorDesignado: designado.aprovador,
+        ehAnalistaDesignado: designado.analista,
+      }),
     };
   }),
 
@@ -107,8 +254,27 @@ export const authRouter = createRouter({
     return { ok: true };
   }),
 
-  /** Sessão atual (null quando não autenticado). */
-  me: publicQuery.query(({ ctx }) => ctx.usuario),
+  /** Sessão atual (null quando não autenticado) + o que ela pode fazer. */
+  me: publicQuery.query(async ({ ctx }) => {
+    if (!ctx.usuario) return null;
+    const [ehAdminDaEmpresa, designado] = await Promise.all([
+      ehAdminDeAlgumaEmpresa(ctx.usuario.id),
+      ehDesignadoDeAlgumaEmpresa(ctx.usuario.id),
+    ]);
+    return {
+      ...ctx.usuario,
+      podeGerenciarEquipe: podeGerenciarEquipe({
+        perfil: ctx.usuario.perfil,
+        ehAdminDeEmpresa: ehAdminDaEmpresa,
+      }),
+      podeRevisarDespesas: podeRevisarDespesas({
+        perfil: ctx.usuario.perfil,
+        ehAdminDaEmpresa,
+        ehAprovadorDesignado: designado.aprovador,
+        ehAnalistaDesignado: designado.analista,
+      }),
+    };
+  }),
 
   /**
    * Solicita redefinição de senha (v1.6.1). Resposta é SEMPRE a mesma,

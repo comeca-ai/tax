@@ -3,20 +3,22 @@ import { getDb } from "../api/queries/connection";
 import {
   cnaesSecundarios,
   empresas,
+  empresasConfig,
   politicasReembolso,
   regrasElegibilidade,
   usuarios,
-  veiculos,
 } from "./schema";
 import { hashSenha } from "../api/auth/password";
 import { VERSAO_REGRA } from "../api/modules/fiscal/engine/params";
-import type { RegrasPolitica } from "@contracts/types";
+import { regrasPoliticaSchema, type RegrasPolitica } from "@contracts/types";
 
 /**
  * Seed — Tax Engine (reembolsa.ia.br):
  * 1. Matriz de elegibilidade CNAE × categoria (MVP, §7.2 da spec) + dedutibilidade IRPJ/CSLL
  * 2. Usuários iniciais: admin, revisor e cliente demo
- * 3. Empresa demo (transporte de cargas) + veículo demo
+ * 3. Empresa demo (transporte de cargas)
+ * 4. Política de reembolso demo
+ * 5. Config da Norma PoC — uma linha de empresas_config por empresa
  */
 
 type LinhaMatriz = {
@@ -223,7 +225,7 @@ async function seed() {
   await upsertUsuario("revisor@reembolsa.ia.br", "Revisor Tributário", "Revisor@12345", "revisor");
   const clienteId = await upsertUsuario("cliente@demo.com.br", "Cliente Demo", "Cliente@12345", "cliente");
 
-  // ── 3. Empresa + veículo demo ─────────────────────────────────────────────
+  // ── 3. Empresa demo ───────────────────────────────────────────────────────
   const empresaExistente = await db
     .select({ id: empresas.id })
     .from(empresas)
@@ -248,23 +250,6 @@ async function seed() {
     console.log("  empresa demo: Transportes Demo Ltda (49.30-2, lucro_real, SP)");
   }
 
-  const veiculoExistente = await db
-    .select({ id: veiculos.id })
-    .from(veiculos)
-    .where(eq(veiculos.placa, "ABC1D23"))
-    .limit(1);
-  if (!veiculoExistente[0]) {
-    await db.insert(veiculos).values({
-      empresaId,
-      placa: "ABC1D23",
-      renavam: "12345678901",
-      kmPorLitroDeclarado: 8.5,
-      tarifaReembolsoKm: 0.85,
-      descricao: "Caminhão 3/4 diesel (demo)",
-    });
-    console.log("  veiculo demo: ABC1D23 (8,5 km/L, R$ 0,85/km)");
-  }
-
   // ── 4. Política de reembolso demo ATIVA (v1.1.0) ──────────────────────────
   const politicaExistente = await db
     .select({ id: politicasReembolso.id })
@@ -281,14 +266,16 @@ async function seed() {
       "2. HOSPEDAGEM: reembolso de até R$ 450,00 por diária. Nota fiscal/recibo obrigatório.",
       "3. TRANSPORTE POR APLICATIVO (Uber/99): até R$ 80,00 por corrida.",
       "4. TÁXI: até R$ 80,00 por corrida, com recibo.",
-      "5. COMBUSTÍVEL: reembolso de até R$ 600,00 por abastecimento, somente para",
-      "   veículo cadastrado na empresa. Tarifa de R$ 0,85 por km rodado para veículo próprio.",
+      "5. COMBUSTÍVEL: reembolso de até R$ 600,00 por abastecimento.",
+      "   Tarifa de R$ 0,85 por km rodado para veículo próprio.",
       "6. PEDÁGIO: reembolso integral mediante comprovante.",
       "7. APROVAÇÃO AUTOMÁTICA: despesas até R$ 200,00 são aprovadas automaticamente.",
       "8. REVISÃO HUMANA: despesas acima de R$ 2.000,00 exigem revisão humana do financeiro.",
       "9. NEGAÇÃO: despesas acima de R$ 5.000,00 não são reembolsadas.",
     ].join("\n");
-    const regrasDemo: RegrasPolitica = {
+    // Parse (em vez de literal tipado): os defaults do schema preenchem os campos
+    // derivados novos — o seed não quebra a cada campo acrescentado ao contrato.
+    const regrasDemo: RegrasPolitica = regrasPoliticaSchema.parse({
       limitesPorCategoria: {
         alimentacao: 120,
         hospedagem: 450,
@@ -297,16 +284,17 @@ async function seed() {
         combustivel: 600,
         pedagio: null,
       },
-      exigeVeiculoCadastrado: ["combustivel"],
       exigeEvidencia: ["hospedagem", "alimentacao"],
       aprovacaoAutomaticaAte: 200,
       revisaoHumanaAcimaDe: 2000,
       negacaoAcimaDe: 5000,
       observacoes: [
-        "Tarifa de R$ 0,85 por km rodado para veículo próprio cadastrado.",
+        "Tarifa de R$ 0,85 por km rodado para veículo próprio.",
         "Evidência obrigatória para alimentação acima de R$ 120,00.",
       ],
-    };
+      // Política demo no formato antigo (sem regras estruturadas): parâmetros acima valem como estão
+      regrasExtraidas: [],
+    });
     await db.insert(politicasReembolso).values({
       empresaId,
       arquivoNome: "politica-reembolso-demo.txt",
@@ -322,6 +310,31 @@ async function seed() {
     console.log("  politica demo: ATIVA (v1) para Transportes Demo Ltda");
   } else {
     console.log("  politica demo: já existe, pulando");
+  }
+
+  // ── 5. Config da Norma PoC (0008) — uma linha por empresa ────────────────
+  // A 0008 criou `empresas_config` vazia, e o consumidor que vier depois faz
+  // JOIN esperando a linha existir: sem isto, toda empresa aparece como não
+  // configurada. Idempotente por diferença (o UNIQUE de empresa_id já barraria
+  // a duplicata, mas errar de propósito para depois ignorar o erro é pior).
+  //
+  // `tarifa_km` fica NULL de propósito: o valor é decisão de política do dono,
+  // não do seed. Enquanto for NULL, quem consome trata como "não configurado".
+  const empresasTodas = await db
+    .select({ id: empresas.id, cnpj: empresas.cnpj })
+    .from(empresas);
+  const configsExistentes = await db
+    .select({ empresaId: empresasConfig.empresaId })
+    .from(empresasConfig);
+  const jaConfiguradas = new Set(configsExistentes.map((c) => c.empresaId));
+  const semConfig = empresasTodas.filter((e) => !jaConfiguradas.has(e.id));
+  if (semConfig.length > 0) {
+    await db
+      .insert(empresasConfig)
+      .values(semConfig.map((e) => ({ empresaId: e.id, cnpj: e.cnpj })));
+    console.log(`  empresas_config: ${semConfig.length} linha(s) criada(s) (tarifa_km pendente)`);
+  } else {
+    console.log("  empresas_config: todas as empresas já têm linha, pulando");
   }
 
   console.log("Done.");

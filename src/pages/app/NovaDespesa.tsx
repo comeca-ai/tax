@@ -96,7 +96,7 @@ export default function NovaDespesa() {
             setVeredito({
               despesaId: res.despesaId,
               decisao: res.decisao,
-              motivos: res.motivos,
+              motivos: [...res.motivos, ...res.ressalvas.map((r) => `Ressalva: ${r}`)],
               regrasAplicadas: res.regrasAplicadas,
               politicaVersao: res.politicaVersao,
               categoria: res.categoria,

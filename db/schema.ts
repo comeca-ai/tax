@@ -11,6 +11,9 @@ import {
   bigint,
   int,
   json,
+  boolean,
+  index,
+  foreignKey,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
@@ -83,7 +86,7 @@ export const usuarios = mysqlTable(
     perfil: perfilEnum.notNull().default("cliente"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("usuarios_email_unique").on(t.email)],
+  t => [uniqueIndex("usuarios_email_unique").on(t.email)]
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -150,6 +153,9 @@ export const notasFiscais = mysqlTable("notas_fiscais", {
   // Extração automática (v1.7.0, D-014): o que o OCR/visão detectou — ninguém digita
   categoriaSugerida: varchar("categoria_sugerida", { length: 20 }),
   litros: double("litros"),
+  // Classificação do documento pela IA de visão (v1.8) — o decisor usa para negar comprovante não fiscal
+  tipoDocumento: varchar("tipo_documento", { length: 30 }),
+  confiancaTipo: varchar("confianca_tipo", { length: 10 }),
   // Upload na plataforma: arquivo original guardado inline (MVP, sem storage externo)
   arquivoNome: varchar("arquivo_nome", { length: 255 }),
   arquivoMime: varchar("arquivo_mime", { length: 100 }),
@@ -162,43 +168,53 @@ export const notasFiscais = mysqlTable("notas_fiscais", {
 // 6. Despesas — RF-01/RF-02/RF-05
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const despesas = mysqlTable("despesas", {
-  id: serial("id").primaryKey(),
-  empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
-    .notNull()
-    .references(() => empresas.id),
-  notaFiscalId: bigint("nota_fiscal_id", { mode: "number", unsigned: true })
-    .notNull()
-    .references(() => notasFiscais.id),
-  veiculoId: bigint("veiculo_id", { mode: "number", unsigned: true }).references(
-    () => veiculos.id,
-  ),
-  // Nullable desde v1.7.0 (D-014): sem categoria detectável → revisão manual,
-  // ninguém preenche nada
-  categoria: categoriaDespesaEnum,
-  colaborador: varchar("colaborador", { length: 255 }),
-  centroCusto: varchar("centro_custo", { length: 255 }),
-  motivoDeslocamento: text("motivo_deslocamento"),
-  kmComercial: double("km_comercial").notNull().default(0),
-  kmNaoComercial: double("km_nao_comercial").notNull().default(0),
-  litros: double("litros"),
-  // valor_fiscal (base tributária segregada) ≠ valor_reembolsavel (tarifa/km) — §7.4
-  valorFiscal: double("valor_fiscal").notNull().default(0),
-  valorReembolsavel: double("valor_reembolsavel").notNull().default(0),
-  confianca: confiancaEnum.notNull().default("baixa"),
-  status: statusDespesaEnum.notNull().default("pendente"),
-  memorial: text("memorial"),
-  motivoRevisao: text("motivo_revisao"),
-  // Agente de Política de Reembolso (v1.1.0) — decisão posterior e independente do motor tributário
-  politicaDecisao: mysqlEnum("politica_decisao", [
-    "aprovado",
-    "negado",
-    "revisao_humana",
-  ]),
-  politicaMotivo: text("politica_motivo"),
-  politicaVersaoAplicada: int("politica_versao_aplicada"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const despesas = mysqlTable(
+  "despesas",
+  {
+    id: serial("id").primaryKey(),
+    empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => empresas.id),
+    notaFiscalId: bigint("nota_fiscal_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => notasFiscais.id),
+    veiculoId: bigint("veiculo_id", {
+      mode: "number",
+      unsigned: true,
+    }).references(() => veiculos.id),
+    // Nullable desde v1.7.0 (D-014): sem categoria detectável → revisão manual,
+    // ninguém preenche nada
+    categoria: categoriaDespesaEnum,
+    colaborador: varchar("colaborador", { length: 255 }),
+    centroCusto: varchar("centro_custo", { length: 255 }),
+    motivoDeslocamento: text("motivo_deslocamento"),
+    kmComercial: double("km_comercial").notNull().default(0),
+    kmNaoComercial: double("km_nao_comercial").notNull().default(0),
+    litros: double("litros"),
+    // valor_fiscal (base tributária segregada) ≠ valor_reembolsavel (tarifa/km) — §7.4
+    valorFiscal: double("valor_fiscal").notNull().default(0),
+    valorReembolsavel: double("valor_reembolsavel").notNull().default(0),
+    confianca: confiancaEnum.notNull().default("baixa"),
+    status: statusDespesaEnum.notNull().default("pendente"),
+    memorial: text("memorial"),
+    motivoRevisao: text("motivo_revisao"),
+    // Agente de Política de Reembolso (v1.1.0) — decisão posterior e independente do motor tributário
+    politicaDecisao: mysqlEnum("politica_decisao", [
+      "aprovado",
+      "negado",
+      "revisao_humana",
+    ]),
+    politicaMotivo: text("politica_motivo"),
+    politicaVersaoAplicada: int("politica_versao_aplicada"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  t => [
+    // Alvo da FK composta da 0009: garante que a despesa citada numa delegação
+    // seja da MESMA empresa do registro. InnoDB exige que as colunas
+    // referenciadas sejam o prefixo de um índice.
+    index("despesas_empresa_id_id_idx").on(t.empresaId, t.id),
+  ]
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 7. Regras de elegibilidade (matriz CNAE × categoria × tributo) — RF-02/RF-07
@@ -260,14 +276,19 @@ export const evidenciasDocumentais = mysqlTable("evidencias_documentais", {
 // 10. Log de auditoria imutável — RF-04 (nunca UPDATE/DELETE no app)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ON DELETE SET NULL nas duas FKs (v1.8, migração 0010): a exclusão real de
+// usuário/empresa zera os campos de referência e a LINHA sobrevive — a trilha
+// é append-only e não pode depender do cadastro continuar existindo.
 export const logAuditoria = mysqlTable("log_auditoria", {
   id: serial("id").primaryKey(),
-  usuarioId: bigint("usuario_id", { mode: "number", unsigned: true }).references(
-    () => usuarios.id,
-  ),
-  empresaId: bigint("empresa_id", { mode: "number", unsigned: true }).references(
-    () => empresas.id,
-  ),
+  usuarioId: bigint("usuario_id", {
+    mode: "number",
+    unsigned: true,
+  }).references(() => usuarios.id, { onDelete: "set null" }),
+  empresaId: bigint("empresa_id", {
+    mode: "number",
+    unsigned: true,
+  }).references(() => empresas.id, { onDelete: "set null" }),
   acao: varchar("acao", { length: 100 }).notNull(),
   entidade: varchar("entidade", { length: 100 }).notNull(),
   entidadeId: bigint("entidade_id", { mode: "number", unsigned: true }),
@@ -308,7 +329,6 @@ export const politicasReembolso = mysqlTable("politicas_reembolso", {
   updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
 });
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // 12. Convites de usuários (v1.2.0)
 // Admin convida por e-mail; aceite via link com token único (7 dias).
@@ -331,7 +351,7 @@ export const convites = mysqlTable(
     acceptedAt: timestamp("accepted_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("convites_token_unique").on(t.token)],
+  t => [uniqueIndex("convites_token_unique").on(t.token)]
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -348,8 +368,29 @@ export const resetsSenha = mysqlTable(
     usedAt: timestamp("used_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("resets_senha_token_unique").on(t.token)],
+  t => [uniqueIndex("resets_senha_token_unique").on(t.token)]
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums da Norma PoC — papel no fluxo de 3 níveis, equipe e motorização
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const papelFluxoEnum = mysqlEnum("papel_fluxo", [
+  "solicitante",
+  "analista",
+  "aprovador",
+]);
+
+export const equipeColaboradorEnum = mysqlEnum("equipe", [
+  "interna",
+  "externa",
+]);
+
+export const motorizacaoEnum = mysqlEnum("motorizacao", [
+  "combustao",
+  "hibrido",
+  "eletrico",
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 13. Colaboradores (v1.5.0) — pessoas da empresa que pedem reembolso.
@@ -364,6 +405,16 @@ export const statusAtivacaoEnum = mysqlEnum("status_ativacao", [
   "divergencia", // contestou os dados no onboarding — admin precisa revisar
 ]);
 
+export const tipoDocumentoColaboradorEnum = mysqlEnum("tipo_documento", [
+  "cpf", // interno
+  "cnpj", // externo PJ — não se confunde com o CNPJ da empresa
+]);
+
+export const statusVinculoEnum = mysqlEnum("status_vinculo", [
+  "ativo",
+  "desligado", // desligamento NUNCA é DELETE: o histórico é preservado
+]);
+
 export const colaboradores = mysqlTable(
   "colaboradores",
   {
@@ -371,19 +422,54 @@ export const colaboradores = mysqlTable(
     empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => empresas.id),
-    usuarioId: bigint("usuario_id", { mode: "number", unsigned: true }).references(
-      () => usuarios.id,
-    ),
+    usuarioId: bigint("usuario_id", {
+      mode: "number",
+      unsigned: true,
+    }).references(() => usuarios.id),
     nome: varchar("nome", { length: 255 }).notNull(),
     email: varchar("email", { length: 255 }),
     telefone: varchar("telefone", { length: 20 }),
     matricula: varchar("matricula", { length: 50 }),
     centroCusto: varchar("centro_custo", { length: 100 }),
+    // Documento para pagamento (v1.8, migração 0011): coleta TARDIA, no
+    // primeiro reembolso a pagar — ambos nullable de propósito, ninguém
+    // preenche no convite. O unique (empresa_id, documento) abaixo tolera
+    // NULLs repetidos, como o de telefone.
+    tipoDocumento: tipoDocumentoColaboradorEnum,
+    documento: varchar("documento", { length: 14 }),
+    cargo: varchar("cargo", { length: 100 }),
+    // Grau na ficha do colaborador (1..N), NÃO alçada. Relação declarada com a
+    // estrutura de aprovadores da Norma PoC (seção 16, empresas_config.
+    // analista_id/aprovador_id): aquela tabela é a CONFIGURAÇÃO do fluxo
+    // (quem analisa/aprova em cada empresa); nivelAprovacao é o GRAU da pessoa,
+    // fonte para as alçadas por grau da fase 4 (tabela P-xxx, gate G10). Os
+    // valores de alçada ficam FORA desta demanda — aqui só se armazena.
+    nivelAprovacao: int("nivel_aprovacao"),
+    statusVinculo: statusVinculoEnum.notNull().default("ativo"),
+    // Anti-fraude por data (alimenta G4): despesa anterior à admissão é sinal.
+    dataAdmissao: date("data_admissao", { mode: "string" }),
     statusAtivacao: statusAtivacaoEnum.notNull().default("pendente"),
+    papelFluxo: papelFluxoEnum.notNull().default("solicitante"),
+    equipe: equipeColaboradorEnum.notNull().default("externa"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   },
-  (t) => [uniqueIndex("colaboradores_empresa_telefone_unique").on(t.empresaId, t.telefone)],
+  t => [
+    uniqueIndex("colaboradores_empresa_telefone_unique").on(
+      t.empresaId,
+      t.telefone
+    ),
+    // Mesmo tratamento do (empresa_id, telefone): sem isto o banco aceita o
+    // mesmo documento duas vezes dentro da MESMA empresa, em silêncio.
+    uniqueIndex("colaboradores_empresa_documento_unique").on(
+      t.empresaId,
+      t.documento
+    ),
+    // Alvo das FKs compostas da Norma PoC: garante que analista, aprovador e
+    // as duas pontas de uma delegação sejam da MESMA empresa. InnoDB exige
+    // que as colunas referenciadas sejam o prefixo de um índice.
+    index("colaboradores_empresa_id_id_idx").on(t.empresaId, t.id),
+  ]
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -407,7 +493,7 @@ export const sessoesConversa = mysqlTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   },
-  (t) => [uniqueIndex("sessoes_conversa_telefone_unique").on(t.telefone)],
+  t => [uniqueIndex("sessoes_conversa_telefone_unique").on(t.telefone)]
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -426,10 +512,238 @@ export const declaracoesPerfil = mysqlTable(
     categoria: categoriaDespesaEnum.notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [
+  t => [
     uniqueIndex("declaracoes_perfil_colab_categoria_unique").on(
       t.colaboradorId,
-      t.categoria,
+      t.categoria
     ),
-  ],
+  ]
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 16. Config por empresa (Norma PoC) — 1:1 com `empresas`.
+// `cnpj` é redundante de propósito: é o CNPJ como veio da planilha da PoC,
+// chave de importação. A fonte de verdade do cadastro é `empresas.cnpj`.
+// `tarifa_km` é única em R$/km por empresa (decisão do dono, 25/08): sem
+// diferenciação por motorização e sem diferenciação por UF na PoC.
+// `analista_id` / `aprovador_id` são os designados da empresa no fluxo de
+// 3 níveis — apontam para `colaboradores`, não para `usuarios`, porque o
+// aprovador pode não ter login.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const empresasConfig = mysqlTable(
+  "empresas_config",
+  {
+    id: serial("id").primaryKey(),
+    empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => empresas.id),
+    cnpj: varchar("cnpj", { length: 18 }),
+    temValeRefeicao: boolean("tem_vale_refeicao").notNull().default(false),
+    temContratoCorporativoApp: boolean("tem_contrato_corporativo_app")
+      .notNull()
+      .default(false),
+    // `double` por consistência com veiculos.tarifa_reembolso_km e
+    // despesas.valor_fiscal — NÃO é exato: 1.15 * 43 = 49.449999999999996.
+    // Quem consumir precisa arredondar a 2 casas ANTES de comparar com teto.
+    // Precedência: esta tarifa é a da EMPRESA e vence a legada
+    // veiculos.tarifa_reembolso_km (cadastro removido em 3e16d4f/738e02d).
+    tarifaKm: double("tarifa_km"),
+    analistaId: bigint("analista_id", { mode: "number", unsigned: true }),
+    aprovadorId: bigint("aprovador_id", { mode: "number", unsigned: true }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+  },
+  t => [
+    uniqueIndex("empresas_config_empresa_id_unique").on(t.empresaId),
+    // Multi-tenant: o analista e o aprovador designados têm de ser
+    // colaboradores DESTA empresa. Sem isto o banco aceita apontar para
+    // colaborador de outra empresa e a fila de análise vaza entre clientes.
+    // Nome explícito: o gerado pelo drizzle passaria de 64 chars.
+    // Semântica MATCH SIMPLE: com analista_id NULL a FK não é checada.
+    foreignKey({
+      name: "empresas_config_analista_mesma_empresa_fk",
+      columns: [t.empresaId, t.analistaId],
+      foreignColumns: [colaboradores.empresaId, colaboradores.id],
+    }),
+    foreignKey({
+      name: "empresas_config_aprovador_mesma_empresa_fk",
+      columns: [t.empresaId, t.aprovadorId],
+      foreignColumns: [colaboradores.empresaId, colaboradores.id],
+    }),
+  ]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 17. Veículo do colaborador (Norma PoC) — dado CADASTRAL.
+// Não confundir com `veiculos` (seção 4), que é da EMPRESA, alimenta o
+// km/litro do RF-09 e é referenciada por `despesas.veiculo_id`.
+// `motorizacao` NÃO governa tarifa: a tarifa é única por empresa.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const veiculosColaborador = mysqlTable(
+  "veiculos_colaborador",
+  {
+    id: serial("id").primaryKey(),
+    colaboradorId: bigint("colaborador_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => colaboradores.id),
+    placa: varchar("placa", { length: 10 }).notNull(),
+    motorizacao: motorizacaoEnum,
+    ufLicenciamento: varchar("uf_licenciamento", { length: 2 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  // Não há risco multi-tenant aqui: um colaborador pertence a exatamente uma
+  // empresa, então a empresa do veículo é a do dono, sem ambiguidade. O que
+  // faltava era impedir a MESMA placa duas vezes para a MESMA pessoa.
+  t => [
+    uniqueIndex("veiculos_colaborador_colab_placa_unique").on(
+      t.colaboradorId,
+      t.placa
+    ),
+  ]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 18. Delegação de decisão (Norma PoC, Seção 6.1) — quem decidiu, quando,
+// em nome de quem e por quê. Append-only por convenção, como `log_auditoria`:
+// nunca UPDATE, nunca DELETE. `decidiu_usuario_id` guarda a conta logada que
+// executou o ato — rastro de auditoria separado da pessoa do organograma.
+// ATENÇÃO ao tamanho dos identificadores: o teto do MySQL é 64 caracteres e
+// nomes gerados pelo drizzle a partir de tabela+coluna+tabela alvo chegam perto.
+// A FK simples que o drizzle geraria para `em_nome_de_colaborador_id` batia
+// exatamente 64; a FK composta nomeada à mão que a substituiu resolveu isso.
+// Maior identificador hoje: 55 caracteres (medido). Ao renomear tabela ou
+// coluna, confira a margem — estourar quebra o boot com ER_TOO_LONG_IDENT, e
+// o teste `nenhum identificador de constraint passa de 64 caracteres` pega.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const delegacoesDecisao = mysqlTable(
+  "delegacoes_decisao",
+  {
+    id: serial("id").primaryKey(),
+    empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => empresas.id),
+    // Nullable de propósito: hoje quem decide despesa é um `usuarios`
+    // (`revisao.decidir` é perfilProcedure("revisor","admin")), e não existe
+    // caminho no código em que um `colaboradores` decide. Exigir colaborador
+    // aqui obrigaria a inventar linha fantasma para conta de suporte. Regra do
+    // writer: pelo menos um de (decidiu_colaborador_id, decidiu_usuario_id).
+    decidiuColaboradorId: bigint("decidiu_colaborador_id", {
+      mode: "number",
+      unsigned: true,
+    }),
+    emNomeDeColaboradorId: bigint("em_nome_de_colaborador_id", {
+      mode: "number",
+      unsigned: true,
+    }).notNull(),
+    decidiuUsuarioId: bigint("decidiu_usuario_id", {
+      mode: "number",
+      unsigned: true,
+    }).references(() => usuarios.id),
+    despesaId: bigint("despesa_id", {
+      mode: "number",
+      unsigned: true,
+    }).references(() => despesas.id),
+    motivo: text("motivo"),
+    decididoEm: timestamp("decidido_em").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  t => [
+    // Multi-tenant: as TRÊS pontas da delegação (quem decidiu, em nome de
+    // quem, e sobre qual despesa) têm de ser da MESMA empresa do registro.
+    // Sem isto o banco aceita registrar que um colaborador da empresa 1
+    // decidiu em nome de um da empresa 2, dentro da empresa 3 — provado no
+    // QA. Numa trilha de auditoria isso é inaceitável.
+    // A ponta `despesa_id` foi amarrada só na 0009: a 0008 a deixou como FK
+    // simples e o QA gravou, com dado real, uma delegação da empresa 1
+    // apontando despesa da empresa 2.
+    foreignKey({
+      name: "delegacoes_decisao_decidiu_mesma_empresa_fk",
+      columns: [t.empresaId, t.decidiuColaboradorId],
+      foreignColumns: [colaboradores.empresaId, colaboradores.id],
+    }),
+    foreignKey({
+      name: "delegacoes_decisao_em_nome_mesma_empresa_fk",
+      columns: [t.empresaId, t.emNomeDeColaboradorId],
+      foreignColumns: [colaboradores.empresaId, colaboradores.id],
+    }),
+    // `despesa_id` é nullable de propósito (delegação pode não citar despesa);
+    // com NULL o InnoDB não cobra a FK, que é o comportamento desejado.
+    foreignKey({
+      name: "delegacoes_decisao_despesa_mesma_empresa_fk",
+      columns: [t.empresaId, t.despesaId],
+      foreignColumns: [despesas.empresaId, despesas.id],
+    }),
+  ]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 19. Check-ins de campo (v1.11.0, migração 0011) — posição de equipe externa.
+// SOMENTE armazena: sem cálculo de trajeto nesta demanda (trajeto vs.
+// kmComercial declarado é a fase 1 do roadmap, gate G6). Faz sentido para
+// equipe externa (motorista/entregador em rota).
+// `registrado_em` é o momento da posição; o nome evita a palavra reservada
+// `timestamp` como identificador.
+// FK composta (empresa_id, colaborador_id): lição da 0008 — FK simples em
+// colaborador_id permitiria check-in da empresa A apontando colaborador da B.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const checkinsCampo = mysqlTable(
+  "checkins_campo",
+  {
+    id: serial("id").primaryKey(),
+    empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => empresas.id),
+    colaboradorId: bigint("colaborador_id", {
+      mode: "number",
+      unsigned: true,
+    })
+      .notNull()
+      .references(() => colaboradores.id),
+    registradoEm: timestamp("registrado_em").notNull().defaultNow(),
+    latitude: double("latitude").notNull(),
+    longitude: double("longitude").notNull(),
+    // Precisão do GPS em metros, quando o dispositivo informa.
+    precisao: double("precisao"),
+    // Vocabulário técnico do software (não do cliente): whatsapp, app, importacao.
+    origem: varchar("origem", { length: 30 }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  t => [
+    index("checkins_campo_colab_tempo_idx").on(t.empresaId, t.colaboradorId, t.registradoEm),
+    foreignKey({
+      name: "checkins_campo_mesma_empresa_fk",
+      columns: [t.empresaId, t.colaboradorId],
+      foreignColumns: [colaboradores.empresaId, colaboradores.id],
+    }),
+  ]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 20. Eventos brutos do webhook 360dialog (WhatsApp Business Cloud API) — v1.13.0
+// Evento de PLATAFORMA (canal único, `+55 21 96848 3003`), não por empresa: sem
+// FK para `empresas`/`colaboradores` — não há conceito de tenant aqui. Só
+// ingestão crua, sem processar conteúdo (D-020: preparado e isolado do resto
+// do produto; D-013/D-014 intactas — zero decisão/roteamento nesta tabela).
+// `tipo_evento`/`status_entrega` são varchar livre (mesma escolha de
+// `checkins_campo.origem`), para não exigir migração a cada tipo/status novo
+// que a Meta adicionar. `payload` guarda o `value` inteiro do change (não só o
+// item) — zero perda de campo não previsto pela extração, ao custo de pequena
+// redundância entre linhas irmãs (aceitável: volume baixo, 1 canal). Sem
+// índice único: a 360dialog pode reenviar o mesmo evento e a duplicidade é
+// aceita (nada aqui é idempotente por natureza — é log bruto).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const whatsappWebhookEvents = mysqlTable("whatsapp_webhook_events", {
+  id: serial("id").primaryKey(),
+  tipoEvento: varchar("tipo_evento", { length: 50 }).notNull(),
+  statusEntrega: varchar("status_entrega", { length: 50 }),
+  mensagemId: varchar("mensagem_id", { length: 128 }),
+  telefone: varchar("telefone", { length: 20 }),
+  canalTelefone: varchar("canal_telefone", { length: 20 }),
+  payload: json("payload").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

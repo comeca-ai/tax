@@ -12,6 +12,7 @@ import { cnaePorCodigo } from "@/lib/cnaes"
 import type { Cnae } from "@/lib/cnaes"
 import { cnpjValido, mascaraCnpj } from "@/lib/cnpj"
 import { useConsultaCnpj } from "@/lib/useConsultaCnpj"
+import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
 import CnaeCombobox from "@/components/ops/CnaeCombobox"
 import {
@@ -118,6 +119,8 @@ export default function EmpresaForm({
   matriz,
 }: EmpresaFormProps) {
   const [pendenteRegime, setPendenteRegime] = useState<RegimeTributario | null>(null)
+  // A matriz é área restrita (v1.8.0): só quem pode abrir vê o atalho.
+  const { perfil } = useAuth()
 
   // ── Consulta de CNPJ na Receita (v1.3.0) ───────────────────────────────
   const { consultar, carregando: consultandoReceita, erro: erroReceita } = useConsultaCnpj()
@@ -321,9 +324,11 @@ export default function EmpresaForm({
                 ? <>Esta empresa usa a linha da matriz: <span className="font-medium">{linhaMatriz}</span>{matriz && "…"}</>
                 : <>CNAE <span className="font-mono tabular">{cnaePrincipal}</span> — {cnaeInfo?.descricao}</>}
             </p>
-            <Link to="/app/regras" className="mt-1 inline-block text-[12px] font-medium text-brand-500 hover:underline">
-              Ver linha completa na matriz →
-            </Link>
+            {perfil === "admin" && (
+              <Link to="/app/regras" className="mt-1 inline-block text-[12px] font-medium text-brand-500 hover:underline">
+                Ver linha completa na matriz →
+              </Link>
+            )}
           </div>
         )}
       </Campo>

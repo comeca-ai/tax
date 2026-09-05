@@ -85,13 +85,12 @@ export const empresaInput = z.object({
   declaracaoPoderes: z.boolean().optional(),
 });
 
-export const veiculoInput = z.object({
-  placa: z.string().min(7).max(10),
-  renavam: z.string().max(20).optional(),
-  kmPorLitroDeclarado: z.number().positive(),
-  tarifaReembolsoKm: z.number().min(0).default(0),
-  descricao: z.string().max(255).optional(),
-});
+/**
+ * Wizard de cadastro (v1.9.2): conta + empresa numa chamada só. Shape plano
+ * de propósito — os caminhos dos issues do zod (`cnpj`, `cnaePrincipal`...)
+ * casam direto com os rótulos que a tela usa para descrever o erro.
+ */
+export const registroComEmpresaInput = registroInput.extend(empresaInput.shape);
 
 // Limite de 10 MB por arquivo → base64 ≈ 13,4 MB de caracteres (margem p/ overhead)
 export const ARQUIVO_BASE64_MAX = 14_000_000;
@@ -108,7 +107,6 @@ export const uploadNotaInput = z.object({
 export const despesaInput = z.object({
   empresaId: z.number().int().positive(),
   notaFiscalId: z.number().int().positive(),
-  veiculoId: z.number().int().positive().optional(),
   categoria: z.enum(CATEGORIAS_DESPESA),
   colaborador: z.string().max(255).optional(),
   centroCusto: z.string().max(255).optional(),
@@ -125,10 +123,17 @@ export const despesaInput = z.object({
   cst: z.string().max(10).optional(),
 });
 
+export const revisaoFilaInput = z.object({
+  empresaId: z.number().int().positive(),
+});
+
 export const revisaoInput = z.object({
+  empresaId: z.number().int().positive(),
   despesaId: z.number().int().positive(),
   decisao: z.enum(["aprovar", "rejeitar"]),
   justificativa: z.string().min(3).max(2000),
+  /** Norma PoC §6.1: obrigatório quando quem decide não é o aprovador designado. */
+  motivoDelegacao: z.string().min(3).max(2000).optional(),
 });
 
 export const evidenciaInput = z.object({
@@ -173,6 +178,10 @@ export type OcrExtracao = {
   camposPendentes: string[];
   provedor: string;
   avisos: string[];
+  /** Tipo de documento detectado pela IA de visão (v1.8); ausente/null no heurístico e em dados antigos */
+  tipoDocumento?: TipoDocumento | null;
+  /** Confiança da IA na classificação do tipo (não confundir com confiancaExtracao dos campos) */
+  confiancaTipo?: ConfiancaExtracao | null;
 };
 
 /** Linha de cálculo de um tributo (RF-03) — memorial de cálculo. */
@@ -241,6 +250,27 @@ export type UsuarioSessao = {
   perfil: Perfil;
 };
 
+/**
+ * Sessão como a tela recebe (v1.9.1): o usuário mais o que ele pode fazer.
+ * `podeGerenciarEquipe` é derivado no servidor (perfil da plataforma OU dono de
+ * alguma empresa) — a tela não recalcula permissão.
+ */
+export type SessaoAtual = UsuarioSessao & {
+  podeGerenciarEquipe: boolean;
+  /** Aprovador/analista designado, admin da empresa ou da plataforma (v1.12.0). */
+  podeRevisarDespesas: boolean;
+};
+
+/** Papel do usuário logado no fluxo de revisão da empresa consultada. */
+export type PapelRevisao = {
+  ehAprovadorDesignado: boolean;   // empresas_config.aprovador_id → colaborador do usuário
+  ehAnalistaDesignado: boolean;    // empresas_config.analista_id  → colaborador do usuário
+  ehAdminDaEmpresa: boolean;       // empresas.usuarioId === usuário
+  ehAdminDaPlataforma: boolean;    // usuarios.perfil === "admin"
+  temAprovadorDesignado: boolean;  // aprovador_id !== null
+  aprovadorDesignadoNome: string | null; // para a UI do motivo de delegação
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Agente de Política de Reembolso (v1.1.0)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -253,6 +283,24 @@ export type StatusPolitica = (typeof STATUS_POLITICA)[number];
 
 export const CONFIANCAS_EXTRACAO = ["alta", "media", "baixa"] as const;
 export type ConfiancaExtracao = (typeof CONFIANCAS_EXTRACAO)[number];
+
+/** Tipo de documento detectado pelo OCR de visão (v1.8): o LLM só relata; quem julga é o decisor (D-013). */
+export const TIPOS_DOCUMENTO = [
+  "nota_fiscal",
+  "recibo",
+  "extrato_conta",
+  "comprovante_pagamento",
+  "outro",
+] as const;
+export type TipoDocumento = (typeof TIPOS_DOCUMENTO)[number];
+
+export const TIPO_DOCUMENTO_LABELS: Record<TipoDocumento, string> = {
+  nota_fiscal: "nota fiscal",
+  recibo: "recibo",
+  extrato_conta: "extrato de conta",
+  comprovante_pagamento: "comprovante de pagamento",
+  outro: "documento não fiscal",
+};
 
 /** Labels PT-BR para UI. */
 export const DECISAO_POLITICA_LABELS: Record<DecisaoPolitica, string> = {
@@ -274,6 +322,165 @@ export const CONFIANCA_EXTRACAO_LABELS: Record<ConfiancaExtracao, string> = {
 };
 
 /**
+ * Rótulo PT-BR da categoria usado nas frases do servidor (agente, decisor, derivação).
+ * É o MESMO texto dos chips da tela (`CATEGORIA_META`): o motivo dizia "alimentação" e
+ * "Uber/app" enquanto o chip ao lado dizia "Alimentação" e "Uber", e o gestor lia as
+ * duas grafias na mesma tela sem saber se falavam da mesma coisa (v1.8).
+ */
+export const CATEGORIA_DESPESA_ROTULO: Record<CategoriaDespesa, string> = {
+  combustivel: "Combustível",
+  alimentacao: "Alimentação",
+  hospedagem: "Hospedagem",
+  pedagio: "Pedágio",
+  uber: "Uber",
+  taxi: "Táxi",
+};
+
+/** Grandes temas de uma política de reembolso (slug, título) — ordem de exibição. */
+export const TEMAS_POLITICA = [
+  ["alimentacao", "Alimentação"],
+  ["transporte-e-deslocamento", "Transporte e deslocamento"],
+  ["hospedagem-e-viagem", "Hospedagem e viagem"],
+  ["saude", "Saúde"],
+  ["educacao-e-desenvolvimento", "Educação e desenvolvimento"],
+  ["tecnologia-e-escritorio", "Tecnologia e escritório"],
+  ["eventos-e-relacionamento", "Eventos e relacionamento"],
+  ["mudanca-e-transferencia", "Mudança e transferência"],
+  ["governanca-do-processo", "Governança do processo"],
+] as const;
+export type TemaPolitica = (typeof TEMAS_POLITICA)[number][0];
+export const TEMAS_POLITICA_SLUGS = [
+  "alimentacao",
+  "transporte-e-deslocamento",
+  "hospedagem-e-viagem",
+  "saude",
+  "educacao-e-desenvolvimento",
+  "tecnologia-e-escritorio",
+  "eventos-e-relacionamento",
+  "mudanca-e-transferencia",
+  "governanca-do-processo",
+] as const satisfies readonly TemaPolitica[];
+export const TEMA_POLITICA_TITULO = Object.fromEntries(TEMAS_POLITICA) as Record<TemaPolitica, string>;
+
+export const UNIDADES_LIMITE = [
+  "dia",
+  "mes",
+  "viagem",
+  "evento",
+  "percentual",
+  "dias_antecedencia",
+  "dias_para_pagamento",
+] as const;
+export type UnidadeLimite = (typeof UNIDADES_LIMITE)[number];
+
+/**
+ * Unidades em que o teto é por período: um único comprovante pode cobrir mais de um
+ * (3 diárias numa nota de hotel). Por isso o pior desfecho vira revisão, nunca negação (D-013).
+ * "mes" NÃO entra: nota mensal única é caso raro e o teto mensal exige acumulado, não existe aqui.
+ */
+export const UNIDADES_LIMITE_TEMPORAIS = ["dia", "viagem", "evento"] as const;
+export type UnidadeLimiteTemporal = (typeof UNIDADES_LIMITE_TEMPORAIS)[number];
+
+export const REEMBOLSAVEL_REGRA = ["sim", "excecao", "vedado"] as const;
+export type ReembolsavelRegra = (typeof REEMBOLSAVEL_REGRA)[number];
+
+/**
+ * Alcance de uma regra dentro da categoria (v1.8).
+ *  - "item"      → sub-item da categoria (ex.: "Lavanderia em viagens — R$ 30/dia").
+ *                  NUNCA vira teto, vedação ou exceção da categoria inteira.
+ *  - "categoria" → o gestor marcou explicitamente que a regra vale para a categoria toda.
+ * Default "item": promover uma regra é ato consciente do gestor.
+ */
+export const ESCOPOS_REGRA = ["item", "categoria"] as const;
+export type EscopoRegra = (typeof ESCOPOS_REGRA)[number];
+
+/**
+ * O que ESTA regra autoriza o agente a fazer sozinho (v1.8).
+ *  - "nenhuma" → a regra é documentação: pode gerar teto/exceção (revisão), NUNCA
+ *                aprovação nem negação automática. Default de tudo que já existe.
+ *  - "aprovar" → reembolsavel "sim" + valorLimite > 0 em BRL não-percentual/não-prazo,
+ *                E alcance declarado: sem categoria (teto geral) ou escopo "categoria".
+ *  - "negar"   → reembolsavel "vedado", e o alcance define o que é exigido:
+ *                sem categoria → valorLimite > 0 em BRL (teto geral de negação);
+ *                com categoria → escopo "categoria" e SEM valor (veda a categoria toda).
+ *                Regra vedada COM valor nunca vira vedação de categoria: negaria a
+ *                categoria inteira em qualquer valor, alcance maior do que a regra declara.
+ * NENHUM prompt de LLM pede este campo e nenhum parser o preenche: só o gestor,
+ * no card. É a única porta para decisão automática (D-013).
+ */
+export const DECISOES_AUTOMATICAS_REGRA = ["nenhuma", "aprovar", "negar"] as const;
+export type DecisaoAutomaticaRegra = (typeof DECISOES_AUTOMATICAS_REGRA)[number];
+
+/** Tamanho máximo de `descricao` e `condicao` de uma regra (espelhado no `maxLength` do card de edição). */
+export const REGRA_TEXTO_MAX = 300;
+
+/** Uma regra estruturada extraída do documento (ou cadastrada pelo gestor). Fonte dos parâmetros derivados. */
+export const regraExtraidaSchema = z.object({
+  id: z.string().min(1).max(80),
+  tema: z.enum(TEMAS_POLITICA_SLUGS),
+  categoria: z.enum(CATEGORIAS_DESPESA).nullable().default(null),
+  escopo: z.enum(ESCOPOS_REGRA).default("item"),
+  descricao: z.string().trim().min(1).max(REGRA_TEXTO_MAX),
+  condicao: z.string().trim().max(REGRA_TEXTO_MAX).nullable().default(null),
+  reembolsavel: z.enum(REEMBOLSAVEL_REGRA).default("sim"),
+  valorLimite: z.number().min(0).nullable().default(null),
+  moeda: z.string().trim().toUpperCase().length(3).default("BRL"),
+  unidadeLimite: z.enum(UNIDADES_LIMITE).nullable().default(null),
+  exigeComprovante: z.boolean().default(false),
+  /**
+   * Declaração do gestor: esta regra só aceita nota fiscal ou recibo — comprovante de
+   * pagamento (Pix, cartão, extrato) não serve. Substitui o match pelo id
+   * `comprovantes-nao-aceitos`, que nenhum prompt pedia (decisão do dono P-2, v1.8).
+   * Como toda porta de negação, o alcance segue o da regra: sem categoria vale para a
+   * empresa toda; COM categoria só surte efeito com `escopo: "categoria"` — marcar o
+   * campo numa regra de sub-item ("gorjeta ao camareiro só com recibo") negava a
+   * diária de hotel paga por Pix citando a regra da gorjeta (D-013).
+   */
+  exigeDocumentoFiscal: z.boolean().default(false),
+  decisaoAutomatica: z.enum(DECISOES_AUTOMATICAS_REGRA).default("nenhuma"),
+});
+export type RegraExtraida = z.infer<typeof regraExtraidaSchema>;
+
+/** Categoria marcada pela política + a regra que a marcou. Toda decisão cita a regra (D-013). */
+export const categoriaRegraCitadaSchema = z.object({
+  categoria: z.enum(CATEGORIAS_DESPESA),
+  regraId: z.string().min(1).max(80),
+  descricao: z.string().trim().min(1).max(REGRA_TEXTO_MAX),
+  /** Frase PT-BR pronta para o veredito — quem deriva sabe o porquê; o agente só cita. */
+  motivo: z.string().trim().min(1).max(400),
+});
+export type CategoriaRegraCitada = z.infer<typeof categoriaRegraCitadaSchema>;
+
+/** Ponto em que a política NÃO define e o agente, por isso, não decide (v1.8). */
+export const LACUNA_TIPOS = [
+  "conflito-vedado-permissivo", // regra vedada de CATEGORIA convivendo com regra "sim", sem marcação
+  "so-vedado-sem-marcacao", // só regra vedada na categoria, nenhuma marcada como "negar"
+  "marcacao-sem-valor", // regra marcada "aprovar" sem valor monetário aplicável
+  "marcacao-sem-efeito", // marcação do gestor que a derivação não consegue aplicar (escopo/valor)
+  "lacunas-demais", // agregado: houve mais lacunas do que o contrato comporta
+] as const;
+export type LacunaTipo = (typeof LACUNA_TIPOS)[number];
+
+/**
+ * Teto de lacunas gravadas numa política. A derivação NUNCA pode produzir mais do que
+ * isso: o JSON é reparseado a cada leitura (`politica.get`, `politica.ativa`,
+ * `despesas.decidirAutomatico`) e um array maior derrubava a empresa inteira com
+ * `too_big`. Ao truncar, a última entra como "lacunas-demais" — sem categoria, ou seja,
+ * mandando TUDO para revisão: cortar só pode errar para o lado seguro (D-013).
+ */
+export const LACUNAS_MAX = 60;
+
+export const lacunaPoliticaSchema = z.object({
+  tipo: z.enum(LACUNA_TIPOS),
+  /** null = vale para toda despesa; categoria = só nela. */
+  categoria: z.enum(CATEGORIAS_DESPESA).nullable().default(null),
+  regraIds: z.array(z.string().min(1).max(80)).max(20).default([]),
+  /** Frase PT-BR pronta para o veredito — nomeia a lacuna. */
+  motivo: z.string().trim().min(1).max(400),
+});
+export type LacunaPolitica = z.infer<typeof lacunaPoliticaSchema>;
+
+/**
  * JSON de regras da política — contrato estável, versionado junto à política
  * (campo `regras` de politicas_reembolso). Valores monetários em R$.
  */
@@ -282,18 +489,59 @@ export const regrasPoliticaSchema = z.object({
   limitesPorCategoria: z
     .partialRecord(z.enum(CATEGORIAS_DESPESA), z.number().min(0).nullable())
     .default({}),
-  /** Categorias que exigem veículo cadastrado na empresa */
-  exigeVeiculoCadastrado: z.array(z.enum(CATEGORIAS_DESPESA)).default([]),
+  /**
+   * Categoria → unidade do teto, quando o teto veio de regra com unidade temporal (v1.8).
+   * Presença da chave = teto por período: acima dele o pior desfecho é REVISÃO, nunca negação (D-013).
+   * Ausência = comportamento atual (acima de 1,5x nega). Política antiga chega {} e não muda de comportamento.
+   */
+  tetosTemporaisPorCategoria: z
+    .partialRecord(z.enum(CATEGORIAS_DESPESA), z.enum(UNIDADES_LIMITE_TEMPORAIS))
+    .default({}),
+  /** Categorias negadas automaticamente, com a regra que vedou (derivado das regras extraídas) */
+  categoriasVedadas: z.array(categoriaRegraCitadaSchema).default([]),
+  /** Categorias que exigem revisão humana (aprovação superior), com a regra citada (derivado) */
+  categoriasExcecao: z.array(categoriaRegraCitadaSchema).default([]),
   /** Categorias que exigem evidência documental anexada */
   exigeEvidencia: z.array(z.enum(CATEGORIAS_DESPESA)).default([]),
   /** Aprovação automática até este valor (R$); null = sem teto configurado */
   aprovacaoAutomaticaAte: z.number().min(0).nullable().default(null),
+  /** Teto de aprovação automática POR categoria (R$) — só de regra marcada "aprovar" com escopo "categoria" (v1.8) */
+  aprovacaoAutomaticaPorCategoria: z
+    .partialRecord(z.enum(CATEGORIAS_DESPESA), z.number().min(0))
+    .default({}),
+  /**
+   * Regra que autoriza cada teto de aprovação por categoria. Aprovar era o único
+   * desfecho que não citava regra nenhuma — o gestor lia "aprovado" e não tinha como
+   * saber que uma regra sobre lavar carro alugado liberara a despesa (D-013).
+   */
+  aprovacaoCitadaPorCategoria: z.array(categoriaRegraCitadaSchema).default([]),
+  /** Regras citadas nos tetos por categoria (D-013: todo motivo nomeia a regra) */
+  limitesCitados: z.array(categoriaRegraCitadaSchema).default([]),
+  /** Id da regra que fundamenta cada teto global; null quando o teto não existe */
+  aprovacaoAutomaticaAteRegraId: z.string().max(80).nullable().default(null),
+  revisaoHumanaAcimaDeRegraId: z.string().max(80).nullable().default(null),
+  negacaoAcimaDeRegraId: z.string().max(80).nullable().default(null),
+  /** Onde a política não define — o agente não decide e nomeia a lacuna (v1.8) */
+  lacunas: z.array(lacunaPoliticaSchema).max(LACUNAS_MAX).default([]),
   /** Acima deste valor (R$) vai para revisão humana; null = sem regra */
   revisaoHumanaAcimaDe: z.number().min(0).nullable().default(null),
   /** Acima deste valor (R$) a despesa é negada; null = sem teto de negação */
   negacaoAcimaDe: z.number().min(0).nullable().default(null),
+  /** Política exige nota fiscal/recibo em TODA despesa — só de regra marcada SEM categoria (v1.8) */
+  exigeDocumentoFiscal: z.boolean().default(false),
+  /** Id da regra extraída que fundamenta a exigência geral (para citação na negação); null = não exige */
+  regraDocumentoFiscalId: z.string().max(80).nullable().default(null),
+  /**
+   * Exigência de nota fiscal/recibo POR categoria, com a regra que exigiu. Regra de
+   * hospedagem marcada "só aceito nota fiscal" vale em hospedagem e em nenhuma outra:
+   * é a segunda porta de negação automática e o alcance dela nunca pode ser maior do
+   * que o da regra (D-013).
+   */
+  exigeDocumentoFiscalPorCategoria: z.array(categoriaRegraCitadaSchema).default([]),
   /** Observações em texto livre extraídas do documento da política */
   observacoes: z.array(z.string()).default([]),
+  /** Regras estruturadas (v1.7 do agente). Única fonte editável; os campos acima são derivados delas no servidor. Ausente = política antiga. */
+  regrasExtraidas: z.array(regraExtraidaSchema).max(500).default([]),
 });
 export type RegrasPolitica = z.infer<typeof regrasPoliticaSchema>;
 
@@ -338,9 +586,15 @@ export const politicaUpdateRegrasInput = z.object({
 
 export const politicaTestarInput = z.object({
   empresaId: z.number().int().positive(),
+  /**
+   * Política a simular. Ausente = a ativa da empresa (playground da tela de status).
+   * O passo 3 do wizard manda o id do RASCUNHO: o texto mandava "testar antes de
+   * ativar" e o veredito vinha da política antiga, então o gestor concluía que a
+   * marcação não tinha funcionado (v1.8).
+   */
+  politicaId: z.number().int().positive().optional(),
   categoria: z.enum(CATEGORIAS_DESPESA),
   valorNota: z.number().min(0),
-  temVeiculo: z.boolean().default(false),
   temEvidencia: z.boolean().default(false),
 });
 

@@ -73,15 +73,17 @@ export async function enviarConviteEmail(opts: {
 }
 
 /**
- * E-mail-isqueiro do agente (v1.6.0 — D-004): convida o colaborador a INICIAR
- * a conversa no WhatsApp pelo link wa.me. Sem SMTP configurado (ou falha),
- * retorna { enviado: false } e o caller mostra o link para o admin copiar.
+ * Convite do colaborador (v1.9.1). O canal do convite é o E-MAIL: o WhatsApp
+ * está fora por ora (decisão do dono, commit `feabce5`), então o link leva à
+ * tela de aceite do painel — `/convite/<token>` — onde a pessoa cria a senha.
+ * Sem SMTP (ou falhando), devolve `{ enviado: false }` e o caller mostra o
+ * link para o admin copiar e mandar por onde quiser.
  */
-export async function enviarConviteAgenteEmail(opts: {
+export async function enviarConviteColaboradorEmail(opts: {
   para: string;
   nome: string;
   empresa: string;
-  linkWhatsApp: string;
+  link: string;
 }): Promise<{ enviado: boolean }> {
   const host = process.env.SMTP_HOST;
   if (!host) return { enviado: false };
@@ -93,27 +95,25 @@ export async function enviarConviteAgenteEmail(opts: {
   const texto = [
     `Olá, ${opts.nome}!`,
     "",
-    `A ${opts.empresa} cadastrou você no reembolso. Para ativar e começar a receber seus reembolsos, é só chamar a gente no WhatsApp:`,
+    `A ${opts.empresa} cadastrou você no reembolso. Para ativar seu acesso e enviar suas despesas, abra o link abaixo e escolha uma senha:`,
     "",
-    opts.linkWhatsApp,
+    opts.link,
     "",
-    "Toque no link, envie a mensagem que já vem escrita e pronto — leva menos de 1 minuto.",
+    "O link vale por 7 dias.",
   ].join("\n");
 
   const html = `
 <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a1a;">
-  <h2 style="color: #0f766e;">Ative seu reembolso em 1 minuto</h2>
+  <h2 style="color: #0f766e;">Ative seu acesso ao reembolso</h2>
   <p>Olá, <strong>${opts.nome}</strong>! A <strong>${opts.empresa}</strong> cadastrou você no reembolso.</p>
-  <p>Para ativar e começar a receber seus reembolsos, chame a gente no WhatsApp:</p>
+  <p>Abra o link abaixo, escolha uma senha e comece a enviar suas despesas:</p>
   <p style="margin: 24px 0;">
-    <a href="${opts.linkWhatsApp}"
+    <a href="${opts.link}"
        style="background: #0f766e; color: #ffffff; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
-      Ativar no WhatsApp
+      Ativar meu acesso
     </a>
   </p>
-  <p style="font-size: 13px; color: #555;">
-    Toque no botão e envie a mensagem que já vem escrita — o agente confirma seus dados e pronto.
-  </p>
+  <p style="font-size: 13px; color: #555;">O link vale por 7 dias.</p>
 </div>`.trim();
 
   try {
@@ -126,13 +126,13 @@ export async function enviarConviteAgenteEmail(opts: {
     await transport.sendMail({
       from,
       to: opts.para,
-      subject: `${opts.empresa}: ative seu reembolso no WhatsApp`,
+      subject: `${opts.empresa} convidou você para o reembolso`,
       text: texto,
       html,
     });
     return { enviado: true };
   } catch (err) {
-    console.error("[mailer] Falha ao enviar e-mail-isqueiro:", err);
+    console.error("[mailer] Falha ao enviar convite do colaborador:", err);
     return { enviado: false };
   }
 }

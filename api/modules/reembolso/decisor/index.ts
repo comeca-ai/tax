@@ -1,7 +1,11 @@
-import type {
-  CategoriaDespesa,
-  RegraAplicada,
-  RegrasPolitica,
+import {
+  CATEGORIA_DESPESA_ROTULO,
+  TIPO_DOCUMENTO_LABELS,
+  type CategoriaDespesa,
+  type ConfiancaExtracao,
+  type RegraAplicada,
+  type RegrasPolitica,
+  type TipoDocumento,
 } from "@contracts/types";
 import { avaliarDespesa } from "../policy/agent";
 
@@ -12,7 +16,9 @@ import { avaliarDespesa } from "../policy/agent";
  * ativa, e devolve o veredito. Três saídas, nenhuma ambígua:
  *
  *  - aprovado       → regra explícita da política autorizou (citada)
- *  - negado         → regra explícita da política vedou (citada)
+ *  - negado         → regra explícita da política vedou (citada) — inclui
+ *                     comprovante não fiscal (extrato/Pix/cartão) quando a
+ *                     política exige nota fiscal/recibo (v1.8)
  *  - revisao_manual → dúvida MATERIAL: extração incompleta, categoria
  *                     indeterminada, ou ausência de política ativa.
  *                     O gestor decide olhando a evidência — ninguém
@@ -30,25 +36,68 @@ export type ExtracaoNota = {
   cnpjEmitente: string | null;
   confiancaExtracao: "alta" | "media" | "baixa";
   camposPendentes: string[];
+  /** Tipo de documento visto pela IA de visão; null/ausente = OCR sem classificação (heurístico, dados antigos) */
+  tipoDocumento?: TipoDocumento | null;
+  confiancaTipo?: "alta" | "media" | "baixa" | null;
 };
 
 export type DecisaoReembolso = {
   decisao: "aprovado" | "negado" | "revisao_manual";
   /** Frases PT-BR exibidas ao usuário/gestor — a "regra citada". */
   motivos: string[];
+  /** Observações que NÃO bloqueiam a decisão (ex.: CNPJ não identificado no comprovante). */
+  ressalvas: string[];
+  /** Confiança da decisão; rebaixada a "media" quando há ressalva. */
+  confianca: ConfiancaExtracao;
   regrasAplicadas: RegraAplicada[];
   /** Categoria efetivamente usada na decisão (null quando indeterminada). */
   categoria: CategoriaDespesa | null;
 };
 
-const CATEGORIA_ROTULO: Record<CategoriaDespesa, string> = {
-  combustivel: "combustível",
-  alimentacao: "alimentação",
-  hospedagem: "hospedagem",
-  pedagio: "pedágio",
-  uber: "Uber/app",
-  taxi: "táxi",
-};
+/**
+ * Tipos que não são documento fiscal — extrato e Pix/cartão.
+ * "outro" NÃO entra (v1.8): é o balde de incerteza do prompt de visão ("qualquer outra
+ * coisa → outro"), e tratá-lo como não fiscal rejeitava NFC-e de maquininha.
+ */
+const TIPOS_NAO_FISCAIS: ReadonlySet<TipoDocumento> = new Set([
+  "extrato_conta",
+  "comprovante_pagamento",
+]);
+
+/** Tipos sem lastro fiscal evidente — viram ressalva quando a política nada declara (v1.8). */
+const TIPOS_SEM_LASTRO_FISCAL: ReadonlySet<TipoDocumento> = new Set([
+  "extrato_conta",
+  "comprovante_pagamento",
+  "outro",
+]);
+
+/** Confiança da extração da nota — o CNPJ NÃO entra: sua ausência é ressalva, não bloqueio. */
+export function confiancaDaNota(nota: {
+  valor: number | null;
+  dataFatoGerador: string | null;
+  categoriaSugerida: string | null;
+}): ConfiancaExtracao {
+  if (nota.valor == null || nota.valor <= 0) return "baixa";
+  return nota.dataFatoGerador && nota.categoriaSugerida ? "alta" : "media";
+}
+
+/**
+ * Id da regra que exige nota fiscal/recibo PARA ESTA despesa (v1.8): a regra da
+ * categoria, se houver; senão a regra geral (a que o gestor marcou sem categoria).
+ * `null` = a política nada declara sobre o tipo de comprovante nesta categoria — e o
+ * agente não supõe. Exigência de uma categoria nunca alcança as outras (D-013).
+ */
+function idRegraDocumentoFiscal(
+  regras: RegrasPolitica,
+  categoria: CategoriaDespesa | null,
+): string | null {
+  const daCategoria = categoria
+    ? (regras.exigeDocumentoFiscalPorCategoria ?? []).find((c) => c.categoria === categoria)
+    : undefined;
+  if (daCategoria) return daCategoria.regraId;
+  if (!regras.exigeDocumentoFiscal) return null;
+  return regras.regraDocumentoFiscalId ?? "documento-fiscal-exigido";
+}
 
 /** Formata valor monetário em PT-BR: 1234.56 → "1.234,56". */
 function fmt(valor: number): string {
@@ -61,8 +110,35 @@ function fmt(valor: number): string {
 export function decidirReembolso(
   extracao: ExtracaoNota,
   regrasPolitica: RegrasPolitica | null,
-  contexto: { temVeiculo: boolean },
+  contexto: { politicaVersao?: number | null },
 ): DecisaoReembolso {
+  // ── 0.3 Ressalvas e confiança — montadas ANTES do bloco 0 de propósito ───
+  // Toda saída deste decisor (inclusive a de "sem política ativa") devolve os
+  // dois campos, então eles precisam existir antes da primeira delas.
+  // CNPJ ausente não bloqueia a decisão: o agente decide com valor + data +
+  // categoria; a falta do CNPJ vira ressalva e rebaixa a confiança.
+  const ressalvas: string[] = [];
+  if (!extracao.cnpjEmitente) {
+    ressalvas.push(
+      "CNPJ do emitente não identificado no comprovante — confira na evidência anexada.",
+    );
+  }
+  // Tipo de documento sem lastro fiscal e política silenciosa: o agente não supõe que
+  // o comprovante serve nem que não serve — declara o que viu e segue as regras de valor.
+  const tipoDoc = extracao.tipoDocumento ?? null;
+  const idDocFiscal = regrasPolitica
+    ? idRegraDocumentoFiscal(regrasPolitica, extracao.categoriaSugerida)
+    : null;
+  if (tipoDoc && TIPOS_SEM_LASTRO_FISCAL.has(tipoDoc) && regrasPolitica && idDocFiscal === null) {
+    ressalvas.push(
+      `Documento enviado parece ser ${TIPO_DOCUMENTO_LABELS[tipoDoc]}; sua política não declara se esse tipo de comprovante é aceito.`,
+    );
+  }
+  const confianca: ConfiancaExtracao =
+    ressalvas.length > 0 && extracao.confiancaExtracao === "alta"
+      ? "media"
+      : extracao.confiancaExtracao;
+
   // ── 0. Sem política ativa, nada pode ser aprovado (D-013) ────────────────
   if (!regrasPolitica) {
     return {
@@ -70,7 +146,48 @@ export function decidirReembolso(
       motivos: [
         "Empresa sem política de reembolso ativa — nenhuma despesa pode ser aprovada automaticamente.",
       ],
+      ressalvas,
+      confianca,
       regrasAplicadas: [],
+      categoria: extracao.categoriaSugerida,
+    };
+  }
+
+  // ── 0.5 Comprovante não fiscal (extrato/Pix/cartão) — regra da política ──
+  if (idDocFiscal !== null && tipoDoc && TIPOS_NAO_FISCAIS.has(tipoDoc)) {
+    const regraDoc = regrasPolitica.regrasExtraidas.find((r) => r.id === idDocFiscal) ?? null;
+    const rotulo = TIPO_DOCUMENTO_LABELS[tipoDoc];
+    // A citação é a DESCRIÇÃO da regra: o gestor lê "Regra 'manual-mep2k3-a4f9'" e não
+    // reconhece nada. O id fica em `regrasAplicadas`, que é a trilha de máquina.
+    const descricaoRegra = regraDoc?.descricao ?? "comprovantes de pagamento não são aceitos";
+    if (extracao.confiancaTipo === "alta") {
+      const versao = contexto.politicaVersao != null ? ` (v${contexto.politicaVersao})` : "";
+      return {
+        decisao: "negado",
+        motivos: [
+          `Comprovante não aceito pela política: o documento enviado parece ser ${rotulo} — a política exige nota fiscal ou recibo.`,
+          `Regra da política${versao}: "${descricaoRegra}"${regraDoc?.condicao ? ` — Condição: ${regraDoc.condicao}` : ""}.`,
+          "Peça a nota fiscal ao estabelecimento e reenvie a despesa.",
+        ],
+        ressalvas,
+        confianca,
+        regrasAplicadas: [
+          { regra: idDocFiscal, resultado: "falhou", detalhe: `tipo de documento detectado: ${rotulo} (confiança alta)` },
+        ],
+        categoria: extracao.categoriaSugerida,
+      };
+    }
+    // Dúvida sobre o tipo NÃO nega (D-013): gestor confirma olhando a imagem
+    return {
+      decisao: "revisao_manual",
+      motivos: [
+        `Documento parece ser ${rotulo}, não nota fiscal — enviado para o gestor confirmar.`,
+      ],
+      ressalvas,
+      confianca,
+      regrasAplicadas: [
+        { regra: idDocFiscal, resultado: "revisar", detalhe: `tipo de documento detectado: ${rotulo} (confiança ${extracao.confiancaTipo ?? "desconhecida"})` },
+      ],
       categoria: extracao.categoriaSugerida,
     };
   }
@@ -79,13 +196,14 @@ export function decidirReembolso(
   const faltantes: string[] = [];
   if (extracao.valor == null || extracao.valor <= 0) faltantes.push("valor total");
   if (!extracao.dataFatoGerador) faltantes.push("data");
-  if (!extracao.cnpjEmitente) faltantes.push("CNPJ do emitente");
   if (faltantes.length > 0) {
     return {
       decisao: "revisao_manual",
       motivos: [
         `Não foi possível extrair ${faltantes.join(", ")} da imagem — enviada para revisão do gestor.`,
       ],
+      ressalvas,
+      confianca,
       regrasAplicadas: [
         {
           regra: "extracao",
@@ -104,6 +222,8 @@ export function decidirReembolso(
       motivos: [
         "Categoria da despesa não identificada na nota — enviada para revisão do gestor.",
       ],
+      ressalvas,
+      confianca,
       regrasAplicadas: [
         {
           regra: "categoria",
@@ -119,16 +239,18 @@ export function decidirReembolso(
   const veredito = avaliarDespesa(
     { categoria: extracao.categoriaSugerida, valorNota: extracao.valor! },
     regrasPolitica,
-    { temVeiculo: contexto.temVeiculo, temEvidencia: true },
+    { temEvidencia: true },
   );
 
   if (veredito.decisao === "aprovado") {
     return {
       decisao: "aprovado",
       motivos: [
-        `Dentro da política: ${CATEGORIA_ROTULO[extracao.categoriaSugerida]} de R$ ${fmt(extracao.valor!)}.`,
+        `Dentro da política: ${CATEGORIA_DESPESA_ROTULO[extracao.categoriaSugerida]} de R$ ${fmt(extracao.valor!)}.`,
         ...veredito.motivos,
       ],
+      ressalvas,
+      confianca,
       regrasAplicadas: veredito.regrasAplicadas,
       categoria: extracao.categoriaSugerida,
     };
@@ -138,6 +260,8 @@ export function decidirReembolso(
     return {
       decisao: "negado",
       motivos: veredito.motivos,
+      ressalvas,
+      confianca,
       regrasAplicadas: veredito.regrasAplicadas,
       categoria: extracao.categoriaSugerida,
     };
@@ -147,6 +271,8 @@ export function decidirReembolso(
   return {
     decisao: "revisao_manual",
     motivos: veredito.motivos,
+    ressalvas,
+    confianca,
     regrasAplicadas: veredito.regrasAplicadas,
     categoria: extracao.categoriaSugerida,
   };

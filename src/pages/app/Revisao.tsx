@@ -2,10 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router"
 import { AnimatePresence, motion } from "framer-motion"
 import { Bot, Clock, ClipboardCheck, Gauge, Paperclip, ShieldCheck } from "lucide-react"
+import type { inferRouterOutputs } from "@trpc/server"
+import type { AppRouter } from "../../../api/router"
 import { trpc } from "@/providers/trpc"
 import { useAuth } from "@/hooks/useAuth"
 import { useActiveCompany } from "@/hooks/useActiveCompany"
 import type { CategoriaDespesa } from "@contracts/types"
+import { exigeMotivoDelegacao } from "@contracts/permissoes"
 import ConfidenceBadge from "@/components/app/ConfidenceBadge"
 import MoneyValue from "@/components/app/MoneyValue"
 import RevisaoDetalhe from "@/components/ops/RevisaoDetalhe"
@@ -30,7 +33,7 @@ import {
 } from "@/components/ops/rotulos"
 import { cn } from "@/lib/utils"
 
-type FilaItem = NonNullable<ReturnType<typeof trpc.revisao.fila.useQuery>["data"]> extends readonly (infer T)[] ? T : any
+type FilaItem = inferRouterOutputs<AppRouter>["revisao"]["fila"]["itens"][number]
 
 /** Chips de motivo derivados dos dados reais da despesa (memorial + evidências). */
 function motivosDaFila(item: FilaItem): string[] {
@@ -56,11 +59,11 @@ function EmptyStateCliente() {
       <img src="/empty-revisao.svg" alt="" className="h-auto w-56" />
       <div className="flex max-w-md flex-col gap-1.5">
         <h3 className="font-display text-lg font-medium tracking-[-0.01em] text-text-900">
-          A fila de revisão é operada pelo time de compliance
+          A fila desta empresa é do aprovador designado
         </h3>
         <p className="text-sm leading-relaxed text-text-500">
-          Despesas de média confiança passam por validação humana de um revisor antes de
-          liberar os créditos. Você acompanha o andamento na lista de despesas.
+          Quem decide a revisão é o aprovador designado ou o administrador da empresa
+          selecionada. Você acompanha o andamento na lista de despesas.
         </p>
       </div>
       <Link
@@ -110,7 +113,7 @@ function CardResumo({
 }
 
 export default function Revisao() {
-  const { perfil, isLoading: carregandoAuth } = useAuth()
+  const { isLoading: carregandoAuth } = useAuth()
   const { activeCompany } = useActiveCompany()
   const [aba, setAba] = useState<"pendentes" | "resolvidas">("pendentes")
   const [ordenacao, setOrdenacao] = useState<"antigas" | "valor">("antigas")
@@ -119,10 +122,13 @@ export default function Revisao() {
   const [atalho, setAtalho] = useState<"aprovar" | "rejeitar" | null>(null)
   const dropzoneRef = useRef<HTMLButtonElement | null>(null)
 
-  const fila = trpc.revisao.fila.useQuery(undefined, {
-    retry: false,
-    enabled: perfil !== "cliente",
-  })
+  // Quem manda é o seletor global de empresa do Topbar: trocar de empresa
+  // refaz a query (empresaId na queryKey) — a fila re-renderiza para a nova
+  // empresa ou cai no empty-state de acesso.
+  const fila = trpc.revisao.fila.useQuery(
+    { empresaId: activeCompany?.id ?? 0 },
+    { retry: false, enabled: !!activeCompany },
+  )
 
   // Resolvidas: despesas da empresa ativa já decididas (aprovada/rejeitada)
   const resolvidasQuery = trpc.despesas.list.useQuery(
@@ -131,7 +137,7 @@ export default function Revisao() {
   )
 
   const itens = useMemo(() => {
-    const dados = fila.data ?? []
+    const dados = fila.data?.itens ?? []
     const ordenado = [...dados]
     if (ordenacao === "antigas") {
       ordenado.sort((a, b) => new Date(a.despesa.createdAt).getTime() - new Date(b.despesa.createdAt).getTime())
@@ -139,7 +145,7 @@ export default function Revisao() {
       ordenado.sort((a, b) => (b.valorNota ?? 0) - (a.valorNota ?? 0))
     }
     return ordenado
-  }, [fila.data, ordenacao])
+  }, [fila.data?.itens, ordenacao])
 
   // Mantém seleção válida conforme a fila muda (auto-seleciona o próximo)
   useEffect(() => {
@@ -217,7 +223,7 @@ export default function Revisao() {
     fila.isError &&
     (fila.error as unknown as { data?: { code?: string } }).data?.code === "FORBIDDEN"
 
-  if (perfil === "cliente" || acessoNegado) {
+  if (acessoNegado) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -303,8 +309,10 @@ export default function Revisao() {
         </div>
       )}
 
-      {/* Split view */}
-      {aba === "pendentes" && fila.isLoading && (
+      {/* Split view — isPending (e não isLoading): query desabilitada aguardando
+          a empresa ativa tem isLoading === false, e o empty-state piscaria antes
+          do primeiro fetch. isPending cobre os dois casos sem dado ainda. */}
+      {aba === "pendentes" && fila.isPending && (
         <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
           <div className="flex flex-col gap-3">
             <Skeleton className="h-24" />
@@ -315,7 +323,7 @@ export default function Revisao() {
         </div>
       )}
 
-      {aba === "pendentes" && !fila.isLoading && itens.length === 0 && (
+      {aba === "pendentes" && !fila.isPending && itens.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-line bg-surface px-8 py-16 text-center">
           <img src="/empty-revisao.svg" alt="" className="h-auto w-56" />
           <div className="flex flex-col gap-1">
@@ -418,6 +426,9 @@ export default function Revisao() {
             {selecionadoId !== null && (
               <RevisaoDetalhe
                 despesaId={selecionadoId}
+                empresaId={activeCompany!.id}
+                exigeMotivoDelegacao={fila.data?.papel ? exigeMotivoDelegacao(fila.data.papel) : false}
+                aprovadorDesignadoNome={fila.data?.papel.aprovadorDesignadoNome ?? null}
                 dropzoneRef={dropzoneRef}
                 atalhoDecisao={atalho}
                 onAtalhoConsumido={() => setAtalho(null)}

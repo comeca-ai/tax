@@ -30,7 +30,11 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-3000}:3000"
+      # Bind em localhost por padrão: em produção quem recebe o tráfego é o
+      # nginx (HTTPS). Porta aberta em 0.0.0.0 derrubou o cadastro em 24–28/08
+      # (sessão morria em HTTP puro — v1.9.2). Stacks acessadas direto pelo
+      # IP (teste/homologação) precisam definir APP_BIND=0.0.0.0 no .env delas.
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3000}:3000"
     environment:
       APP_ID: ${APP_ID:-selfhosted}
       APP_SECRET: ${APP_SECRET:?defina APP_SECRET no .env (string longa e aleatória)}
@@ -46,11 +50,26 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       # Webhook WhatsApp (opcional — fundação do bot, v1.2.0)
       WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      # Webhook 360dialog (opcional — v1.13.0). Sem DIALOG_360_WEBHOOK_SECRET,
+      # /api/webhooks/360dialog fica fail-closed (403 sempre). O valor deve ser
+      # o header Authorization COMPLETO e literal configurado na conta 360dialog
+      # (ex.: "Bearer abc123xyz", com o prefixo — não só o token).
+      DIALOG_360_WEBHOOK_SECRET: ${DIALOG_360_WEBHOOK_SECRET:-}
+      DIALOG_360_API_KEY: ${DIALOG_360_API_KEY:-}
       # Consulta CNPJ na Receita via ReceitaWS (opcional — v1.3.0)
       RECEITAWS_TOKEN: ${RECEITAWS_TOKEN:-}
-      # OCR real (opcional): descomente e preencha
-      # OCR_PROVIDER: vision
-      # OCR_API_KEY: sk-...
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-medium-latest}
+      MISTRAL_OCR_MODEL: ${MISTRAL_OCR_MODEL:-mistral-ocr-latest}
+      POLICY_PROVIDER: ${POLICY_PROVIDER:-heuristico}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OCR_GEMINI_MODEL: ${OCR_GEMINI_MODEL:-gemini-2.5-flash}
+      # OCR de visão para notas fiscais (v1.8): OCR_PROVIDER=visao usa
+      # Mistral OCR com fallback OpenAI; default heuristico (XML/texto, gratuito).
+      # A 1ª tentativa reaproveita MISTRAL_API_KEY/MISTRAL_OCR_MODEL já declarados acima.
+      OCR_PROVIDER: ${OCR_PROVIDER:-heuristico}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OCR_OPENAI_MODEL: ${OCR_OPENAI_MODEL:-gpt-4o-mini}
     depends_on:
       db:
         condition: service_healthy
