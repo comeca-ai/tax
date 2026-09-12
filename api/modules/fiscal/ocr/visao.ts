@@ -130,6 +130,27 @@ function extraiJsonDaResposta(texto: string): unknown {
   return JSON.parse(limpo.slice(inicio, fim + 1));
 }
 
+/** A API pode expor o texto consolidado ou apenas o item de saída. */
+function textoRespostaOpenAI(resposta: unknown): string {
+  const dados = resposta as {
+    output_text?: unknown;
+    status?: unknown;
+    incomplete_details?: unknown;
+    output?: { content?: { type?: string; text?: string }[] }[];
+  };
+  if (typeof dados.output_text === "string" && dados.output_text.trim()) return dados.output_text;
+  const texto = (dados.output ?? [])
+    .flatMap((item) => item.content ?? [])
+    .filter((item) => item.type === "output_text" && typeof item.text === "string")
+    .map((item) => item.text)
+    .join("\n")
+    .trim();
+  if (texto) return texto;
+  throw new Error(
+    `OpenAI resposta vazia (status=${String(dados.status ?? "desconhecido")}; detalhe=${JSON.stringify(dados.incomplete_details ?? null).slice(0, 120)})`,
+  );
+}
+
 async function comTimeout<T>(fn: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
   const controle = new AbortController();
   const timer = setTimeout(() => controle.abort(), ms);
@@ -288,7 +309,7 @@ async function chamarOpenAI(arquivo: ArquivoNota): Promise<ExtracaoIA> {
                   : {
                       type: "input_file",
                       filename: arquivo.arquivoNome,
-                      file_data: arquivo.arquivoBase64,
+                      file_data: `data:${arquivo.arquivoMime};base64,${arquivo.arquivoBase64}`,
                     },
               ],
             },
@@ -298,11 +319,11 @@ async function chamarOpenAI(arquivo: ArquivoNota): Promise<ExtracaoIA> {
       }),
     60_000,
   );
-  if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`);
-  const json = (await res.json()) as { output_text?: string };
-  const content = json.output_text;
-  if (!content) throw new Error("OpenAI resposta vazia");
-  return normalizarExtracaoIA(extraiJsonDaResposta(content));
+  if (!res.ok) {
+    const corpo = await res.text().catch(() => "");
+    throw new Error(`OpenAI HTTP ${res.status}: ${corpo.slice(0, 200)}`);
+  }
+  return normalizarExtracaoIA(extraiJsonDaResposta(textoRespostaOpenAI(await res.json())));
 }
 
 export class VisaoOcrProvider implements OcrProvider {

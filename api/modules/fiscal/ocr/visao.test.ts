@@ -194,6 +194,8 @@ describe("VisaoOcrProvider", () => {
       expect(chamadas).toHaveLength(1);
       expect(chamadas[0].url).toBe("https://api.openai.com/v1/responses");
       expect(chamadas[0].corpo.store).toBe(false);
+      const input = chamadas[0].corpo.input as { content?: { file_data?: string }[] }[];
+      expect(input[1].content?.[0].file_data).toMatch(/^data:application\/pdf;base64,/);
       expect(r.provedor).toBe("visao-ia:openai");
       expect(r.valor).toBe(90.14);
     } finally {
