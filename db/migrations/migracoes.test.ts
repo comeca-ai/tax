@@ -11,6 +11,8 @@ import {
   colaboradores,
   veiculos,
   despesas,
+  whatsappInbox,
+  whatsappOutbox,
   whatsappWebhookEvents,
 } from "../schema";
 
@@ -980,5 +982,58 @@ describe("migração 0012 — whatsapp_webhook_events", () => {
     const entrada = journal.entries.find(e => e.idx === 12);
     expect(entrada, "journal sem entrada idx=12").toBeDefined();
     expect(entrada!.tag).toBe(tag);
+  });
+});
+
+describe("migração 0013 — fila durável do WhatsApp", () => {
+  const arquivos0013 = readdirSync(DIR).filter(f => /^0013_.*\.sql$/.test(f));
+  const sql = semComentarios(
+    readFileSync(path.join(DIR, arquivos0013[0] ?? ""), "utf8")
+  );
+  const statements = sql
+    .split("--> statement-breakpoint")
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  function colunasDaTabela(tabela: string) {
+    const [, corpo] = sql.match(new RegExp("CREATE TABLE `" + tabela + "` \\(([\\s\\S]*?)\\n\\);")) ?? [];
+    return [...(corpo ?? "").matchAll(/^\t`([a-z_]+)`/gm)].map(m => m[1]);
+  }
+
+  it("tem exatamente uma migração 0013, aditiva", () => {
+    expect(arquivos0013).toHaveLength(1);
+    expect(statements.filter(s => s.startsWith("CREATE TABLE"))).toHaveLength(2);
+    for (const statement of statements) {
+      const semClausulasInofensivas = statement
+        .replace(/ON UPDATE CURRENT_TIMESTAMP/g, "")
+        .replace(/ON DELETE no action/g, "")
+        .replace(/ON UPDATE no action/g, "");
+      expect(semClausulasInofensivas).not.toMatch(/\b(DROP|MODIFY|CHANGE|RENAME|TRUNCATE|DELETE|UPDATE)\b/i);
+    }
+  });
+
+  it("cria inbox e outbox com as colunas declaradas no schema", () => {
+    expect(colunasDaTabela("whatsapp_inbox").sort()).toEqual(
+      Object.values(getTableColumns(whatsappInbox)).map(c => c.name).sort(),
+    );
+    expect(colunasDaTabela("whatsapp_outbox").sort()).toEqual(
+      Object.values(getTableColumns(whatsappOutbox)).map(c => c.name).sort(),
+    );
+  });
+
+  it("protege a deduplicação e o vínculo empresa-colaborador da outbox", () => {
+    expect(sql).toMatch(/UNIQUE\(`provider`,`chave_idempotencia`\)/);
+    expect(sql).toMatch(/FOREIGN KEY \(`empresa_id`,`colaborador_id`\) REFERENCES `colaboradores`\(`empresa_id`,`id`\)/);
+    expect(sql).toMatch(/CREATE INDEX `whatsapp_inbox_processamento_idx`/);
+    expect(sql).toMatch(/CREATE INDEX `whatsapp_outbox_processamento_idx`/);
+  });
+
+  it("commita snapshot e journal junto com a migração", () => {
+    const tag = arquivos0013[0]!.replace(/\.sql$/, "");
+    expect(existsSync(path.join(DIR, "meta", "0013_snapshot.json"))).toBe(true);
+    const journal = JSON.parse(readFileSync(path.join(DIR, "meta", "_journal.json"), "utf8")) as {
+      entries: { idx: number; tag: string }[];
+    };
+    expect(journal.entries.find(entry => entry.idx === 13)?.tag).toBe(tag);
   });
 });

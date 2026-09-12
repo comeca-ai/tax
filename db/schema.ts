@@ -746,3 +746,79 @@ export const whatsappWebhookEvents = mysqlTable("whatsapp_webhook_events", {
   payload: json("payload").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 21. Inbox/Outbox duráveis do canal WhatsApp (POC) — WP-01.
+//
+// `whatsapp_webhook_events` permanece como log bruto e imutável do provider.
+// As tabelas abaixo são a fila de trabalho: a inbox deduplica o efeito de uma
+// reentrega e a outbox registra a intenção de envio ANTES de chamar o provider.
+// Não há processamento conectado a elas nesta migração; isso entra em PRs
+// próprios para não ativar conversas por acidente.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const whatsappInbox = mysqlTable(
+  "whatsapp_inbox",
+  {
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    provider: varchar("provider", { length: 40 }).notNull(),
+    chaveIdempotencia: varchar("chave_idempotencia", { length: 64 }).notNull(),
+    tipoEvento: varchar("tipo_evento", { length: 50 }).notNull(),
+    mensagemId: varchar("mensagem_id", { length: 128 }),
+    telefone: varchar("telefone", { length: 20 }),
+    payload: json("payload").notNull(),
+    status: varchar("status", { length: 30 }).notNull().default("pendente"),
+    tentativas: int("tentativas").notNull().default(0),
+    proximaTentativaAt: timestamp("proxima_tentativa_at"),
+    processandoEm: timestamp("processando_em"),
+    processadoEm: timestamp("processado_em"),
+    ultimoErro: varchar("ultimo_erro", { length: 500 }),
+    recebidoEm: timestamp("recebido_em").notNull().defaultNow(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+  },
+  t => [
+    uniqueIndex("whatsapp_inbox_provider_chave_unique").on(t.provider, t.chaveIdempotencia),
+    index("whatsapp_inbox_processamento_idx").on(t.status, t.proximaTentativaAt),
+    index("whatsapp_inbox_mensagem_idx").on(t.provider, t.mensagemId),
+  ],
+);
+
+export const whatsappOutbox = mysqlTable(
+  "whatsapp_outbox",
+  {
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    provider: varchar("provider", { length: 40 }).notNull(),
+    chaveIdempotencia: varchar("chave_idempotencia", { length: 64 }).notNull(),
+    empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => empresas.id),
+    colaboradorId: bigint("colaborador_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => colaboradores.id),
+    tipoMensagem: varchar("tipo_mensagem", { length: 50 }).notNull(),
+    templateNome: varchar("template_nome", { length: 128 }),
+    telefone: varchar("telefone", { length: 20 }).notNull(),
+    payload: json("payload").notNull(),
+    status: varchar("status", { length: 30 }).notNull().default("pendente"),
+    tentativas: int("tentativas").notNull().default(0),
+    proximaTentativaAt: timestamp("proxima_tentativa_at"),
+    processandoEm: timestamp("processando_em"),
+    enviadoEm: timestamp("enviado_em"),
+    providerMensagemId: varchar("provider_mensagem_id", { length: 128 }),
+    ultimoErro: varchar("ultimo_erro", { length: 500 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
+  },
+  t => [
+    uniqueIndex("whatsapp_outbox_provider_chave_unique").on(t.provider, t.chaveIdempotencia),
+    index("whatsapp_outbox_processamento_idx").on(t.status, t.proximaTentativaAt),
+    index("whatsapp_outbox_provider_mensagem_idx").on(t.provider, t.providerMensagemId),
+    index("whatsapp_outbox_colaborador_idx").on(t.empresaId, t.colaboradorId),
+    foreignKey({
+      name: "whatsapp_outbox_empresa_colaborador_fk",
+      columns: [t.empresaId, t.colaboradorId],
+      foreignColumns: [colaboradores.empresaId, colaboradores.id],
+    }),
+  ],
+);
