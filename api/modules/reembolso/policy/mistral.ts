@@ -38,7 +38,7 @@ import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
  * com aviso — o upload nunca quebra por indisponibilidade do LLM.
  */
 
-const PROMPT_EXTRACAO = `Voce e um analista senior de politicas corporativas de reembolso de despesas.
+export const PROMPT_EXTRACAO_POLITICA = `Voce e um analista senior de politicas corporativas de reembolso de despesas.
 Leia o documento abaixo (politica de reembolso de uma empresa) e extraia TODAS as regras de reembolso.
 
 Organize o resultado pelos GRANDES TEMAS abaixo. Use exatamente estes nove temas (slug - titulo), nesta ordem, e devolva sempre os nove, mesmo que algum fique sem regras:
@@ -93,7 +93,7 @@ export type RegraLLM = {
   referencia?: string;
 };
 
-type RulesetLLM = {
+export type RulesetLLM = {
   politica?: { titulo?: string; vigencia?: string | null; moeda_padrao?: string };
   qualidade_extracao?: {
     legivel?: boolean;
@@ -317,7 +317,7 @@ async function estruturarRuleset(texto: string, apiKey: string, modelo: string):
             messages: [
               {
                 role: "user",
-                content: `${PROMPT_EXTRACAO}${instrucaoCompacta}\n\nDOCUMENTO (texto extraído por OCR):\n${texto.slice(0, 120_000)}`,
+                content: `${PROMPT_EXTRACAO_POLITICA}${instrucaoCompacta}\n\nDOCUMENTO (texto extraído por OCR):\n${texto.slice(0, 120_000)}`,
               },
             ],
           }),

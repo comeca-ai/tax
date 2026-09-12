@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { HeuristicPolicyParser } from "./parser";
+import { getPolicyParser, HeuristicPolicyParser } from "./parser";
 
 /**
  * Parser heurístico da política (v1.4.3).
@@ -119,5 +119,61 @@ describe("HeuristicPolicyParser — demais formatos", () => {
     expect(r.confiancaExtracao).toBe("baixa");
     expect(r.camposPendentes).toContain("limitesPorCategoria");
     expect(r.camposPendentes).toContain("negacaoAcimaDe");
+  });
+});
+
+describe("OpenAiPolicyParser", () => {
+  it("seleciona OpenAI, anexa o PDF na Responses API e mantém saída estruturada", async () => {
+    const fetchOriginal = globalThis.fetch;
+    const providerOriginal = process.env.POLICY_PROVIDER;
+    const chaveOriginal = process.env.OPENAI_API_KEY;
+    const modeloOriginal = process.env.POLICY_OPENAI_MODEL;
+    process.env.POLICY_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "chave-de-teste";
+    process.env.POLICY_OPENAI_MODEL = "modelo-de-teste";
+    const chamadas: { url: string; corpo: Record<string, unknown> }[] = [];
+    globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
+      chamadas.push({ url: String(url), corpo: JSON.parse(String(init?.body)) as Record<string, unknown> });
+      return {
+        ok: true,
+        json: async () => ({
+          output_text: JSON.stringify({
+            politica: { titulo: "Viagens", vigencia: null, moeda_padrao: "BRL" },
+            qualidade_extracao: { legivel: true, confianca: 0.9, paginas_com_problema: [], observacoes: "" },
+            regras: [{
+              id: "almoco", tema: "alimentacao", categoria: "alimentacao", alcance: "categoria",
+              descricao: "Almoço até R$ 50", condicao: null, reembolsavel: "sim", valor_limite: 50,
+              moeda: "BRL", unidade_limite: "dia", exige_comprovante: true,
+            }],
+            ambiguidades: [],
+          }),
+        }),
+      } as unknown as Response;
+    }) as typeof globalThis.fetch;
+
+    try {
+      const resultado = await getPolicyParser().extract({
+        arquivoNome: "politica.pdf",
+        mimeType: "application/pdf",
+        base64: "cGRmLWRlLXRlc3Rl",
+      });
+      expect(chamadas).toHaveLength(1);
+      expect(chamadas[0].url).toBe("https://api.openai.com/v1/responses");
+      expect(chamadas[0].corpo.model).toBe("modelo-de-teste");
+      expect(chamadas[0].corpo.store).toBe(false);
+      const input = chamadas[0].corpo.input as { content?: { file_data?: string }[] }[];
+      expect(input[1].content?.[0].file_data).toMatch(/^data:application\/pdf;base64,/);
+      expect(resultado.provedor).toBe("openai:modelo-de-teste");
+      expect(resultado.regras.limitesPorCategoria.alimentacao).toBe(50);
+      expect(resultado.confiancaExtracao).toBe("alta");
+    } finally {
+      globalThis.fetch = fetchOriginal;
+      if (providerOriginal === undefined) delete process.env.POLICY_PROVIDER;
+      else process.env.POLICY_PROVIDER = providerOriginal;
+      if (chaveOriginal === undefined) delete process.env.OPENAI_API_KEY;
+      else process.env.OPENAI_API_KEY = chaveOriginal;
+      if (modeloOriginal === undefined) delete process.env.POLICY_OPENAI_MODEL;
+      else process.env.POLICY_OPENAI_MODEL = modeloOriginal;
+    }
   });
 });

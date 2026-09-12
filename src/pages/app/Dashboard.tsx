@@ -574,49 +574,45 @@ export default function Dashboard() {
       {/* ── Onboarding (v1.2.0) ───────────────────────────────────────────── */}
       <OnboardingChecklist />
 
-      {/* Abertura operacional inspirada no novo painel, sempre com dados reais. */}
-      <section className="relative overflow-hidden rounded-2xl bg-[#0B7A75] px-5 py-6 text-white shadow-card sm:px-7 sm:py-7">
-        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-28 left-1/3 h-52 w-52 rounded-full bg-[#4EE0D3]/20 blur-3xl" />
-        <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-end">
+      {/* Abertura operacional do painel v2, sempre com dados reais. */}
+      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
           <div>
-            <p className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-white/70">
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-text-500">
               Visão geral · {periodoAtual}
             </p>
-            <h1 className="mt-2 font-display text-3xl font-semibold tracking-[-0.03em] sm:text-[34px]">
+            <h1 className="mt-1.5 font-display text-[28px] font-semibold tracking-[-0.02em] text-text-900 sm:text-[30px]">
               {primeiroNome ? `Bom dia, ${primeiroNome}.` : "Visão geral"}
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">
+            <p className="mt-1.5 max-w-2xl text-[14px] leading-relaxed text-text-500">
               Acompanhe as despesas, decisões e créditos da empresa selecionada
               em um só lugar.
             </p>
-            <p className="mt-4 font-mono text-[11px] tracking-[0.03em] text-white/65">
+            <p className="mt-3 font-mono text-[11px] tracking-[0.02em] text-text-500">
               {subtitulo}
             </p>
           </div>
 
-          <div className="rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
-            <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.08em] text-white/70">
+          <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-500">
               <ShieldCheck className="h-3.5 w-3.5" /> Modo de operação vigente
             </div>
-            <p className="mt-3 text-base font-semibold">
+            <p className="mt-2.5 text-[15px] font-semibold text-text-900">
               {politicaAtiva.data
                 ? `Política ativa · v${politicaAtiva.data.versao}`
                 : "Sem política ativa"}
             </p>
-            <p className="mt-1 text-[12px] leading-relaxed text-white/75">
+            <p className="mt-1 text-[12px] leading-relaxed text-text-500">
               {politicaAtiva.data
                 ? "Novas despesas são avaliadas conforme esta versão."
                 : "Ative uma política para avaliar despesas automaticamente."}
             </p>
             <Link
               to="/app/politica"
-              className="mt-3 inline-flex text-[12px] font-semibold text-white underline decoration-white/40 underline-offset-4 transition hover:decoration-white"
+              className="mt-3 inline-flex text-[12px] font-semibold text-[#0B7A75] underline decoration-[#0B7A75]/30 underline-offset-4 transition hover:decoration-[#0B7A75]"
             >
               Ver política de reembolso
             </Link>
           </div>
-        </div>
       </section>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}

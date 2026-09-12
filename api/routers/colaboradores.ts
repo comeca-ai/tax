@@ -175,14 +175,15 @@ export const colaboradoresRouter = createRouter({
         entidade: "colaboradores",
         entidadeId: colaborador.id,
         detalhes: enviado
-          ? `Convite enviado por e-mail para ${colaborador.email}${whatsapp.enviado ? "; boas-vindas enviadas via 360dialog" : linkWhatsapp ? "; link WhatsApp disponível" : ""}`
-          : `Link de convite gerado para envio manual (SMTP indisponível)${whatsapp.enviado ? "; boas-vindas enviadas via 360dialog" : linkWhatsapp ? "; WhatsApp disponível" : ""}`,
+          ? `Convite enviado por e-mail para ${colaborador.email}${whatsapp.enviado ? `; boas-vindas aceitas pela 360dialog${whatsapp.messageId ? ` (messageId: ${whatsapp.messageId})` : ""}` : linkWhatsapp ? "; link WhatsApp disponível" : ""}`
+          : `Link de convite gerado para envio manual (SMTP indisponível)${whatsapp.enviado ? `; boas-vindas aceitas pela 360dialog${whatsapp.messageId ? ` (messageId: ${whatsapp.messageId})` : ""}` : linkWhatsapp ? "; WhatsApp disponível" : ""}`,
       });
 
       return {
         linkAceite: link,
         linkWhatsapp,
         enviadoPorWhatsapp: whatsapp.enviado,
+        messageIdWhatsapp: whatsapp.messageId,
         enviadoPorEmail: enviado,
         email: colaborador.email,
       };

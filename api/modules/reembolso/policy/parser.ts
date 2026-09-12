@@ -3,6 +3,7 @@
 // @ts-expect-error — pdf-parse v1 não tem tipos para o subpath da lib
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { MistralPolicyParser } from "./mistral";
+import { OpenAiPolicyParser } from "./openai";
 import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
 import {
   regrasPoliticaSchema,
@@ -372,6 +373,7 @@ const parsers: Record<string, () => PolicyParser> = {
   // "llm" mantido como alias de "mistral" para não quebrar POLICY_PROVIDER=llm já em uso
   llm: () => new MistralPolicyParser(() => new HeuristicPolicyParser()),
   mistral: () => new MistralPolicyParser(() => new HeuristicPolicyParser()),
+  openai: () => new OpenAiPolicyParser(() => new HeuristicPolicyParser()),
 };
 
 export function getPolicyParser(): PolicyParser {

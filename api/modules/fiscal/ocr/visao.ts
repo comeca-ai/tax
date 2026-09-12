@@ -6,8 +6,8 @@ import type { ArquivoNota, OcrProvider } from "./index";
  *
  * Estratégia:
  *  - XML/texto continua no heurístico (rápido e grátis).
- *  - Imagem/PDF escaneado vai para IA de visão: Mistral OCR primeiro,
- *    OpenAI de fallback (ou o que tiver chave configurada).
+ *  - Imagem/PDF escaneado vai para IA de visão. Por padrão, Mistral OCR é
+ *    tentado primeiro; OCR_VISION_PROVIDER=openai prioriza OpenAI.
  *  - NUNCA lança erro para cima: se nada conseguiu ler, devolve extração
  *    "baixa" com camposPendentes — o decisor manda para revisão manual.
  *    Ninguém preenche nada.
@@ -18,6 +18,7 @@ import type { ArquivoNota, OcrProvider } from "./index";
  *   OPENAI_API_KEY=...        (opcional se houver Mistral)
  *   MISTRAL_OCR_MODEL=mistral-ocr-latest  (default; a MESMA variável do parser de política)
  *   OCR_OPENAI_MODEL=gpt-4o-mini          (default)
+ *   OCR_VISION_PROVIDER=openai            (opcional; prioriza OpenAI)
  */
 
 const CATEGORIAS: CategoriaDespesa[] = [
@@ -127,6 +128,27 @@ function extraiJsonDaResposta(texto: string): unknown {
   const fim = limpo.lastIndexOf("}");
   if (inicio === -1 || fim === -1) throw new Error("resposta sem JSON");
   return JSON.parse(limpo.slice(inicio, fim + 1));
+}
+
+/** A API pode expor o texto consolidado ou apenas o item de saída. */
+function textoRespostaOpenAI(resposta: unknown): string {
+  const dados = resposta as {
+    output_text?: unknown;
+    status?: unknown;
+    incomplete_details?: unknown;
+    output?: { content?: { type?: string; text?: string }[] }[];
+  };
+  if (typeof dados.output_text === "string" && dados.output_text.trim()) return dados.output_text;
+  const texto = (dados.output ?? [])
+    .flatMap((item) => item.content ?? [])
+    .filter((item) => item.type === "output_text" && typeof item.text === "string")
+    .map((item) => item.text)
+    .join("\n")
+    .trim();
+  if (texto) return texto;
+  throw new Error(
+    `OpenAI resposta vazia (status=${String(dados.status ?? "desconhecido")}; detalhe=${JSON.stringify(dados.incomplete_details ?? null).slice(0, 120)})`,
+  );
 }
 
 async function comTimeout<T>(fn: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
@@ -258,25 +280,37 @@ async function chamarOpenAI(arquivo: ArquivoNota): Promise<ExtracaoIA> {
 
   const res = await comTimeout(
     (signal) =>
-      fetch("https://api.openai.com/v1/chat/completions", {
+      fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
           model,
-          temperature: 0,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: PROMPT },
+          store: false,
+          max_output_tokens: 2_000,
+          text: {
+            format: {
+              type: "json_schema",
+              name: "extracao_nota",
+              strict: true,
+              schema: SCHEMA_ANNOTATION,
+            },
+          },
+          input: [
+            { role: "developer", content: [{ type: "input_text", text: PROMPT }] },
             {
               role: "user",
               content: [
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:${arquivo.arquivoMime};base64,${arquivo.arquivoBase64}`,
-                    detail: "high",
-                  },
-                },
+                arquivo.arquivoMime.startsWith("image/")
+                  ? {
+                      type: "input_image",
+                      image_url: `data:${arquivo.arquivoMime};base64,${arquivo.arquivoBase64}`,
+                      detail: "high",
+                    }
+                  : {
+                      type: "input_file",
+                      filename: arquivo.arquivoNome,
+                      file_data: `data:${arquivo.arquivoMime};base64,${arquivo.arquivoBase64}`,
+                    },
               ],
             },
           ],
@@ -285,13 +319,11 @@ async function chamarOpenAI(arquivo: ArquivoNota): Promise<ExtracaoIA> {
       }),
     60_000,
   );
-  if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`);
-  const json = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = json.choices?.[0]?.message?.content;
-  if (!content) throw new Error("OpenAI resposta vazia");
-  return normalizarExtracaoIA(extraiJsonDaResposta(content));
+  if (!res.ok) {
+    const corpo = await res.text().catch(() => "");
+    throw new Error(`OpenAI HTTP ${res.status}: ${corpo.slice(0, 200)}`);
+  }
+  return normalizarExtracaoIA(extraiJsonDaResposta(textoRespostaOpenAI(await res.json())));
 }
 
 export class VisaoOcrProvider implements OcrProvider {
@@ -315,10 +347,13 @@ export class VisaoOcrProvider implements OcrProvider {
       return this.fallbackTexto.extrair(arquivo);
     }
 
-    const tentativas: { nome: string; fn: () => Promise<ExtracaoIA> }[] = [
+    const tentativasPadrao: { nome: string; fn: () => Promise<ExtracaoIA> }[] = [
       { nome: "mistral", fn: () => chamarMistral(arquivo) },
       { nome: "openai", fn: () => chamarOpenAI(arquivo) },
     ];
+    const tentativas = process.env.OCR_VISION_PROVIDER === "openai"
+      ? [...tentativasPadrao].reverse()
+      : tentativasPadrao;
 
     const erros: string[] = [];
     for (const t of tentativas) {
