@@ -326,6 +326,9 @@ export default function Politica() {
 
   const ativa = ativaQuery.data ?? null;
   const versoes = listQuery.data ?? [];
+  // Rascunhos são artefatos de trabalho: não compõem a norma nem o histórico
+  // apresentado à equipe. Permanecem no banco para auditoria/recuperação.
+  const versoesVisiveis = versoes.filter(versao => versao.status !== "rascunho");
   const carregandoListas = ativaQuery.isLoading || listQuery.isLoading;
   const regrasAtivas = ativa
     ? regrasPoliticaSchema.parse(ativa.regras ?? {})
@@ -529,7 +532,7 @@ export default function Politica() {
             ativa.
           </p>
         </div>
-        {versoes.length > 0 && podeDecidir && (
+        {versoesVisiveis.length > 0 && podeDecidir && (
           <button
             type="button"
             onClick={abrirWizard}
@@ -553,7 +556,7 @@ export default function Politica() {
           <Skeleton className="h-28 w-full rounded-xl" />
           <Skeleton className="h-[280px] w-full rounded-xl" />
         </div>
-      ) : versoes.length === 0 ? (
+      ) : versoesVisiveis.length === 0 ? (
         /* Empty state — nunca houve política */
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-line bg-surface px-8 py-16 text-center shadow-card">
           <img src="/empty-revisao.svg" alt="" className="h-auto w-56" />
@@ -708,16 +711,13 @@ export default function Politica() {
               </h3>
             </div>
             <ul className="flex flex-col">
-              {versoes.map(versao => (
+              {versoesVisiveis.map(versao => (
                 <li
                   key={versao.id}
                   className="flex flex-wrap items-center gap-3 border-b border-line/60 py-3 last:border-b-0"
                 >
-                  {/* Rascunho não tem versão: ela é atribuída na ativação (max+1). Gravar
-                      "v1" em toda duplicação fazia dez rascunhos diferentes parecerem a
-                      mesma versão, cada um com botão "Ativar". */}
                   <span className="inline-flex h-7 min-w-14 items-center justify-center rounded-md border border-line bg-paper px-2 font-mono text-[11px] font-semibold tabular text-text-900">
-                    {versao.status === "rascunho" ? "—" : `v${versao.versao}`}
+                    {`v${versao.versao}`}
                   </span>
                   <span
                     className={cn(
@@ -732,22 +732,10 @@ export default function Politica() {
                       {versao.arquivoNome}
                     </span>
                     <span className="font-mono text-[11px] tracking-[0.02em] text-text-500">
-                      {versao.status === "rascunho"
-                        ? "rascunho criado em "
-                        : "importada em "}
+                      importada em {" "}
                       {formatDataHora(versao.createdAt)}
                     </span>
                   </div>
-                  {versao.status === "rascunho" && podeDecidir && (
-                    <button
-                      type="button"
-                      onClick={() => void revisarPolitica(versao.id)}
-                      className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[12px] font-semibold text-text-900 transition hover:bg-paper sm:h-8"
-                    >
-                      <PencilLine className="h-3.5 w-3.5" />
-                      Revisar regras
-                    </button>
-                  )}
                   {versao.status !== "ativa" && podeDecidir && (
                     <button
                       type="button"
