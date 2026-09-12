@@ -5,9 +5,15 @@ atrás de reverse proxy). Este arquivo é público: **nunca** colocar aqui IPs,
 domínios de admin, topologia de rede ou segredos — isso vive no repositório
 **privado** de infra.
 
+> A regra completa de promoção, aprovação e rollback está em
+> [POLITICA-DE-RELEASE-E-DEPLOY.md](POLITICA-DE-RELEASE-E-DEPLOY.md). Este
+> runbook executa uma release aprovada; ele não autoriza publicar uma branch
+> de desenvolvimento diretamente em produção.
+
 ## Modelo mental
 
-- Código: GitHub `comeca-ai/tax` (público), branch `master` + tags SemVer.
+- Código: tag SemVer aprovada no repositório oficial. Produção recebe a tag,
+  nunca uma branch de trabalho.
 - Banco: migrações SQL versionadas em `db/migrations/`, aplicadas
   **automaticamente no boot do container** (`docker-entrypoint.sh` →
   `db/migrations/apply.ts`, idempotente). Nunca rodar `db:push --force`,

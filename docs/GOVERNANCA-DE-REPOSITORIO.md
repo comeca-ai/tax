@@ -2,7 +2,8 @@
 
 Este documento define como o código do reembolsa.ia é colaborado, revisado e
 liberado. Ele complementa a arquitetura em `docs/ARQUITETURA.md` e o runbook
-em `docs/DEPLOY.md`.
+em `docs/DEPLOY.md`. A promoção entre ambientes e a operação de produção são
+definidas em `docs/POLITICA-DE-RELEASE-E-DEPLOY.md`.
 
 ## Objetivo
 

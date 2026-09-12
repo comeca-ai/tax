@@ -282,6 +282,7 @@ Contrato completo dos tipos em `contracts/types.ts`. Detalhes de implementação
 
 Antes de contribuir, leia o [guia de contribuição](CONTRIBUTING.md), a
 [governança do repositório](docs/GOVERNANCA-DE-REPOSITORIO.md) e a
-[linha de base de qualidade](docs/BASELINE-DE-QUALIDADE.md). O objetivo é
+[linha de base de qualidade](docs/BASELINE-DE-QUALIDADE.md). Para promoção a
+homologação e produção, siga a [política de release e deploy](docs/POLITICA-DE-RELEASE-E-DEPLOY.md). O objetivo é
 que toda alteração seja revisada, validada automaticamente e rastreável por
 versão.

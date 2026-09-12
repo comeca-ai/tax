@@ -10,7 +10,7 @@ resolvido antes de tornar os controles obrigatórios no GitHub.
 | `npm run check` | passa | TypeScript compilou sem erros. |
 | `npm test` | passa | 31 arquivos e 431 testes aprovados. |
 | `npm run lint` | falha | 21 erros a corrigir. |
-| `npm run build` | pendente | Não foi executado nesta rodada porque o lint falhou antes. |
+| `npm run build` | passa | Artefato de produção gerado com sucesso. |
 
 ## Situação do diretório de trabalho
 
@@ -26,9 +26,8 @@ Também há um apontamento de whitespace em `contracts/types.ts` detectado por
 
 1. Revisar e commitar a refatoração de empresas separadamente.
 2. Corrigir os erros de lint, sem suprimir regras como atalho.
-3. Executar e registrar `npm run build` com sucesso.
-4. Criar o workflow de CI usando os quatro comandos desta página.
-5. Tornar os checks obrigatórios na `main` somente depois de estarem verdes.
+3. Criar o workflow de CI usando os quatro comandos desta página.
+4. Tornar os checks obrigatórios na `main` somente depois de estarem verdes.
 
 Os erros de lint devem ser tratados em PR(s) focados. Alguns estão em código
 anterior à refatoração; outros pertencem ao módulo de empresas. Separá-los
