@@ -348,6 +348,13 @@ não é mais alterada no lugar, então a mudança só vale depois de "Ativar pol
 **Política da empresa: tudo nasce do documento.** O gestor vê o texto que o
 OCR leu e ajusta as regras extraídas antes de ativar.
 
+### Alterado
+- **Consolidação da Fase 1 de cadastro documentada**: `main` já absorve
+  `fix/cadastro-instrumenta-erro` e `fix/cadastro-sessao-orfas`; a
+  instrumentação do erro no wizard e o fim das sessões órfãs seguem
+  registrados no release `v1.9.2`, e a auditoria passa a tratá-los como
+  concluídos.
+
 ### Adicionado
 - **Escopo da regra (`item` | `categoria`)**: o gestor marca no card
   "Vale para a categoria inteira" quais regras definem o limite geral do tipo de

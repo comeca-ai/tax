@@ -17,8 +17,8 @@ reembolso/fiscal:
 
 ## Branches do `tax` organizadas por versionamento
 
-`main` está no mesmo commit de `copilot/organizar-reembolsos-estruturados`
-(`2b75be2`). As demais divergem por feature:
+`main` já absorveu a Fase 1 de cadastro (`596d0b5` e `6c549d4`); as
+demais branches ainda divergem por feature:
 
 | Branch | Versão relacionada | Tema | Complexidade de merge |
 | --- | --- | --- | --- |
@@ -28,8 +28,8 @@ reembolso/fiscal:
 | `feat/escopo-regra-p0` | pendente | Escopo de regras P0 (políticas) | Média |
 | `feat/onboarding-sem-veiculo` | pendente | Onboarding sem veículo | Baixa |
 | `feat/policy-llm-gemini` | pendente | Motor de política com LLM (Gemini) | **Alta** — toca decisor/policy |
-| `fix/cadastro-instrumenta-erro` | pendente | Instrumentação de erro no cadastro | Baixa |
-| `fix/cadastro-sessao-orfas` | pendente | Sessões órfãs de cadastro | Baixa |
+| `fix/cadastro-instrumenta-erro` | absorvida em `main` (v1.9.2) | Instrumentação de erro no cadastro | Baixa — já consolidada |
+| `fix/cadastro-sessao-orfas` | absorvida em `main` (v1.9.2) | Sessões órfãs de cadastro | Baixa — já consolidada |
 | `master` | pré-v1.0 | Linha antiga (anterior ao SemVer) | **Alta** — divergente, candidata a arquivar |
 
 ## Linha de versionamento do `tax`
@@ -58,6 +58,8 @@ Observações:
 4. **Orquestrador**: vive em `tools/orchestrator/` do `tax` (este
    diretório) e publica relatórios em `docs/auditoria/`; o repo
    `reembolsa_motor` pode espelhar os relatórios se for mantido.
-5. **Ordem de merge das branches pendentes**: fixes de cadastro →
+5. **Ordem de merge das branches pendentes**: Fase 1 (fixes de cadastro)
+   já está consolidada em `main` (`fix/cadastro-instrumenta-erro` +
+   `fix/cadastro-sessao-orfas`, release `v1.9.2`). Próximos merges:
    onboarding-sem-veiculo → escopo-regra-p0 → policy-llm-gemini (maior
    risco, por último). `master`: não fazer merge — arquivar.
