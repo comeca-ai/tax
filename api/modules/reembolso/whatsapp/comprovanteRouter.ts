@@ -1,20 +1,25 @@
 import { Hono } from "hono";
-import { validarComprovanteWhatsapp } from "./comprovante";
+import { validarComprovanteWhatsapp, type ComprovanteValidado } from "./comprovante";
 
 export type PedidoComprovanteWhatsapp = {
   empresaId: number;
   colaboradorId: number;
   mensagemId: string;
   recebidoEm: string | null;
-  comprovante: NonNullable<ReturnType<typeof validarComprovanteWhatsapp>["comprovante"]>;
+  comprovante: ComprovanteValidado;
 };
 
 export type ReceberComprovanteWhatsapp = (pedido: PedidoComprovanteWhatsapp) => Promise<unknown>;
 
-function inteiroPositivo(valor: FormDataEntryValue | null): number | null {
+function inteiroPositivo(valor: unknown): number | null {
   if (typeof valor !== "string" || !/^\d+$/.test(valor)) return null;
   const numero = Number(valor);
   return Number.isSafeInteger(numero) && numero > 0 ? numero : null;
+}
+
+function ehErroDeVinculo(erro: unknown): boolean {
+  return typeof erro === "object" && erro !== null && "codigo" in erro
+    && erro.codigo === "VINCULO_INVALIDO";
 }
 
 /** Porta HTTP da POC. A persistência/decisão entra pelo recebedor injetado. */
@@ -37,14 +42,22 @@ export function criarRouterComprovanteWhatsapp(receber: ReceberComprovanteWhatsa
     });
     if (!validacao.ok) return c.json({ error: validacao.erro }, 400);
     const recebidoEm = form.get("recebido_em");
-    const resultado = await receber({
-      empresaId,
-      colaboradorId,
-      mensagemId: mensagemId.trim(),
-      recebidoEm: typeof recebidoEm === "string" && recebidoEm ? recebidoEm : null,
-      comprovante: validacao.comprovante,
-    });
-    return c.json(resultado, 201);
+    try {
+      const resultado = await receber({
+        empresaId,
+        colaboradorId,
+        mensagemId: mensagemId.trim(),
+        recebidoEm: typeof recebidoEm === "string" && recebidoEm ? recebidoEm : null,
+        comprovante: validacao.comprovante,
+      });
+      return c.json(resultado, 201);
+    } catch (erro) {
+      if (ehErroDeVinculo(erro)) {
+        return c.json({ error: "Colaborador sem vínculo ativo na empresa." }, 403);
+      }
+      // Não expõe detalhes de banco, mídia ou provider ao integrador.
+      return c.json({ error: "Não foi possível registrar o comprovante." }, 503);
+    }
   });
   return app;
 }
