@@ -110,6 +110,7 @@ export default function Politica() {
   const [modo, setModo] = useState<"status" | "wizard">("status");
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [upload, setUpload] = useState<PoliticaUploadItem | null>(null);
+  const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
   const [politicaId, setPoliticaId] = useState<number | null>(null);
   const [extracao, setExtracao] = useState<PolicyExtracao | null>(null);
   const [form, setForm] = useState<RegrasForm | null>(null);
@@ -145,6 +146,7 @@ export default function Politica() {
 
   function abrirWizard() {
     setUpload(null);
+    setArquivoSelecionado(null);
     setPoliticaId(null);
     setExtracao(null);
     setForm(null);
@@ -191,6 +193,20 @@ export default function Politica() {
     },
     [empresaId, uploadMut]
   );
+
+  function selecionarArquivo(arquivo: File) {
+    setArquivoSelecionado(arquivo);
+    setUpload({ nome: arquivo.name, tamanho: arquivo.size, status: "pronto" });
+  }
+
+  function analisarArquivoSelecionado() {
+    if (arquivoSelecionado) void processarArquivo(arquivoSelecionado);
+  }
+
+  function removerArquivoSelecionado() {
+    setArquivoSelecionado(null);
+    setUpload(null);
+  }
 
   async function salvarRegras() {
     if (!politicaId || !form) return;
@@ -354,7 +370,7 @@ export default function Politica() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: "easeOut" }}
-        className="mx-auto flex w-full max-w-[960px] flex-col gap-6"
+        className="mx-auto flex w-full max-w-[1120px] flex-col gap-6"
       >
         <div className="flex flex-col gap-3">
           <button
@@ -383,7 +399,9 @@ export default function Politica() {
             >
               <PoliticaUploadStep
                 item={upload}
-                onArquivo={arquivo => void processarArquivo(arquivo)}
+                onArquivo={selecionarArquivo}
+                onAnalisar={analisarArquivoSelecionado}
+                onRemover={removerArquivoSelecionado}
                 processando={
                   upload?.status === "enviando" ||
                   upload?.status === "extraindo"
@@ -496,7 +514,7 @@ export default function Politica() {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
-      className="mx-auto flex w-full max-w-[960px] flex-col gap-6"
+        className="mx-auto flex w-full max-w-[1120px] flex-col gap-6"
     >
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-line bg-surface p-5 shadow-card">
         <div className="flex flex-col gap-1">
