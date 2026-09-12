@@ -1,5 +1,5 @@
 CREATE TABLE `checkins_campo` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`empresa_id` bigint unsigned NOT NULL,
 	`colaborador_id` bigint unsigned NOT NULL,
 	`registrado_em` timestamp NOT NULL DEFAULT (now()),

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { motion } from "framer-motion"
-import { Link2, Mail, Send, UserPlus } from "lucide-react"
+import { Link2, Mail, MessageCircle, Send, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { trpc } from "@/providers/trpc"
 import { useActiveCompany } from "@/hooks/useActiveCompany"
@@ -10,9 +10,8 @@ import { mensagemErro } from "@/lib/convites"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Colaboradores (v1.6.0; convite reescrito na v1.9.1) — quem pede reembolso.
-// O WhatsApp está fora por ora: o convite vai por E-MAIL, com link de aceite
-// (`/convite/<token>`) onde a pessoa cria a senha e passa a enxergar a empresa.
-// Sem SMTP, a tela mostra o link para o gestor copiar e mandar como quiser.
+// O convite vai por e-mail e, se houver WhatsApp, o gestor recebe também um
+// link wa.me com o aceite pronto para compartilhar de forma intencional.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface Colaborador {
@@ -40,6 +39,8 @@ interface ColaboradoresClient {
   enviarConvite: {
     mutate(input: { id: number }): Promise<{
       linkAceite: string
+      linkWhatsapp: string | null
+      enviadoPorWhatsapp: boolean
       enviadoPorEmail: boolean
       email: string | null
     }>
@@ -67,7 +68,12 @@ export default function Colaboradores() {
   const [telefone, setTelefone] = useState("")
   const [email, setEmail] = useState("")
   const [matricula, setMatricula] = useState("")
-  const [linkConvite, setLinkConvite] = useState<{ email: string | null; link: string } | null>(null)
+  const [linkConvite, setLinkConvite] = useState<{
+    email: string | null
+    link: string
+    whatsapp: string | null
+    emailEnviado: boolean
+  } | null>(null)
 
   const lista = useQuery({
     queryKey: ["colaboradores", "listar", empresaId],
@@ -83,7 +89,7 @@ export default function Colaboradores() {
       await queryClient.invalidateQueries({ queryKey: ["colaboradores"] })
       setNome(""); setTelefone(""); setEmail(""); setMatricula("")
       toast.success("Colaborador cadastrado", {
-        description: "Agora envie o convite — ele chega por e-mail.",
+        description: "Agora envie o convite por e-mail ou WhatsApp.",
       })
     },
     onError: (erro) =>
@@ -94,17 +100,36 @@ export default function Colaboradores() {
     mutationFn: (id: number) => colaboradores.enviarConvite.mutate({ id }),
     onSuccess: async (res) => {
       await queryClient.invalidateQueries({ queryKey: ["colaboradores"] })
-      if (res.enviadoPorEmail) {
-        toast.success("Convite enviado por e-mail", { description: res.email ?? undefined })
+      if ((!res.enviadoPorEmail && !res.enviadoPorWhatsapp) || res.linkWhatsapp) {
+        setLinkConvite({
+          email: res.email,
+          link: res.linkAceite,
+          whatsapp: res.linkWhatsapp,
+          emailEnviado: res.enviadoPorEmail || res.enviadoPorWhatsapp,
+        })
+      } else {
         setLinkConvite(null)
+      }
+      if (res.enviadoPorEmail || res.enviadoPorWhatsapp) {
+        toast.success(
+          res.enviadoPorEmail && res.enviadoPorWhatsapp
+            ? "Convite enviado por e-mail e WhatsApp"
+            : res.enviadoPorWhatsapp
+              ? "Convite enviado por WhatsApp"
+              : "Convite enviado por e-mail",
+          {
+            description: res.linkWhatsapp ? "O envio manual por WhatsApp também está pronto." : res.email ?? undefined,
+          },
+        )
         return
       }
       // Sem SMTP o e-mail não sai: o link fica na tela para o gestor mandar.
-      setLinkConvite({ email: res.email, link: res.linkAceite })
       try {
         await navigator.clipboard.writeText(res.linkAceite)
         toast.success("Link do convite copiado", {
-          description: "O e-mail automático não saiu — mande este link para o colaborador.",
+          description: res.linkWhatsapp
+            ? "Envie pelo WhatsApp ou compartilhe o link copiado."
+            : "O e-mail automático não saiu — mande este link para o colaborador.",
         })
       } catch {
         toast.info("Copie o link do convite abaixo")
@@ -143,8 +168,8 @@ export default function Colaboradores() {
           Colaboradores
         </h2>
         <p className="text-sm text-text-500">
-          Quem pede reembolso na sua empresa. Cadastre a pessoa e envie o convite — ela recebe o
-          link por e-mail, escolhe uma senha e já envia as despesas.
+          Quem pede reembolso na sua empresa. Cadastre a pessoa e envie o convite por e-mail ou
+          WhatsApp — ela escolhe uma senha e já envia as despesas.
         </p>
       </header>
 
@@ -164,11 +189,11 @@ export default function Colaboradores() {
           />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">Telefone (opcional)</span>
+          <span className="text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">WhatsApp (opcional)</span>
           <input
             value={telefone}
             onChange={(e) => setTelefone(e.target.value)}
-            placeholder="11 99777-6666"
+            placeholder="55 11 99777-6666"
             inputMode="tel"
             className="h-11 w-full rounded-[10px] border border-line bg-surface px-3.5 text-sm text-text-900 outline-none transition placeholder:text-text-500/60 focus:border-brand-500 focus:shadow-[0_0_0_3px_rgba(14,169,104,0.18)]"
           />
@@ -209,7 +234,9 @@ export default function Colaboradores() {
           <div className="flex items-center gap-2">
             <Link2 className="h-4 w-4 text-brand-500" />
             <span className="text-[13px] font-semibold text-text-900">
-              O e-mail automático não saiu — mande este link para {linkConvite.email ?? "o colaborador"}
+              {linkConvite.emailEnviado
+                ? `Convite enviado para ${linkConvite.email ?? "o colaborador"}`
+                : `O e-mail automático não saiu — mande este link para ${linkConvite.email ?? "o colaborador"}`}
             </span>
             <button
               type="button"
@@ -223,6 +250,19 @@ export default function Colaboradores() {
             <span className="break-all font-mono text-[12px] leading-relaxed text-text-900">
               {linkConvite.link}
             </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {linkConvite.whatsapp && (
+              <a
+                href={linkConvite.whatsapp}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-9 items-center gap-2 rounded-[9px] bg-[#25D366] px-3.5 text-[12px] font-semibold text-white transition hover:brightness-95"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Enviar pelo WhatsApp
+              </a>
+            )}
           </div>
         </div>
       )}
@@ -247,7 +287,7 @@ export default function Colaboradores() {
             <thead>
               <tr className="border-b border-line">
                 <th className="h-11 px-4 text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">Nome</th>
-                <th className="h-11 px-4 text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">Telefone</th>
+                <th className="h-11 px-4 text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">WhatsApp</th>
                 <th className="h-11 px-4 text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">Matrícula</th>
                 <th className="h-11 px-4 text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">Status</th>
                 <th className="h-11 px-4 text-right text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">Convite</th>

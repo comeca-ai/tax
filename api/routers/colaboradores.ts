@@ -6,7 +6,9 @@ import { colaboradores } from "@db/schema";
 import { assertAdminDaEmpresa, assertEmpresaAcesso, registrarLog } from "./_shared";
 import { normalizarTelefone } from "../modules/reembolso/agente";
 import { emitirConviteAcesso } from "../lib/conviteAcesso";
+import { gerarLinkConviteWhatsapp } from "../lib/conviteWhatsapp";
 import { enviarConviteColaboradorEmail } from "../mail/mailer";
+import { enviarBoasVindasWhatsapp360dialog } from "../modules/reembolso/whatsapp/dialog360Invite";
 import { TRPCError } from "@trpc/server";
 
 /** Mesma trava de `assertAdminDaEmpresa`, dita na linguagem desta tela. */
@@ -111,9 +113,9 @@ export const colaboradoresRouter = createRouter({
 
   /**
    * Convite do colaborador (v1.6.0 como isqueiro do WhatsApp; reescrito na
-   * v1.9.1). O WhatsApp está fora — o canal é o E-MAIL: emite um convite de
-   * acesso ao painel e manda o link de aceite. Sem SMTP, devolve o link para
-   * o admin copiar e mandar por onde quiser.
+   * v1.9.1). Emite o convite por e-mail e, depois da ação explícita do gestor,
+   * envia as boas-vindas via 360dialog se o template estiver configurado. Sem
+   * a integração, o gestor recebe um link wa.me manual com o mesmo aceite.
    */
   enviarConvite: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
@@ -153,6 +155,18 @@ export const colaboradoresRouter = createRouter({
         empresa: empresa.razaoSocial,
         link,
       });
+      const whatsapp = await enviarBoasVindasWhatsapp360dialog({
+        telefone: colaborador.telefone,
+        nome: colaborador.nome,
+      });
+      const linkWhatsapp = whatsapp.enviado
+        ? null
+        : gerarLinkConviteWhatsapp({
+            telefone: colaborador.telefone,
+            nome: colaborador.nome,
+            empresa: empresa.razaoSocial,
+            link,
+          });
 
       await registrarLog(db, {
         usuarioId: ctx.usuario.id,
@@ -161,10 +175,16 @@ export const colaboradoresRouter = createRouter({
         entidade: "colaboradores",
         entidadeId: colaborador.id,
         detalhes: enviado
-          ? `Convite enviado por e-mail para ${colaborador.email}`
-          : "Link de convite gerado para envio manual (SMTP indisponível)",
+          ? `Convite enviado por e-mail para ${colaborador.email}${whatsapp.enviado ? "; boas-vindas enviadas via 360dialog" : linkWhatsapp ? "; link WhatsApp disponível" : ""}`
+          : `Link de convite gerado para envio manual (SMTP indisponível)${whatsapp.enviado ? "; boas-vindas enviadas via 360dialog" : linkWhatsapp ? "; WhatsApp disponível" : ""}`,
       });
 
-      return { linkAceite: link, enviadoPorEmail: enviado, email: colaborador.email };
+      return {
+        linkAceite: link,
+        linkWhatsapp,
+        enviadoPorWhatsapp: whatsapp.enviado,
+        enviadoPorEmail: enviado,
+        email: colaborador.email,
+      };
     }),
 });
