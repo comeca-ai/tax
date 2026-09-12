@@ -4,6 +4,26 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.13.1] — 2026-09-12
+
+**Primeira release governada no repositório oficial.** Consolida a importação
+do projeto para `comeca-ai/projeto_tribureembolsa` e estabelece a linha de
+qualidade usada antes de qualquer deploy de produção.
+
+### Adicionado
+
+- GitHub Actions para executar lint, type-check, testes e build em pull requests.
+- Guia de contribuição, governança do repositório, política de release/deploy,
+  linha de base de qualidade e templates de issue/PR.
+
+### Alterado
+
+- Domínio de empresas reorganizado em módulos de API e interface, preservando
+  os contratos e testes existentes.
+- Linha de base de lint corrigida; a release passa em lint, TypeScript, 431
+  testes e build de produção.
+- Nome canônico de apresentação definido como **reembolsa.ia.br**.
+
 ## [1.12.0] — 2026-08-31
 
 **Fila de revisão por empresa — fecha o furo multi-tenant.** `revisao.fila`
