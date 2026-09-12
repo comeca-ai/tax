@@ -18,4 +18,7 @@ export const env = {
   // rota /api/webhooks/360dialog fica sempre 403 (fail-closed).
   dialog360WebhookSecret: process.env.DIALOG_360_WEBHOOK_SECRET,
   dialog360ApiKey: process.env.DIALOG_360_API_KEY,
+  // API interna da POC WhatsApp. Valores separados por vírgula permitem
+  // sobreposição curta durante rotação; ausente = toda /api/v1 bloqueada.
+  whatsappServiceApiTokens: process.env.WHATSAPP_SERVICE_API_TOKENS,
 };
