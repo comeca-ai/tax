@@ -271,16 +271,17 @@ Contrato completo dos tipos em `contracts/types.ts`. Detalhes de implementação
 - Sessão stateless: trocar a senha não revoga tokens antigos.
 - Upload de imagem/PDF sem IA de visão → preenchimento assistido (configure `OCR_PROVIDER=vision`).
 
-## 12. Roadmap (da especificação v1.1)
-
-1. ~~Fase 1 (MVP)~~ → entregue ampliado: todas as categorias + revisão + IRPJ/CSLL
-2. Captura de campos CBS/IBS conforme destaque obrigatório nas notas (2027+)
-3. Exportação EFD-Contribuições / integração contábil
-4. OCR de visão real (plugável, contrato pronto) e consulta ao Ambiente Nacional do IBS (art. 47, LC 214/2025)
-
 ## 10. Roadmap (da especificação v1.1)
 
 1. ~~Fase 1 (MVP)~~ → entregue ampliado: todas as categorias + revisão + IRPJ/CSLL
 2. Captura de campos CBS/IBS conforme destaque obrigatório nas notas (2027+)
 3. Exportação EFD-Contribuições / integração contábil
 4. OCR de visão real (plugável, contrato pronto) e consulta ao Ambiente Nacional do IBS (art. 47, LC 214/2025)
+
+## Colaboração e qualidade
+
+Antes de contribuir, leia o [guia de contribuição](CONTRIBUTING.md), a
+[governança do repositório](docs/GOVERNANCA-DE-REPOSITORIO.md) e a
+[linha de base de qualidade](docs/BASELINE-DE-QUALIDADE.md). O objetivo é
+que toda alteração seja revisada, validada automaticamente e rastreável por
+versão.
