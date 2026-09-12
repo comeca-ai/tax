@@ -164,6 +164,51 @@ describe("VisaoOcrProvider", () => {
     }
   });
 
+  it("prioriza OpenAI quando OCR_VISION_PROVIDER=openai e aceita PDF", async () => {
+    const fetchOriginal = globalThis.fetch;
+    const chaveOpenAiOriginal = process.env.OPENAI_API_KEY;
+    const chaveMistralOriginal = process.env.MISTRAL_API_KEY;
+    const providerOriginal = process.env.OCR_VISION_PROVIDER;
+    process.env.OPENAI_API_KEY = "chave-de-teste";
+    delete process.env.MISTRAL_API_KEY;
+    process.env.OCR_VISION_PROVIDER = "openai";
+    const chamadas: { url: string; corpo: Record<string, unknown> }[] = [];
+    globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
+      chamadas.push({ url: String(url), corpo: JSON.parse(String(init?.body)) as Record<string, unknown> });
+      return {
+        ok: true,
+        json: async () => ({
+          output_text: JSON.stringify({
+            cnpjEmitente: null, valor: 90.14, dataFatoGerador: "2026-05-24", litros: null,
+            categoriaSugerida: "alimentacao", consumidorIdentificado: true, resumoItens: "almoço",
+            confianca: "alta", tipoDocumento: "nota_fiscal", confiancaTipo: "alta",
+          }),
+        }),
+      } as unknown as Response;
+    }) as typeof globalThis.fetch;
+    try {
+      const p = new VisaoOcrProvider(fallback);
+      const r = await p.extrair({
+        arquivoNome: "nota.pdf", arquivoMime: "application/pdf", arquivoBase64: "cGRmLWRlLXRlc3Rl",
+      });
+      expect(chamadas).toHaveLength(1);
+      expect(chamadas[0].url).toBe("https://api.openai.com/v1/responses");
+      expect(chamadas[0].corpo.store).toBe(false);
+      const input = chamadas[0].corpo.input as { content?: { file_data?: string }[] }[];
+      expect(input[1].content?.[0].file_data).toMatch(/^data:application\/pdf;base64,/);
+      expect(r.provedor).toBe("visao-ia:openai");
+      expect(r.valor).toBe(90.14);
+    } finally {
+      globalThis.fetch = fetchOriginal;
+      if (chaveOpenAiOriginal === undefined) delete process.env.OPENAI_API_KEY;
+      else process.env.OPENAI_API_KEY = chaveOpenAiOriginal;
+      if (chaveMistralOriginal === undefined) delete process.env.MISTRAL_API_KEY;
+      else process.env.MISTRAL_API_KEY = chaveMistralOriginal;
+      if (providerOriginal === undefined) delete process.env.OCR_VISION_PROVIDER;
+      else process.env.OCR_VISION_PROVIDER = providerOriginal;
+    }
+  });
+
   it("sem chaves de IA, imagem degrada para revisão manual (nunca trava)", async () => {
     delete process.env.MISTRAL_API_KEY;
     delete process.env.OPENAI_API_KEY;
