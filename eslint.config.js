@@ -20,4 +20,16 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    files: [
+      'src/components/ui/**/*.{ts,tsx}',
+      'src/modules/empresas/components/EmpresaForm.tsx',
+      'src/providers/trpc.tsx',
+    ],
+    rules: {
+      // Componentes gerados do shadcn e o cliente tRPC exportam contratos
+      // junto à UI; isto não afeta o refresh nem o código de produção.
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

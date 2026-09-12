@@ -147,17 +147,6 @@ export default function Revisao() {
     return ordenado
   }, [fila.data?.itens, ordenacao])
 
-  // Mantém seleção válida conforme a fila muda (auto-seleciona o próximo)
-  useEffect(() => {
-    if (itens.length === 0) {
-      if (selecionadoId !== null) setSelecionadoId(null)
-      return
-    }
-    if (selecionadoId === null || !itens.some((i) => i.despesa.id === selecionadoId)) {
-      setSelecionadoId(itens[0].despesa.id)
-    }
-  }, [itens, selecionadoId])
-
   const resolvidas = useMemo(
     () =>
       (resolvidasQuery.data ?? []).filter(
@@ -166,13 +155,31 @@ export default function Revisao() {
     [resolvidasQuery.data],
   )
 
-  // Auto-seleção na aba resolvidas
-  useEffect(() => {
-    if (aba !== "resolvidas") return
-    if (resolvidas.length > 0 && (selecionadoId === null || !resolvidas.some((d) => d.id === selecionadoId))) {
-      setSelecionadoId(resolvidas[0].id)
+  const proximoSelecionadoId = useMemo(() => {
+    if (aba === "resolvidas") {
+      if (
+        resolvidas.length > 0 &&
+        (selecionadoId === null || !resolvidas.some((despesa) => despesa.id === selecionadoId))
+      ) {
+        return resolvidas[0].id
+      }
+      return selecionadoId
     }
-  }, [aba, resolvidas, selecionadoId])
+
+    if (itens.length === 0) return null
+    if (selecionadoId === null || !itens.some((item) => item.despesa.id === selecionadoId)) {
+      return itens[0].despesa.id
+    }
+    return selecionadoId
+  }, [aba, itens, resolvidas, selecionadoId])
+
+  // A seleção depende de dados assíncronos. Agenda a atualização após a pintura
+  // para não criar um render em cascata durante a sincronização do efeito.
+  useEffect(() => {
+    if (proximoSelecionadoId === selecionadoId) return
+    const frame = requestAnimationFrame(() => setSelecionadoId(proximoSelecionadoId))
+    return () => cancelAnimationFrame(frame)
+  }, [proximoSelecionadoId, selecionadoId])
 
   // Atalhos de teclado: j/k navega, a aprova, r rejeita, e foca evidência
   useEffect(() => {

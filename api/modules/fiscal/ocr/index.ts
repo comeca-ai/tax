@@ -104,7 +104,11 @@ export class HeuristicOcrProvider implements OcrProvider {
       texto = "";
     }
 
-    if (!isXml && (!texto || /[^\x09\x0A\x0D\x20-\x7E\u00C0-\u00FF]{20}/.test(texto))) {
+    const textoSemQuebras = texto
+      .replaceAll("\t", "")
+      .replaceAll("\n", "")
+      .replaceAll("\r", "")
+    if (!isXml && (!texto || /[^\x20-\x7E\u00C0-\u00FF]{20}/.test(textoSemQuebras))) {
       // Binário (imagem/PDF escaneado): sem extração local → preenchimento assistido
       return {
         cnpjEmitente: null,

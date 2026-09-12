@@ -22,7 +22,9 @@ const payloadValido = {
 
 describe("registroComEmpresaInput", () => {
   it("aceita o payload plano do wizard e aplica o default de CNAEs", () => {
-    const { cnaesSecundarios: _omit, ...semSecundarios } = payloadValido;
+    const semSecundarios = Object.fromEntries(
+      Object.entries(payloadValido).filter(([chave]) => chave !== "cnaesSecundarios"),
+    );
     const parsed = registroComEmpresaInput.parse(semSecundarios);
     expect(parsed.cnaesSecundarios).toEqual([]);
     expect(parsed.email).toBe("maria@empresa.com.br");

@@ -102,7 +102,11 @@ async function decodificarTexto(input: ArquivoPolitica): Promise<string | null> 
     input.mimeType.includes("xml") ||
     input.mimeType.includes("html") ||
     /\.(xml|html?|txt|md|csv)$/i.test(input.arquivoNome);
-  if (!isMarkup && /[^\x09\x0A\x0D\x20-\x7EÀ-ÿ]{20}/.test(texto)) {
+  const textoSemQuebras = texto
+    .replaceAll("\t", "")
+    .replaceAll("\n", "")
+    .replaceAll("\r", "")
+  if (!isMarkup && /[^\x20-\x7EÀ-ÿ]{20}/.test(textoSemQuebras)) {
     return null; // binário: imagem etc.
   }
   // XML/HTML: extrai apenas o texto (remove tags e entidades básicas)
@@ -344,7 +348,7 @@ export class HeuristicPolicyParser implements PolicyParser {
 export class LlmPolicyParser implements PolicyParser {
   nome = "llm";
 
-  async extract(_input: ArquivoPolitica): Promise<PolicyExtracao> {
+  async extract(): Promise<PolicyExtracao> {
     // TODO(v1.2+): implementar chamada OpenAI/Gemini devolvendo PolicyExtracao.
     // O contrato (textoExtraido/regras/confiancaExtracao/camposPendentes) já é
     // estável — basta preencher `regras` via structured output do modelo.

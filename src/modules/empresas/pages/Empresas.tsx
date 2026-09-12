@@ -17,6 +17,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { trpc } from "@/providers/trpc"
+import type { inferRouterOutputs } from "@trpc/server"
+import type { AppRouter } from "../../../../api/router"
 import { useAuth } from "@/hooks/useAuth"
 import { useActiveCompany } from "@/hooks/useActiveCompany"
 import type { Perfil, RegimeTributario } from "@contracts/types"
@@ -48,7 +50,7 @@ import {
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
-type EmpresaLista = NonNullable<ReturnType<typeof trpc.empresas.list.useQuery>["data"]> extends readonly (infer T)[] ? T : any
+type EmpresaLista = inferRouterOutputs<AppRouter>["empresas"]["list"][number]
 
 function iniciais(nome: string): string {
   const partes = nome.trim().split(/\s+/)
@@ -72,16 +74,16 @@ export default function Empresas() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [aba, setAba] = useState<Aba>("dados")
-  const [modalNova, setModalNova] = useState(false)
+  const [modalNova, setModalNova] = useState(() => searchParams.get("nova") === "1")
   const [formDirty, setFormDirty] = useState(false)
   const [trocaPendente, setTrocaPendente] = useState<{ tipo: "empresa"; id: number } | { tipo: "aba"; aba: Aba } | null>(null)
 
   // ?nova=1 → abre direto o formulário de nova empresa
   useEffect(() => {
     if (searchParams.get("nova") === "1") {
-      setModalNova(true)
-      searchParams.delete("nova")
-      setSearchParams(searchParams, { replace: true })
+      const proximosParametros = new URLSearchParams(searchParams)
+      proximosParametros.delete("nova")
+      setSearchParams(proximosParametros, { replace: true })
     }
   }, [searchParams, setSearchParams])
 

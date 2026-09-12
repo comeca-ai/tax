@@ -33,6 +33,13 @@ Os erros de lint devem ser tratados em PR(s) focados. Alguns estão em código
 anterior à refatoração; outros pertencem ao módulo de empresas. Separá-los
 evita esconder regressões e torna a revisão objetiva.
 
+## Correção da linha de base
+
+A branch `fix/lint-baseline` corrige os 21 apontamentos sem alterar regras de
+negócio e foi validada com `lint`, `check`, `test` (431 testes) e `build`.
+Ela deve ser revisada e integrada antes da primeira tag de produção sob a
+política de release.
+
 ## Segurança antes da migração
 
 Antes de conceder acesso a parceiros ou publicar o novo repositório, execute

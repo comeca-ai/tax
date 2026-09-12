@@ -324,13 +324,6 @@ export default function AppShell() {
   const { activeCompany, isLoading } = useActiveCompany()
   const cadastroIncompleto = !isLoading && activeCompany !== null && activeCompany.cadastroCompleto === false
   const [menuOpen, setMenuOpen] = useState(false)
-  const location = useLocation()
-
-  // Fecha o drawer ao trocar de rota
-  useEffect(() => {
-    setMenuOpen(false)
-  }, [location.pathname])
-
   // Trava o scroll do body com o drawer aberto
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : ""
