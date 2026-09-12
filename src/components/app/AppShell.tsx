@@ -6,6 +6,7 @@ import {
   CirclePlus,
   Zap,
   ScrollText,
+  SlidersHorizontal,
   ClipboardCheck,
   Building2,
   Users,
@@ -75,6 +76,7 @@ const NAV_GROUPS: { rotulo: string; itens: NavItem[] }[] = [
       { to: "/app/equipe", label: "Equipe", icon: Users, end: false, equipeOnly: true },
       { to: "/app/empresas", label: "Empresas", icon: Building2, end: false },
       { to: "/app/regras", label: "Regras & Matriz", icon: Scale, end: false, adminOnly: true },
+      { to: "/app/ajustes", label: "Ajustes", icon: SlidersHorizontal, end: false, adminOnly: true },
     ],
   },
   {
@@ -96,6 +98,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/app/empresas": "Empresas",
   "/app/relatorios": "Relatórios",
   "/app/regras": "Regras & Matriz",
+  "/app/ajustes": "Ajustes",
 }
 
 /** Conteúdo da navegação — compartilhado entre sidebar desktop e drawer mobile. */
