@@ -8,6 +8,7 @@ import { env } from "./lib/env";
 import { getWhatsappProvider, parseEvolutionPayload } from "./modules/reembolso/whatsapp";
 import { processarMensagemRecebida } from "./modules/reembolso/agente";
 import { processarWebhookDialog360 } from "./modules/reembolso/whatsapp/dialog360";
+import { exigirServicoAutenticado } from "./modules/reembolso/whatsapp/servicoAuth";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -22,6 +23,15 @@ app.use("/api/trpc/*", async (c) => {
 });
 // ── Health check (deploy/monitoramento) ─────────────────────────────────────
 app.get("/api/health", (c) => c.json({ ok: true, ts: new Date().toISOString() }));
+
+// ── API de serviço da POC WhatsApp ─────────────────────────────────────────
+// Esta superfície não compartilha cookies/sessões do painel. Sem token
+// configurado ela fica fechada, inclusive em homologação, até a próxima etapa
+// publicar os endpoints de negócio.
+app.use("/api/v1/*", exigirServicoAutenticado(env.whatsappServiceApiTokens));
+app.get("/api/v1/whatsapp/status", (c) =>
+  c.json({ ok: true, service: "whatsapp-poc", channelEnabled: false }),
+);
 
 // ── Webhook WhatsApp (fundação — v1.2.0) ────────────────────────────────────
 // Base para o futuro bot: o usuário envia foto do recibo pelo WhatsApp e o
