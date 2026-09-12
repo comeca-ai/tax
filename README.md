@@ -1,4 +1,4 @@
-# reembolsa.ia — Tax Engine
+# reembolsa.ia.br — Tax Engine
 
 Motor de recuperação tributária para pequenas empresas brasileiras. O usuário sobe a nota fiscal (foto/PDF) na plataforma → o OCR extrai os campos fiscais → o motor classifica a elegibilidade de crédito por **CNAE × categoria × regime tributário**, quantifica o valor recuperável (**PIS/COFINS, ICMS, CBS/IBS**) e a dedutibilidade (**IRPJ/CSLL**) em trilhas paralelas, e gera relatórios, memorial de cálculo e trilha de auditoria imutável.
 
