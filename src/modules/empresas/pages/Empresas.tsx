@@ -230,13 +230,10 @@ export default function Empresas() {
           <TabsTrigger value="dados" className="rounded-lg px-4 text-[13px]">
             Dados fiscais
           </TabsTrigger>
-          <TabsTrigger value="equipe" className="rounded-lg px-4 text-[13px]">
-            Equipe
-          </TabsTrigger>
-          <TabsTrigger value="plataforma" className="rounded-lg px-4 text-[13px]">
-            Plataforma
-          </TabsTrigger>
         </TabsList>
+
+        {/* Acesso e convites vivem em /app/equipe, protegido por RequireEquipe.
+            Informações internas da plataforma não pertencem aos dados da empresa. */}
 
         {/* ── Tab 1: Dados fiscais (RF-00) ─────────────────────────────── */}
         <TabsContent value="dados" className="mt-5">
