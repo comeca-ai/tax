@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { montarTemplateConviteWhatsapp } from "./dialog360Invite";
+import { montarTemplateBoasVindasWhatsapp } from "./dialog360Invite";
 
-describe("template de convite 360dialog", () => {
-  it("monta template utility com URL dinâmica e dados do colaborador", () => {
+describe("template de boas-vindas 360dialog", () => {
+  it("monta o template ativo com o nome do colaborador", () => {
     expect(
-      montarTemplateConviteWhatsapp({
+      montarTemplateBoasVindasWhatsapp({
         telefone: "5511997776666",
         nome: "João da Silva",
-        empresa: "Empresa Exemplo",
-        token: "token-seguro-123",
-        template: "convite_acesso",
+        template: "boas_vindas_reembolsa",
         idioma: "pt_BR",
       }),
     ).toEqual({
@@ -18,22 +16,10 @@ describe("template de convite 360dialog", () => {
       to: "5511997776666",
       type: "template",
       template: {
-        name: "convite_acesso",
+        name: "boas_vindas_reembolsa",
         language: { code: "pt_BR" },
         components: [
-          {
-            type: "body",
-            parameters: [
-              { type: "text", text: "João da Silva" },
-              { type: "text", text: "Empresa Exemplo" },
-            ],
-          },
-          {
-            type: "button",
-            sub_type: "url",
-            index: "0",
-            parameters: [{ type: "text", text: "token-seguro-123" }],
-          },
+          { type: "body", parameters: [{ type: "text", text: "João da Silva" }] },
         ],
       },
     });

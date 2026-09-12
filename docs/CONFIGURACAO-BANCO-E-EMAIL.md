@@ -51,21 +51,22 @@ conversa `wa.me` com uma mensagem e o link de aceite prontos. O gestor confere
 o destinatário e confirma o envio no WhatsApp. Esse é o fallback quando o
 envio automático pela 360dialog não estiver configurado.
 
-## Convite automático com 360dialog
+## Boas-vindas após confirmação com 360dialog
 
-O projeto também pode disparar o convite pelo prestador 360dialog. Configure
-`DIALOG_360_API_KEY` e o nome de um template ativo em
-`DIALOG_360_INVITE_TEMPLATE`; sem ambas as variáveis, o envio automático fica
+O projeto pode disparar uma mensagem de boas-vindas pelo prestador 360dialog
+depois que o gestor confirma o envio do convite. Configure
+`DIALOG_360_API_KEY` e o nome do template ativo em
+`DIALOG_360_WELCOME_TEMPLATE`; sem ambas as variáveis, o envio automático fica
 desligado e o link `wa.me` manual continua sendo o fallback.
 
-Crie e aguarde a aprovação de um template **UTILITY** com este contrato:
+O template atualmente aprovado é `boas_vindas_reembolsa`, categoria
+**MARKETING**, idioma `pt_BR`, com um parâmetro no corpo: o nome do
+colaborador. Ele não possui botão de URL, então o link de criação de senha é
+enviado pelo e-mail; se o e-mail não estiver disponível, o gestor usa o
+fallback `wa.me` manual, que inclui o link de aceite.
 
-- corpo: `Olá, {{1}}. A {{2}} convidou você para acessar o reembolsa.ia.`;
-- botão URL dinâmico (primeiro botão):
-  `https://oreembolsobot.app/convite/{{1}}`.
-
-O código preenche, nessa ordem, `{{1}}` do corpo com o nome, `{{2}}` com a
-empresa e o `{{1}}` do botão com o token do convite. A 360dialog envia pelo
-endpoint `https://waba-v2.360dialog.io/messages`, usando o header
-`D360-API-KEY`. Templates são obrigatórios quando o destinatário não tem uma
-janela de atendimento de 24 horas aberta.
+A 360dialog envia pelo endpoint `https://waba-v2.360dialog.io/messages`,
+usando o header `D360-API-KEY`. Templates ativos são exigidos quando o
+destinatário não tem uma janela de atendimento de 24 horas aberta. Como o
+template atual é de marketing, confirme que o colaborador autorizou receber a
+mensagem antes de clicar em **Enviar convite**.
