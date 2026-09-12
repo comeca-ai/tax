@@ -29,13 +29,12 @@
 | 1 | Dashboard | Visão geral | `dashboard.resumo`, `despesas.list`, `politica.ativa` | Implementado; aguarda revisão visual |
 | 2 | Revisão | Fila de revisão | `revisao.fila` | Implementado; aguarda revisão visual |
 | 3 | Revisão | Detalhe da despesa | `despesas.get`, `revisao.decidir` | Implementado; aguarda revisão visual |
-| 4 | Política | Norma de reembolso | `politica.*` | Pendente |
+| 4 | Política | Norma de reembolso | `politica.*` | Implementado; aguarda revisão visual |
 
 ## Próximos passos
 
-1. Aplicar a linguagem visual à política, sem modificar regras de negócio.
-2. Fazer revisão visual e funcional em tela desktop e mobile.
-3. Executar o portão de qualidade, revisar o Draft, mergear e só então criar
+1. Fazer revisão visual e funcional em tela desktop e mobile.
+2. Executar o portão de qualidade, revisar o Draft, mergear e só então criar
    uma release para deploy.
 
 ## Fora de escopo desta branch
