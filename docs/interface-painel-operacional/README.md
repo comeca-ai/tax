@@ -24,23 +24,20 @@
 
 ## Telas cobertas
 
-| Prioridade | Rota existente | Referência | Dados reais |
-| --- | --- | --- | --- |
-| 1 | Dashboard | Visão geral | `dashboard.resumo`, `despesas.list` |
-| 2 | Revisão | Fila de revisão | `revisao.fila` |
-| 3 | Revisão | Detalhe da despesa | `despesas.get`, `revisao.decidir` |
-| 4 | Política | Norma de reembolso | `politica.*` |
+| Prioridade | Rota existente | Referência | Dados reais | Estado |
+| --- | --- | --- | --- | --- |
+| 1 | Dashboard | Visão geral | `dashboard.resumo`, `despesas.list`, `politica.ativa` | Implementado; aguarda revisão visual |
+| 2 | Revisão | Fila de revisão | `revisao.fila` | Pendente |
+| 3 | Revisão | Detalhe da despesa | `despesas.get`, `revisao.decidir` | Pendente |
+| 4 | Política | Norma de reembolso | `politica.*` | Pendente |
 
 ## Próximos passos
 
-1. Mapear os elementos reutilizáveis do template para componentes do painel.
-2. Recriar o Dashboard com métricas reais, estados de carregamento e estado
-   vazio.
-3. Aplicar a linguagem visual à fila e ao detalhe de revisão, preservando as
+1. Aplicar a linguagem visual à fila e ao detalhe de revisão, preservando as
    travas de permissão e as ações existentes.
-4. Aplicar a linguagem visual à política, sem modificar regras de negócio.
-5. Fazer revisão visual e funcional em tela desktop e mobile.
-6. Executar o portão de qualidade, abrir PR, revisar, mergear e só então criar
+2. Aplicar a linguagem visual à política, sem modificar regras de negócio.
+3. Fazer revisão visual e funcional em tela desktop e mobile.
+4. Executar o portão de qualidade, revisar o Draft, mergear e só então criar
    uma release para deploy.
 
 ## Fora de escopo desta branch
