@@ -42,16 +42,16 @@ Cada item abaixo terá uma branch curta, um PR e uma revisão independente. A
 branch atual (`feat/whatsapp-poc-foundation`) entrega somente este plano e o
 contrato inicial; ela não altera comportamento de produção.
 
-| ID | Branch prevista | Entrega | Critério de aceite |
-|---|---|---|---|
-| WP-00 | `feat/whatsapp-poc-foundation` | plano, contrato inicial e decisão de arquitetura | documentação revisada e nenhum segredo no Git |
-| WP-01 | `feat/whatsapp-poc-mensageria` | tabelas aditivas de sessão, inbox/outbox e chave de idempotência | migração testada, rollback e reentrega sem duplicação |
-| WP-02 | `feat/whatsapp-poc-api-servico` | autenticação de serviço e APIs internas versionadas | token inválido bloqueado; empresa isolada; contrato testado |
-| WP-03 | `feat/whatsapp-poc-identificacao` | resolver telefone e estado do colaborador | telefone estranho não revela tenant; vínculo suspenso é recusado |
-| WP-04 | `feat/whatsapp-poc-comprovantes` | baixar mídia, validar arquivo e abrir/complementar despesa | mesma mensagem não cria duas despesas; arquivo perigoso é recusado |
-| WP-05 | `feat/whatsapp-poc-conversa` | máquina de estados para pendências e respostas | transições e expiração cobertas por testes |
-| WP-06 | `feat/whatsapp-poc-decisao` | evento de decisão e mensagem transacional ao colaborador | callback idempotente, assinado e auditável |
-| WP-07 | `feat/whatsapp-poc-aceite` | roteiro E2E, evidência de homologação e preparação de release | cenário completo aprovado em homologação |
+| ID | Status | Branch prevista | Entrega | Critério de aceite |
+|---|---|---|---|---|
+| WP-00 | Mesclado | `feat/whatsapp-poc-foundation` | plano, contrato inicial e decisão de arquitetura | documentação revisada e nenhum segredo no Git |
+| WP-01 | Em revisão | `feat/whatsapp-poc-mensageria` | tabelas aditivas de sessão, inbox/outbox e chave de idempotência | migração testada, rollback e reentrega sem duplicação |
+| WP-02 | Planejado | `feat/whatsapp-poc-api-servico` | autenticação de serviço e APIs internas versionadas | token inválido bloqueado; empresa isolada; contrato testado |
+| WP-03 | Planejado | `feat/whatsapp-poc-identificacao` | resolver telefone e estado do colaborador | telefone estranho não revela tenant; vínculo suspenso é recusado |
+| WP-04 | Planejado | `feat/whatsapp-poc-comprovantes` | baixar mídia, validar arquivo e abrir/complementar despesa | mesma mensagem não cria duas despesas; arquivo perigoso é recusado |
+| WP-05 | Planejado | `feat/whatsapp-poc-conversa` | máquina de estados para pendências e respostas | transições e expiração cobertas por testes |
+| WP-06 | Planejado | `feat/whatsapp-poc-decisao` | evento de decisão e mensagem transacional ao colaborador | callback idempotente, assinado e auditável |
+| WP-07 | Planejado | `feat/whatsapp-poc-aceite` | roteiro E2E, evidência de homologação e preparação de release | cenário completo aprovado em homologação |
 
 WP-01 a WP-06 não entram em produção isoladamente. Podem ser validadas em
 homologação, mas a ativação do canal ficará atrás de uma configuração explícita
