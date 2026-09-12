@@ -1,5 +1,5 @@
 CREATE TABLE `colaboradores` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`empresa_id` bigint unsigned NOT NULL,
 	`usuario_id` bigint unsigned,
 	`nome` varchar(255) NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE `colaboradores` (
 );
 --> statement-breakpoint
 CREATE TABLE `declaracoes_perfil` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`colaborador_id` bigint unsigned NOT NULL,
 	`categoria` enum('combustivel','alimentacao','hospedagem','pedagio','uber','taxi') NOT NULL,
 	`created_at` timestamp NOT NULL DEFAULT (now()),
@@ -24,7 +24,7 @@ CREATE TABLE `declaracoes_perfil` (
 );
 --> statement-breakpoint
 CREATE TABLE `sessoes_conversa` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`telefone` varchar(20) NOT NULL,
 	`colaborador_id` bigint unsigned,
 	`estado` varchar(40) NOT NULL DEFAULT 'inicio',

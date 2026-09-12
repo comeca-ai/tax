@@ -1,5 +1,5 @@
 CREATE TABLE `politicas_reembolso` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`empresa_id` bigint unsigned NOT NULL,
 	`arquivo_nome` varchar(255) NOT NULL,
 	`arquivo_path` varchar(500),

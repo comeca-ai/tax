@@ -8,7 +8,7 @@
 CREATE INDEX `colaboradores_empresa_id_id_idx` ON `colaboradores` (`empresa_id`,`id`);
 --> statement-breakpoint
 CREATE TABLE `delegacoes_decisao` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`empresa_id` bigint unsigned NOT NULL,
 	`decidiu_colaborador_id` bigint unsigned,
 	`em_nome_de_colaborador_id` bigint unsigned NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE `delegacoes_decisao` (
 );
 --> statement-breakpoint
 CREATE TABLE `empresas_config` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`empresa_id` bigint unsigned NOT NULL,
 	`cnpj` varchar(18),
 	`tem_vale_refeicao` boolean NOT NULL DEFAULT false,
@@ -36,7 +36,7 @@ CREATE TABLE `empresas_config` (
 );
 --> statement-breakpoint
 CREATE TABLE `veiculos_colaborador` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`colaborador_id` bigint unsigned NOT NULL,
 	`placa` varchar(10) NOT NULL,
 	`motorizacao` enum('combustao','hibrido','eletrico'),

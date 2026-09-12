@@ -1,7 +1,6 @@
 import {
   mysqlTable,
   mysqlEnum,
-  serial,
   varchar,
   mediumtext,
   text,
@@ -79,7 +78,7 @@ export const statusCreditoEnum = mysqlEnum("status", [
 export const usuarios = mysqlTable(
   "usuarios",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
     email: varchar("email", { length: 255 }).notNull(),
     nome: varchar("nome", { length: 255 }).notNull(),
     senhaHash: varchar("senha_hash", { length: 255 }).notNull(),
@@ -94,7 +93,7 @@ export const usuarios = mysqlTable(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const empresas = mysqlTable("empresas", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   usuarioId: bigint("usuario_id", { mode: "number", unsigned: true })
     .notNull()
     .references(() => usuarios.id),
@@ -111,7 +110,7 @@ export const empresas = mysqlTable("empresas", {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const cnaesSecundarios = mysqlTable("cnaes_secundarios", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
     .notNull()
     .references(() => empresas.id),
@@ -123,7 +122,7 @@ export const cnaesSecundarios = mysqlTable("cnaes_secundarios", {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const veiculos = mysqlTable("veiculos", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
     .notNull()
     .references(() => empresas.id),
@@ -140,7 +139,7 @@ export const veiculos = mysqlTable("veiculos", {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const notasFiscais = mysqlTable("notas_fiscais", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
     .notNull()
     .references(() => empresas.id),
@@ -171,7 +170,7 @@ export const notasFiscais = mysqlTable("notas_fiscais", {
 export const despesas = mysqlTable(
   "despesas",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
     empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => empresas.id),
@@ -221,7 +220,7 @@ export const despesas = mysqlTable(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const regrasElegibilidade = mysqlTable("regras_elegibilidade", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   // Padrão de CNAE: ex. "49.30-2", "49.2x", "41.x", "46.x", "*" (não mapeado)
   cnaePadrao: varchar("cnae_padrao", { length: 12 }).notNull(),
   categoria: categoriaDespesaEnum.notNull(),
@@ -242,7 +241,7 @@ export const regrasElegibilidade = mysqlTable("regras_elegibilidade", {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const creditosApurados = mysqlTable("creditos_apurados", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   despesaId: bigint("despesa_id", { mode: "number", unsigned: true })
     .notNull()
     .references(() => despesas.id),
@@ -260,7 +259,7 @@ export const creditosApurados = mysqlTable("creditos_apurados", {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const evidenciasDocumentais = mysqlTable("evidencias_documentais", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   despesaId: bigint("despesa_id", { mode: "number", unsigned: true })
     .notNull()
     .references(() => despesas.id),
@@ -280,7 +279,7 @@ export const evidenciasDocumentais = mysqlTable("evidencias_documentais", {
 // usuário/empresa zera os campos de referência e a LINHA sobrevive — a trilha
 // é append-only e não pode depender do cadastro continuar existindo.
 export const logAuditoria = mysqlTable("log_auditoria", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   usuarioId: bigint("usuario_id", {
     mode: "number",
     unsigned: true,
@@ -303,7 +302,7 @@ export const logAuditoria = mysqlTable("log_auditoria", {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const politicasReembolso = mysqlTable("politicas_reembolso", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
     .notNull()
     .references(() => empresas.id),
@@ -337,7 +336,7 @@ export const politicasReembolso = mysqlTable("politicas_reembolso", {
 export const convites = mysqlTable(
   "convites",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
     email: varchar("email", { length: 255 }).notNull(),
     perfil: perfilEnum.notNull().default("cliente"),
     token: varchar("token", { length: 128 }).notNull(),
@@ -361,7 +360,7 @@ export const convites = mysqlTable(
 export const resetsSenha = mysqlTable(
   "resets_senha",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
     email: varchar("email", { length: 255 }).notNull(),
     token: varchar("token", { length: 128 }).notNull(),
     expiresAt: timestamp("expires_at").notNull(),
@@ -418,7 +417,7 @@ export const statusVinculoEnum = mysqlEnum("status_vinculo", [
 export const colaboradores = mysqlTable(
   "colaboradores",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
     empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => empresas.id),
@@ -481,7 +480,7 @@ export const colaboradores = mysqlTable(
 export const sessoesConversa = mysqlTable(
   "sessoes_conversa",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
     telefone: varchar("telefone", { length: 20 }).notNull(),
     colaboradorId: bigint("colaborador_id", {
       mode: "number",
@@ -505,7 +504,7 @@ export const sessoesConversa = mysqlTable(
 export const declaracoesPerfil = mysqlTable(
   "declaracoes_perfil",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
     colaboradorId: bigint("colaborador_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => colaboradores.id),
@@ -534,7 +533,7 @@ export const declaracoesPerfil = mysqlTable(
 export const empresasConfig = mysqlTable(
   "empresas_config",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
     empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => empresas.id),
@@ -584,7 +583,7 @@ export const empresasConfig = mysqlTable(
 export const veiculosColaborador = mysqlTable(
   "veiculos_colaborador",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
     colaboradorId: bigint("colaborador_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => colaboradores.id),
@@ -621,7 +620,7 @@ export const veiculosColaborador = mysqlTable(
 export const delegacoesDecisao = mysqlTable(
   "delegacoes_decisao",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
     empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => empresas.id),
@@ -693,7 +692,7 @@ export const delegacoesDecisao = mysqlTable(
 export const checkinsCampo = mysqlTable(
   "checkins_campo",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
     empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => empresas.id),
@@ -738,7 +737,7 @@ export const checkinsCampo = mysqlTable(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const whatsappWebhookEvents = mysqlTable("whatsapp_webhook_events", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   tipoEvento: varchar("tipo_evento", { length: 50 }).notNull(),
   statusEntrega: varchar("status_entrega", { length: 50 }),
   mensagemId: varchar("mensagem_id", { length: 128 }),

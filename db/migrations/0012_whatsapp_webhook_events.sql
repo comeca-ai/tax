@@ -1,5 +1,5 @@
 CREATE TABLE `whatsapp_webhook_events` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`tipo_evento` varchar(50) NOT NULL,
 	`status_entrega` varchar(50),
 	`mensagem_id` varchar(128),

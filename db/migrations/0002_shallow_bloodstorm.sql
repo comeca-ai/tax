@@ -1,5 +1,5 @@
 CREATE TABLE `convites` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`email` varchar(255) NOT NULL,
 	`perfil` enum('admin','cliente','revisor') NOT NULL DEFAULT 'cliente',
 	`token` varchar(128) NOT NULL,

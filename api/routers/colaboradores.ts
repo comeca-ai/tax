@@ -6,7 +6,9 @@ import { colaboradores } from "@db/schema";
 import { assertAdminDaEmpresa, assertEmpresaAcesso, registrarLog } from "./_shared";
 import { normalizarTelefone } from "../modules/reembolso/agente";
 import { emitirConviteAcesso } from "../lib/conviteAcesso";
+import { gerarLinkConviteWhatsapp } from "../lib/conviteWhatsapp";
 import { enviarConviteColaboradorEmail } from "../mail/mailer";
+import { enviarConviteWhatsapp360dialog } from "../modules/reembolso/whatsapp/dialog360Invite";
 import { TRPCError } from "@trpc/server";
 
 /** Mesma trava de `assertAdminDaEmpresa`, dita na linguagem desta tela. */
@@ -111,9 +113,9 @@ export const colaboradoresRouter = createRouter({
 
   /**
    * Convite do colaborador (v1.6.0 como isqueiro do WhatsApp; reescrito na
-   * v1.9.1). O WhatsApp está fora — o canal é o E-MAIL: emite um convite de
-   * acesso ao painel e manda o link de aceite. Sem SMTP, devolve o link para
-   * o admin copiar e mandar por onde quiser.
+   * v1.9.1). Emite o convite por e-mail e, se 360dialog + template estiverem
+   * configurados, também dispara o template WhatsApp. Sem a integração, o
+   * gestor recebe um link wa.me manual para compartilhar o mesmo aceite.
    */
   enviarConvite: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
@@ -142,7 +144,7 @@ export const colaboradoresRouter = createRouter({
         });
       }
 
-      const { link } = await emitirConviteAcesso(db, {
+      const { link, token } = await emitirConviteAcesso(db, {
         email: colaborador.email,
         perfil: "cliente",
         createdById: ctx.usuario.id,
@@ -153,6 +155,20 @@ export const colaboradoresRouter = createRouter({
         empresa: empresa.razaoSocial,
         link,
       });
+      const whatsapp = await enviarConviteWhatsapp360dialog({
+        telefone: colaborador.telefone,
+        nome: colaborador.nome,
+        empresa: empresa.razaoSocial,
+        token,
+      });
+      const linkWhatsapp = whatsapp.enviado
+        ? null
+        : gerarLinkConviteWhatsapp({
+            telefone: colaborador.telefone,
+            nome: colaborador.nome,
+            empresa: empresa.razaoSocial,
+            link,
+          });
 
       await registrarLog(db, {
         usuarioId: ctx.usuario.id,
@@ -161,10 +177,16 @@ export const colaboradoresRouter = createRouter({
         entidade: "colaboradores",
         entidadeId: colaborador.id,
         detalhes: enviado
-          ? `Convite enviado por e-mail para ${colaborador.email}`
-          : "Link de convite gerado para envio manual (SMTP indisponível)",
+          ? `Convite enviado por e-mail para ${colaborador.email}${whatsapp.enviado ? "; WhatsApp enviado via 360dialog" : linkWhatsapp ? "; link WhatsApp disponível" : ""}`
+          : `Link de convite gerado para envio manual (SMTP indisponível)${whatsapp.enviado ? "; WhatsApp enviado via 360dialog" : linkWhatsapp ? "; WhatsApp disponível" : ""}`,
       });
 
-      return { linkAceite: link, enviadoPorEmail: enviado, email: colaborador.email };
+      return {
+        linkAceite: link,
+        linkWhatsapp,
+        enviadoPorWhatsapp: whatsapp.enviado,
+        enviadoPorEmail: enviado,
+        email: colaborador.email,
+      };
     }),
 });
