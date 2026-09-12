@@ -184,10 +184,10 @@ volume) — a maioria é evidência ruim, não dúvida de regra.
 4. O contador recebe o pacote pronto, confere e lança. **O produto entrega a defesa;
    a decisão fiscal é dele.**
 
-Formato de entrega do kit (a definir na arquitetura): download do zip, link temporário,
-ou login de contador. Decisão de produto em aberto: contador é **destinatário** ou
-**usuário**? (Se um escritório atender várias empresas, há um segundo produto possível:
-o painel do escritório. Fora do escopo atual.)
+Formato de entrega do kit (decidido em D-016, 29/08/2026): **o contador é
+destinatário** — download do zip ou link temporário. Sem login, sem portal. Se um
+escritório atender várias empresas e pedir visão consolidada, o painel do
+escritório nasce como produto separado, não como feature.
 
 ### 4.6 Admin como usuário de exceção
 

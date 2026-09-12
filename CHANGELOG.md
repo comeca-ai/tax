@@ -4,6 +4,133 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.12.0] — 2026-08-31
+
+**Fila de revisão por empresa — fecha o furo multi-tenant.** `revisao.fila`
+mostrava as despesas `em_revisao` de TODAS as empresas para qualquer
+`revisor`/`admin` da plataforma, e barrava o próprio aprovador designado
+(perfil cliente). Agora fila e decisão são por papel NA empresa: aprovador ou
+analista designado (`empresas_config`), admin da empresa (fallback — caminho
+normal enquanto não há designado) ou admin da plataforma (suporte). Nenhuma
+migração: primeira leitura de `empresas_config.aprovador_id`/`analista_id` e
+primeira escrita em `delegacoes_decisao`, ambas criadas na 0008/0009.
+
+### Adicionado
+- **`podeRevisarDespesas` / `exigeMotivoDelegacao`** (`contracts/permissoes.ts`)
+  — regras puras compartilhadas entre servidor e tela (decisões do dono de 31/08)
+- **`papelRevisaoNaEmpresa` / `ehDesignadoDeAlgumaEmpresa`** (`api/routers/_shared.ts`)
+  — papel de revisão por empresa (FORBIDDEN para quem não participa) e flag
+  de sessão "designado de alguma empresa"
+- **Motivo de delegação** (Norma PoC §6.1): quem decide sem ser o aprovador
+  designado informa o motivo (campo novo no Dialog de decisão) e a decisão
+  grava `delegacoes_decisao` com `em_nome_de_colaborador_id` = aprovador
+  designado — só há delegação quando HÁ designado; sem designado o admin é o
+  caminho normal e nada é gravado além do `log_auditoria` de sempre
+- **`RequireRevisao`** — gate de `/app/revisao` por `auth.me.podeRevisarDespesas`
+  (padrão RequireEquipe); item "Fila de Revisão" do menu vira condicional
+- Testes: `contracts/permissoes.test.ts` (9 casos novos) e
+  `src/components/app/RequireRevisao.test.tsx` (4)
+
+### Alterado
+- **`revisao.fila`** — `protectedProcedure` com `{ empresaId }`; devolve
+  `{ itens, papel }` só com despesas da empresa consultada
+- **`revisao.decidir`** — `protectedProcedure`; exige `empresaId`; despesa de
+  outra empresa responde NOT_FOUND ("Despesa não encontrada.", sem vazar
+  existência); escritas (despesa + créditos + delegação + log) agora rodam em
+  `db.transaction` — resultado observável idêntico ao anterior
+- **`auth.me`/`login`/`registro`/`registroComEmpresa`** devolvem
+  `podeRevisarDespesas` (mesmo padrão de `podeGerenciarEquipe` da v1.9.1)
+- **`Revisao.tsx`** — a fila segue a empresa selecionada no Topbar; aprovador
+  designado com perfil cliente passa a VER a fila; sem papel na empresa
+  selecionada, empty-state "A fila desta empresa é do aprovador designado"
+
+### Efeito nas contas existentes
+- **`revisor@reembolsa.ia.br` perde o acesso global à fila** — intencional:
+  era o furo multi-tenant. `admin@` mantém o acesso (suporte). Cliente
+  aprovador/analista designado e admin da empresa passam a ter acesso.
+
+## [1.11.0] — 2026-08-29
+
+**A ficha do colaborador fica pronta para pagar reembolso — e equipe externa
+passa a registrar posição.** Seis campos novos em `colaboradores` e a tabela
+`checkins_campo`, com a guarda cross-tenant aprendida na 0008: FK **composta**
+`(empresa_id, colaborador_id)` — check-in da empresa A não aponta colaborador
+da B (provado em banco). Migração reversível (`rollback/rollback_0011.sql`,
+re-executável).
+
+### Adicionado
+- **`colaboradores`: ficha apta a pagamento e alçada** — `tipo_documento`
+  (cpf/cnpj) + `documento` com coleta tardia (nullable de propósito: ninguém
+  preenche no convite; pede-se no primeiro reembolso a pagar), `cargo`,
+  `nivel_aprovacao` (grau 1..N, não alçada — a configuração do fluxo vive na
+  Norma PoC), `status_vinculo` (desligamento é status, **nunca DELETE**),
+  `data_admissao` (anti-fraude: despesa anterior à admissão é sinal, gate G4)
+- **Unique `(empresa_id, documento)`** — mesmo documento duas vezes na mesma
+  empresa é rejeitado; em empresas diferentes, aceito (provado em banco)
+- **`checkins_campo`** — posição de equipe externa (latitude, longitude,
+  precisão, origem), somente armazenando: cálculo de trajeto é fase posterior
+  (gate G6)
+
+## [1.10.0] — 2026-08-29
+
+**Exclusão real de conta destravada, sem tocar na trilha.** As FKs do
+`log_auditoria` (`usuario_id`, `empresa_id`) passam de `NO ACTION` para
+`ON DELETE SET NULL` — DELETE em usuário/empresa zera os campos de referência
+e a linha de auditoria sobrevive (D-015). Até aqui, excluir qualquer conta
+com histórico era impossível e exigia anonimização manual (28/08). Migração
+reversível (`rollback/rollback_0010.sql`), re-executável no boot (DROPs
+guardados por `information_schema`).
+
+### Adicionado
+- **Migração 0010** — `log_auditoria` com `ON DELETE SET NULL` nas duas FKs;
+  snapshot, journal e `db/schema.ts` coerentes; 10 testes de guarda novos
+  (365/365 no container `reembolsa/check:c54d70d`)
+- **`scripts/pulso-dia.mjs`** — pulso diário de produtividade do time:
+  headline "entregas limpas" (deploys APTO sem rollback) + 5 vitais de guarda
+  (WIP parado > 24h, lead time, retrabalho, telemetria, modo degradado)
+
+### Alterado
+- **Checklist de onboarding**: docstring passa a explicar por que veículo saiu
+  dos primeiros passos (a mudança funcional já tinha entrado na v1.9.0; a
+  branch `feat/onboarding-sem-veiculo` foi descartada como obsoleta)
+- **Brief da ficha do colaborador renumerado para 0011** (a 0010 é esta
+  migração); proposta de relação `nivelAprovacao` × aprovadores PoC arquivada
+  em `pipeline/runs/fila-briefs-rascunho-ficha-0011.patch`
+
+### Removido
+- Brief `fk-log-auditoria-set-null` sai da fila — implementado nesta release
+
+## [1.13.0] — 2026-09-03
+
+**Webhook definitivo 360dialog (WhatsApp Business Cloud API).** Canal dedicado
+da plataforma (`+55 21 96848 3003`), que hoje aponta para um túnel Cloudflare
+provisório. Esta entrega prepara o destino definitivo — receber, validar a
+origem e persistir cru todo evento, sem processar conteúdo — para o reponte
+(troca de URL na conta 360dialog) ser feito depois, fora deste trabalho de
+dev. Migração `0012`, aditiva.
+
+### Adicionado
+- **`POST /api/webhooks/360dialog`** (`api/boot.ts`) — bloco independente dos
+  dois webhooks de WhatsApp já existentes (legado Meta e Evolution); sempre
+  responde em <5s, sem aguardar a extração nem a gravação no banco
+- **`api/modules/reembolso/whatsapp/dialog360.ts`** — `extrairEventosDialog360`
+  (pura, tolera qualquer payload malformado sem lançar), `persistirEventosDialog360`
+  (grava em `whatsapp_webhook_events`) e `processarWebhookDialog360` (decide a
+  resposta; fail-closed sem `DIALOG_360_WEBHOOK_SECRET` configurado)
+- **`whatsapp_webhook_events`** (`db/schema.ts`) — tabela nova dedicada, sem FK
+  para `empresas`/`colaboradores`: evento de PLATAFORMA, não por empresa.
+  `payload` guarda o `value` inteiro do change; sem índice único (duplicidade
+  aceita — volume baixo, 1 canal)
+- `DIALOG_360_WEBHOOK_SECRET` / `DIALOG_360_API_KEY` (opcionais) em
+  `api/lib/env.ts`, `docker-compose.yml`, `.env.example`, `.env.docker.example`
+
+### O que não muda
+- `getWhatsappProvider()` e `processarMensagemRecebida` (agente de reembolso
+  via Evolution) não são tocados — `dialog360.ts` não implementa
+  `WhatsappProvider` e não é wireado nele
+- `/api/webhooks/whatsapp` (legado Meta) e `/api/whatsapp/webhook` (Evolution)
+  continuam exatamente como estavam
+
 ## [1.9.2] — 2026-08-28
 
 **Fim das contas órfãs no cadastro.** Entre 24/08 e 28/08, 6 pessoas criaram

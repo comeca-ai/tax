@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "3.2.0",
+  "objetivo": "Fechar o furo multi-tenant da fila de revisão e entregá-la ao Aprovador da empresa. Hoje revisao.fila (api/routers/revisao.ts:20) é perfilProcedure('revisor','admin') — perfil da PLATAFORMA — e o WHERE é só status = em_revisao, sem empresa: qualquer conta com esse perfil vê despesas de TODAS as empresas, e o Aprovador designado do cliente não acessa nada. Mesma classe do bug corrigido na v1.9.1 em Equipe. Bloqueia a exposição a empresa real (Seção 2.7 do escopo da PoC).",
+  "dentro": [
+    "revisao.fila e revisao.decidir passam a receber empresaId e a validar com assertEmpresaAcesso (api/routers/_shared.ts:39), como os demais routers",
+    "query passa a filtrar despesas.empresaId",
+    "guarda de perfil trocada: sai o perfil da plataforma, entra 'é aprovador ou analista designado daquela empresa OU administrador dela' — regra pura em contracts/permissoes.ts, ao lado de podeGerenciarEquipe",
+    "empresas_config.aprovador_id / analista_id passam a ser lidos — são a designação formal exigida pela Seção 2.5 do escopo da PoC",
+    "revisao.decidir grava linha em delegacoes_decisao quando quem decide não é o aprovador designado, com motivo obrigatório — primeira escrita na tabela da 0008/0009",
+    "auth.me devolve se a conta é aprovador/analista de alguma empresa (mesmo padrão do podeGerenciarEquipe da v1.9.1)",
+    "tela Revisão respeita a empresa selecionada e some para quem não é aprovador, analista ou admin daquela empresa"
+  ],
+  "fora": [
+    "alçadas por valor ou por grau (colaboradores.nivel_aprovacao) — fase 4",
+    "escalonamento para o superior direto — colaboradores não tem superior_id hoje; é demanda própria",
+    "UI de designação de aprovador/analista — pertence ao brief de configuração da empresa; aqui a designação só é LIDA",
+    "qualquer mudança no decisor ou na semântica de em_revisao"
+  ],
+  "riscos": [
+    "é correção de vazamento entre clientes: o teste tem de provar no BANCO que conta da empresa A não enxerga despesa da empresa B, além do teste de API — padrão estabelecido na 0008/0009",
+    "endurecer a guarda pode deixar contas atuais sem acesso à fila: levantar as contas existentes e registrar o efeito ANTES do deploy",
+    "empresas_config sem aprovador designado (NULL) não pode fechar a fila para todo mundo — fallback obrigatório"
+  ],
+  "pronto": [
+    "nenhuma migração necessária — só código"
+  ],
+  "decisoes": [
+    "a correção precede qualquer exposição a empresa real (Seção 2.7 do escopo da PoC)",
+    "sem aprovador designado, o fallback é o administrador da empresa — mesma lógica de 'gestor → admin' do §4.4 do docs/PRODUTO.md"
+  ],
+  "complexidade": "M",
+  "criterioDeAceite": [
+    "conta da empresa A não recebe nenhuma despesa da empresa B na fila — teste de API E teste em banco",
+    "aprovador designado em empresas_config acessa a fila da sua empresa sem ter perfil de plataforma",
+    "administrador da empresa acessa quando não há aprovador designado",
+    "colaborador comum não acessa",
+    "decisão tomada por quem não é o aprovador designado grava delegacoes_decisao com motivo — teste",
+    "regressão: revisao.decidir mantém status, memorial e log_auditoria idênticos aos de hoje",
+    "vitest e tsc passam no container de check"
+  ]
+}

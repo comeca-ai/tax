@@ -123,10 +123,17 @@ export const despesaInput = z.object({
   cst: z.string().max(10).optional(),
 });
 
+export const revisaoFilaInput = z.object({
+  empresaId: z.number().int().positive(),
+});
+
 export const revisaoInput = z.object({
+  empresaId: z.number().int().positive(),
   despesaId: z.number().int().positive(),
   decisao: z.enum(["aprovar", "rejeitar"]),
   justificativa: z.string().min(3).max(2000),
+  /** Norma PoC §6.1: obrigatório quando quem decide não é o aprovador designado. */
+  motivoDelegacao: z.string().min(3).max(2000).optional(),
 });
 
 export const evidenciaInput = z.object({
@@ -250,6 +257,18 @@ export type UsuarioSessao = {
  */
 export type SessaoAtual = UsuarioSessao & {
   podeGerenciarEquipe: boolean;
+  /** Aprovador/analista designado, admin da empresa ou da plataforma (v1.12.0). */
+  podeRevisarDespesas: boolean;
+};
+
+/** Papel do usuário logado no fluxo de revisão da empresa consultada. */
+export type PapelRevisao = {
+  ehAprovadorDesignado: boolean;   // empresas_config.aprovador_id → colaborador do usuário
+  ehAnalistaDesignado: boolean;    // empresas_config.analista_id  → colaborador do usuário
+  ehAdminDaEmpresa: boolean;       // empresas.usuarioId === usuário
+  ehAdminDaPlataforma: boolean;    // usuarios.perfil === "admin"
+  temAprovadorDesignado: boolean;  // aprovador_id !== null
+  aprovadorDesignadoNome: string | null; // para a UI do motivo de delegação
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

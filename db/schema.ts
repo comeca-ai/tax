@@ -276,16 +276,19 @@ export const evidenciasDocumentais = mysqlTable("evidencias_documentais", {
 // 10. Log de auditoria imutável — RF-04 (nunca UPDATE/DELETE no app)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ON DELETE SET NULL nas duas FKs (v1.8, migração 0010): a exclusão real de
+// usuário/empresa zera os campos de referência e a LINHA sobrevive — a trilha
+// é append-only e não pode depender do cadastro continuar existindo.
 export const logAuditoria = mysqlTable("log_auditoria", {
   id: serial("id").primaryKey(),
   usuarioId: bigint("usuario_id", {
     mode: "number",
     unsigned: true,
-  }).references(() => usuarios.id),
+  }).references(() => usuarios.id, { onDelete: "set null" }),
   empresaId: bigint("empresa_id", {
     mode: "number",
     unsigned: true,
-  }).references(() => empresas.id),
+  }).references(() => empresas.id, { onDelete: "set null" }),
   acao: varchar("acao", { length: 100 }).notNull(),
   entidade: varchar("entidade", { length: 100 }).notNull(),
   entidadeId: bigint("entidade_id", { mode: "number", unsigned: true }),
@@ -402,6 +405,16 @@ export const statusAtivacaoEnum = mysqlEnum("status_ativacao", [
   "divergencia", // contestou os dados no onboarding — admin precisa revisar
 ]);
 
+export const tipoDocumentoColaboradorEnum = mysqlEnum("tipo_documento", [
+  "cpf", // interno
+  "cnpj", // externo PJ — não se confunde com o CNPJ da empresa
+]);
+
+export const statusVinculoEnum = mysqlEnum("status_vinculo", [
+  "ativo",
+  "desligado", // desligamento NUNCA é DELETE: o histórico é preservado
+]);
+
 export const colaboradores = mysqlTable(
   "colaboradores",
   {
@@ -418,6 +431,23 @@ export const colaboradores = mysqlTable(
     telefone: varchar("telefone", { length: 20 }),
     matricula: varchar("matricula", { length: 50 }),
     centroCusto: varchar("centro_custo", { length: 100 }),
+    // Documento para pagamento (v1.8, migração 0011): coleta TARDIA, no
+    // primeiro reembolso a pagar — ambos nullable de propósito, ninguém
+    // preenche no convite. O unique (empresa_id, documento) abaixo tolera
+    // NULLs repetidos, como o de telefone.
+    tipoDocumento: tipoDocumentoColaboradorEnum,
+    documento: varchar("documento", { length: 14 }),
+    cargo: varchar("cargo", { length: 100 }),
+    // Grau na ficha do colaborador (1..N), NÃO alçada. Relação declarada com a
+    // estrutura de aprovadores da Norma PoC (seção 16, empresas_config.
+    // analista_id/aprovador_id): aquela tabela é a CONFIGURAÇÃO do fluxo
+    // (quem analisa/aprova em cada empresa); nivelAprovacao é o GRAU da pessoa,
+    // fonte para as alçadas por grau da fase 4 (tabela P-xxx, gate G10). Os
+    // valores de alçada ficam FORA desta demanda — aqui só se armazena.
+    nivelAprovacao: int("nivel_aprovacao"),
+    statusVinculo: statusVinculoEnum.notNull().default("ativo"),
+    // Anti-fraude por data (alimenta G4): despesa anterior à admissão é sinal.
+    dataAdmissao: date("data_admissao", { mode: "string" }),
     statusAtivacao: statusAtivacaoEnum.notNull().default("pendente"),
     papelFluxo: papelFluxoEnum.notNull().default("solicitante"),
     equipe: equipeColaboradorEnum.notNull().default("externa"),
@@ -428,6 +458,12 @@ export const colaboradores = mysqlTable(
     uniqueIndex("colaboradores_empresa_telefone_unique").on(
       t.empresaId,
       t.telefone
+    ),
+    // Mesmo tratamento do (empresa_id, telefone): sem isto o banco aceita o
+    // mesmo documento duas vezes dentro da MESMA empresa, em silêncio.
+    uniqueIndex("colaboradores_empresa_documento_unique").on(
+      t.empresaId,
+      t.documento
     ),
     // Alvo das FKs compostas da Norma PoC: garante que analista, aprovador e
     // as duas pontas de uma delegação sejam da MESMA empresa. InnoDB exige
@@ -642,3 +678,72 @@ export const delegacoesDecisao = mysqlTable(
     }),
   ]
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 19. Check-ins de campo (v1.11.0, migração 0011) — posição de equipe externa.
+// SOMENTE armazena: sem cálculo de trajeto nesta demanda (trajeto vs.
+// kmComercial declarado é a fase 1 do roadmap, gate G6). Faz sentido para
+// equipe externa (motorista/entregador em rota).
+// `registrado_em` é o momento da posição; o nome evita a palavra reservada
+// `timestamp` como identificador.
+// FK composta (empresa_id, colaborador_id): lição da 0008 — FK simples em
+// colaborador_id permitiria check-in da empresa A apontando colaborador da B.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const checkinsCampo = mysqlTable(
+  "checkins_campo",
+  {
+    id: serial("id").primaryKey(),
+    empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => empresas.id),
+    colaboradorId: bigint("colaborador_id", {
+      mode: "number",
+      unsigned: true,
+    })
+      .notNull()
+      .references(() => colaboradores.id),
+    registradoEm: timestamp("registrado_em").notNull().defaultNow(),
+    latitude: double("latitude").notNull(),
+    longitude: double("longitude").notNull(),
+    // Precisão do GPS em metros, quando o dispositivo informa.
+    precisao: double("precisao"),
+    // Vocabulário técnico do software (não do cliente): whatsapp, app, importacao.
+    origem: varchar("origem", { length: 30 }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  t => [
+    index("checkins_campo_colab_tempo_idx").on(t.empresaId, t.colaboradorId, t.registradoEm),
+    foreignKey({
+      name: "checkins_campo_mesma_empresa_fk",
+      columns: [t.empresaId, t.colaboradorId],
+      foreignColumns: [colaboradores.empresaId, colaboradores.id],
+    }),
+  ]
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 20. Eventos brutos do webhook 360dialog (WhatsApp Business Cloud API) — v1.13.0
+// Evento de PLATAFORMA (canal único, `+55 21 96848 3003`), não por empresa: sem
+// FK para `empresas`/`colaboradores` — não há conceito de tenant aqui. Só
+// ingestão crua, sem processar conteúdo (D-020: preparado e isolado do resto
+// do produto; D-013/D-014 intactas — zero decisão/roteamento nesta tabela).
+// `tipo_evento`/`status_entrega` são varchar livre (mesma escolha de
+// `checkins_campo.origem`), para não exigir migração a cada tipo/status novo
+// que a Meta adicionar. `payload` guarda o `value` inteiro do change (não só o
+// item) — zero perda de campo não previsto pela extração, ao custo de pequena
+// redundância entre linhas irmãs (aceitável: volume baixo, 1 canal). Sem
+// índice único: a 360dialog pode reenviar o mesmo evento e a duplicidade é
+// aceita (nada aqui é idempotente por natureza — é log bruto).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const whatsappWebhookEvents = mysqlTable("whatsapp_webhook_events", {
+  id: serial("id").primaryKey(),
+  tipoEvento: varchar("tipo_evento", { length: 50 }).notNull(),
+  statusEntrega: varchar("status_entrega", { length: 50 }),
+  mensagemId: varchar("mensagem_id", { length: 128 }),
+  telefone: varchar("telefone", { length: 20 }),
+  canalTelefone: varchar("canal_telefone", { length: 20 }),
+  payload: json("payload").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

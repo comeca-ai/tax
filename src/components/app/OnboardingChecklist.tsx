@@ -31,6 +31,10 @@ interface Passo {
 /**
  * Checklist de onboarding (v1.2.0) — 3 passos computados de dados reais.
  * Some quando os 3 estão completos ou quando o usuário fecha (persistido por usuário).
+ *
+ * O cadastro de veículo saiu do checklist: ele não é pré-requisito para enviar
+ * despesa, e o motor de política não exige veículo cadastrado. Continua
+ * disponível em Configurar → Veículos, para quem usa reembolso de quilometragem.
  */
 export default function OnboardingChecklist() {
   const { user } = useAuth()

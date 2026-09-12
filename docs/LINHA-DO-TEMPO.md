@@ -73,7 +73,7 @@ Artefatos gerados:
 | **v1.5.0** | Fundação do agente | Adapter WhatsApp (Evolution), onboarding conversacional, sessões | ✅ entregue 12/08 |
 | **v1.6.0** | Admin limpo + convites | Navegação em 3 momentos, Equipe com colaboradores + convite-isqueiro | ✅ entregue 12/08 |
 | **v1.7.0** | Motor de decisão ⬅ próxima | Despesa pelo WhatsApp → aprova/reprova/cinza citando regra; fila de exceções | OCR provider |
-| **v1.8.0** | Dossiê 1-botão | Kit zip de recuperação para o contador | decisão: contador destinatário ou usuário? |
+| **v1.8.0** | Dossiê 1-botão | Kit zip de recuperação para o contador | contador = destinatário (D-016) |
 | **v1.9.0** | Política viva | Exceção vira regra escrita; versões auditáveis | — |
 | **v1.10.0** | Escala de UX | Upload em lote, lembretes, painel caixa-de-entrada | — |
 

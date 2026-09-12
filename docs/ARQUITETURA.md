@@ -72,6 +72,26 @@ Toda saída de aprovação/reprovação carrega **regraCitada** — nenhuma deci
 fundamento textual. Esse contrato é consumido pelo agente (resposta imediata no
 WhatsApp) e pelo web (fila de revisão) — mesma decisão, duas renderizações.
 
+### O fluxo entre motores (D-017, 29/08/2026)
+
+```
+funcionário ──▶ REEMBOLSO ──▶ evidência decidida e versionada ──▶ FISCAL ──▶ …
+ (captura)      extrai+verifica   (regra citada + versão da        créditos,
+                contra a política   política + trilha = insumo)    CFOP/NCM…
+                                    │
+                                    ▼
+                              DOSSIÊ (D-016): encontro das camadas,
+                              critérios não se misturam
+```
+
+- O **reembolso** é o motor de captura e defesa: único com usuário motivado a
+  alimentar o sistema (D-004). Sem captura boa, os demais motores não têm
+  matéria-prima — por isso ele é construído primeiro.
+- Os demais motores (fiscal é o primeiro) entram **a jusante**, consumindo
+  evidência que já chega defensável.
+- **Fluxo de dados, não pipeline de decisão**: cada motor decide com regras
+  e trilhas próprias (D-014). Nenhum herda a decisão do outro.
+
 ---
 
 ## 3. AGENT — máquina de estados da conversa
@@ -228,5 +248,7 @@ WhatsApp; sem motor não há revisões; sem revisões resolvidas o dossiê sai i
 3. **Decisor conservador por construção (D-013)** — só aprova com regra explícita;
    qualquer dúvida material vira revisão manual. Uma devolução a mais custa um clique
    do gestor; uma falsa aprovação custa uma glosa.
-4. **Contador: destinatário ou usuário?** (decisão de produto em aberto no PRODUTO.md —
-   afeta se `dossies` vira só arquivo ou portal de acesso).
+4. ~~**Contador: destinatário ou usuário?**~~ **decidido (D-016, 29/08): destinatário** —
+   zip 1-botão com link temporário; `dossies` é arquivo gerado + checksum +
+   destinatário, não portal. Portal de escritório, se um dia fizer sentido, é
+   produto separado.

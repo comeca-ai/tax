@@ -9,13 +9,13 @@ import {
   conviteCriarInput,
   type Convite,
 } from "@contracts/types";
-import { perfisConvidaveis } from "@contracts/permissoes";
+import { perfisConvidaveis, podeRevisarDespesas } from "@contracts/permissoes";
 import { hashSenha } from "../auth/password";
 import { cookieSessao, criarTokenSessao, requisicaoSegura } from "../auth/session";
 import { conviteExpirado } from "../lib/conviteUtils";
 import { emitirConviteAcesso } from "../lib/conviteAcesso";
 import { enviarConviteEmail } from "../mail/mailer";
-import { registrarLog } from "./_shared";
+import { ehDesignadoDeAlgumaEmpresa, registrarLog } from "./_shared";
 
 function paraConvite(row: typeof convites.$inferSelect): Convite {
   return {
@@ -301,7 +301,21 @@ export const convitesRouter = createRouter({
       });
 
       // Conta nova, sem empresa: a área Equipe só abre depois que ela cadastrar
-      // a própria empresa (v1.9.1).
-      return { id, email, nome, perfil: convite.perfil, podeGerenciarEquipe: false };
+      // a própria empresa (v1.9.1). A fila de revisão abre já no aceite se a
+      // ficha vinculada for a do aprovador/analista designado (v1.12.0).
+      const designado = await ehDesignadoDeAlgumaEmpresa(id);
+      return {
+        id,
+        email,
+        nome,
+        perfil: convite.perfil,
+        podeGerenciarEquipe: false,
+        podeRevisarDespesas: podeRevisarDespesas({
+          perfil: convite.perfil,
+          ehAdminDaEmpresa: false,
+          ehAprovadorDesignado: designado.aprovador,
+          ehAnalistaDesignado: designado.analista,
+        }),
+      };
     }),
 });

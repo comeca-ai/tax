@@ -58,6 +58,12 @@ const MOTIVOS_REJEICAO = [
 
 export interface RevisaoDetalheProps {
   despesaId: number
+  /** Empresa da fila (v1.12.0) — obrigatória quando `somenteLeitura` é false. */
+  empresaId?: number
+  /** Há aprovador designado e quem decide não é ele: pede motivo de delegação (v1.12.0). */
+  exigeMotivoDelegacao?: boolean
+  /** Nome do aprovador designado, para o rótulo do motivo de delegação. */
+  aprovadorDesignadoNome?: string | null
   /** Modo leitura (aba Resolvidas): sem barra de decisão nem upload. */
   somenteLeitura?: boolean
   /** Chamado após decisão bem-sucedida, para animar a saída e selecionar o próximo. */
@@ -74,6 +80,9 @@ type Decisao = "aprovar" | "rejeitar"
 /** Painel de revisão da despesa selecionada (RF-05): dados + memorial + evidências + decisão. */
 export default function RevisaoDetalhe({
   despesaId,
+  empresaId,
+  exigeMotivoDelegacao = false,
+  aprovadorDesignadoNome = null,
   somenteLeitura = false,
   onDecidido,
   dropzoneRef,
@@ -87,6 +96,7 @@ export default function RevisaoDetalhe({
   const [dialog, setDialog] = useState<Decisao | null>(null)
   const [motivoRejeicao, setMotivoRejeicao] = useState<string>(MOTIVOS_REJEICAO[0])
   const [justificativa, setJustificativa] = useState("")
+  const [motivoDelegacao, setMotivoDelegacao] = useState("")
   const [exigirEvidencia, setExigirEvidencia] = useState(false)
   const [uploadProgresso, setUploadProgresso] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -97,6 +107,7 @@ export default function RevisaoDetalhe({
     setNotas("")
     setDialog(null)
     setJustificativa("")
+    setMotivoDelegacao("")
     setExigirEvidencia(false)
   }, [despesaId])
 
@@ -125,7 +136,9 @@ export default function RevisaoDetalhe({
     },
     onError: (erro) => {
       const codigo = (erro as unknown as { data?: { code?: string } }).data?.code
-      if (codigo === "PRECONDITION_FAILED") {
+      // PRECONDITION_FAILED cobre dois casos distintos (v1.12.0): a evidência
+      // do RF-04 (mensagem começa com "RF-04") e o motivo de delegação ausente.
+      if (codigo === "PRECONDITION_FAILED" && erro.message.startsWith("RF-04")) {
         setDialog(null)
         setExigirEvidencia(true)
         toast.warning("Evidência obrigatória: anexe um documento de suporte antes de aprovar (RF-04).")
@@ -167,7 +180,13 @@ export default function RevisaoDetalhe({
       dialog === "rejeitar"
         ? `${motivoRejeicao}: ${justificativa.trim()}`.slice(0, 2000)
         : justificativa.trim()
-    decidir.mutate({ despesaId: despesa.id, decisao: dialog, justificativa: texto })
+    decidir.mutate({
+      empresaId: empresaId!,
+      despesaId: despesa.id,
+      decisao: dialog,
+      justificativa: texto,
+      motivoDelegacao: exigeMotivoDelegacao ? motivoDelegacao.trim() : undefined,
+    })
   }
 
   function aoSelecionarArquivo(arquivo: File) {
@@ -553,6 +572,29 @@ export default function RevisaoDetalhe({
                 {justificativa.trim().length}/2000
               </span>
             </div>
+            {exigeMotivoDelegacao && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">
+                  {aprovadorDesignadoNome
+                    ? `Motivo de decidir no lugar de ${aprovadorDesignadoNome}`
+                    : "Motivo de decidir no lugar do aprovador designado"}{" "}
+                  <span className="text-red-500">*</span>
+                </span>
+                <Textarea
+                  value={motivoDelegacao}
+                  onChange={(e) => setMotivoDelegacao(e.target.value)}
+                  placeholder="Ex.: aprovador em férias — decisão não pode esperar."
+                  className="min-h-[76px] rounded-[10px] border-line text-sm"
+                  maxLength={2000}
+                />
+                <span className="text-right font-mono text-[10px] text-text-500">
+                  {motivoDelegacao.trim().length}/2000
+                </span>
+                <span className="text-[11px] text-text-500">
+                  Fica registrado na trilha de delegação.
+                </span>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <button
@@ -565,7 +607,11 @@ export default function RevisaoDetalhe({
             <button
               type="button"
               onClick={confirmarDecisao}
-              disabled={justificativa.trim().length < 3 || decidir.isPending}
+              disabled={
+                justificativa.trim().length < 3 ||
+                (exigeMotivoDelegacao && motivoDelegacao.trim().length < 3) ||
+                decidir.isPending
+              }
               className={cn(
                 "inline-flex h-10 items-center gap-2 rounded-[10px] px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50",
                 dialog === "aprovar" ? "bg-brand-500 hover:bg-brand-500/90" : "bg-red-500 hover:bg-red-500/90",
