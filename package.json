@@ -14,7 +14,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "audit:run": "tsx tools/orchestrator/run-audit.ts"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
