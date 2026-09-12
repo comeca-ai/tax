@@ -13,7 +13,7 @@ reembolso/fiscal:
 | --- | --- | --- | --- | --- |
 | 1 | `comeca-ai/tax` | TypeScript | **Aplicação sólida (alvo de consolidação)** — tRPC + Drizzle/MySQL + React, OCR, WhatsApp, políticas, convites; 27 tags SemVer (v1.0.0 → v1.13.0) | **Base** |
 | 2 | `comeca-ai/reembolso-inteligente-2ee7fd7d` | TypeScript | **Protótipo Lovable mais completo** — TanStack Start + Lovable Cloud, compliance 3 etapas, NF-e/SEFAZ, 54 testes, GUARDRAILS.md | **Absorver ideias** → depois arquivar (read-only) |
-| 3 | `comeca-ai/reembolso-inteligente-8a2287f3` | TypeScript | Protótipo Lovable (público) — webhook de reembolso, onboarding por convite | Absorver ideias → referência read-only |
+| 3 | `comeca-ai/reembolso-inteligente-8a2287f3` | TypeScript | Protótipo Lovable (público) — webhook de reembolso, onboarding por convite | Absorver ideias → **tornar privado + rotacionar secrets** → referência read-only |
 | 4 | `comeca-ai/fiscal` | JavaScript | **Produto separado** — Passaporte Fiscal + Rede de Créditos ICMS (Cloudflare Workers, Ed25519). NÃO é reembolso corporativo | **Manter separado** (ver `08-fiscal-passaporte.md`) |
 | 5 | `comeca-ai/reembolso-inteligente` | TypeScript | Versão original dos protótipos Lovable (1.799 KB, sem DOCUMENTACAO.md) | Arquivar |
 | 6 | `comeca-ai/reembolso-inteligente-0f414b11` | TypeScript | Clone idêntico do `8a2287f3` (mesmo bun.lock de 237.769 bytes) | Arquivar |
@@ -28,6 +28,8 @@ orquestrador — o orquestrador vive em `tools/orchestrator/` deste repo).
 
 ## Branches do `tax` organizadas por versionamento
 
+`main` já absorveu a Fase 1 de cadastro (`596d0b5` e `6c549d4`); as
+demais branches ainda divergem por feature:
 | Branch | Versão relacionada | Tema | Complexidade de merge |
 | --- | --- | --- | --- |
 | `main` | ≈ v1.13.x (pós v1.13.0) | Linha estável | — |
@@ -57,7 +59,9 @@ Observações:
 2. **Absorver ideias** dos protótipos Lovable (principalmente
    `reembolso-inteligente-2ee7fd7d`) — ver `07-ideias-onboarding-prototipo.md`.
 3. **Arquivar** os 8 repos redundantes/vazios listados acima (sem deletar
-   nada — GitHub *Archive* preserva tudo read-only).
+   nada — GitHub *Archive* preserva tudo read-only). Antes, no
+   `reembolso-inteligente-8a2287f3`, tornar o repo privado e rotacionar
+   secrets.
 4. **`fiscal` permanece separado** — produto distinto (Passaporte Fiscal /
    crédito de ICMS), com possível integração futura documentada em
    `08-fiscal-passaporte.md`.
