@@ -11,6 +11,7 @@ import {
   colaboradores,
   veiculos,
   despesas,
+  notasFiscais,
   whatsappInbox,
   whatsappOutbox,
   whatsappWebhookEvents,
@@ -1013,9 +1014,15 @@ describe("migração 0013 — fila durável do WhatsApp", () => {
   });
 
   it("cria inbox e outbox com as colunas declaradas no schema", () => {
-    expect(colunasDaTabela("whatsapp_inbox").sort()).toEqual(
-      Object.values(getTableColumns(whatsappInbox)).map(c => c.name).sort(),
-    );
+    // As referências de empresa, colaborador e despesa entram na 0014; esta
+    // guarda a fotografia histórica da CREATE TABLE da 0013, não do schema
+    // mais novo.
+    expect(colunasDaTabela("whatsapp_inbox").sort()).toEqual([
+      "chave_idempotencia", "created_at", "id", "mensagem_id", "payload",
+      "processado_em", "processando_em", "provider", "proxima_tentativa_at",
+      "recebido_em", "status", "telefone", "tentativas", "tipo_evento",
+      "ultimo_erro", "updated_at",
+    ].sort());
     expect(colunasDaTabela("whatsapp_outbox").sort()).toEqual(
       Object.values(getTableColumns(whatsappOutbox)).map(c => c.name).sort(),
     );
@@ -1035,5 +1042,46 @@ describe("migração 0013 — fila durável do WhatsApp", () => {
       entries: { idx: number; tag: string }[];
     };
     expect(journal.entries.find(entry => entry.idx === 13)?.tag).toBe(tag);
+  });
+});
+
+describe("migração 0014 — mídia e referência idempotente de comprovante", () => {
+  const arquivos0014 = readdirSync(DIR).filter(f => /^0014_.*\.sql$/.test(f));
+  const sql = semComentarios(
+    readFileSync(path.join(DIR, arquivos0014[0] ?? ""), "utf8")
+  );
+  const statements = sql
+    .split("--> statement-breakpoint")
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  it("é uma migração puramente aditiva e existe uma única vez", () => {
+    expect(arquivos0014).toHaveLength(1);
+    for (const statement of statements) {
+      const semClausulasInofensivas = statement
+        .replace(/ON DELETE no action/g, "")
+        .replace(/ON UPDATE no action/g, "");
+      expect(semClausulasInofensivas).not.toMatch(/\b(DROP|MODIFY|CHANGE|RENAME|TRUNCATE|DELETE|UPDATE)\b/i);
+    }
+  });
+
+  it("guarda metadados de storage e liga o item da inbox à despesa correta", () => {
+    expect(sql).toMatch(/ALTER TABLE `notas_fiscais` ADD `arquivo_storage_provider`/);
+    expect(sql).toMatch(/ALTER TABLE `notas_fiscais` ADD `arquivo_checksum`/);
+    expect(sql).toMatch(/ALTER TABLE `whatsapp_inbox` ADD `despesa_id`/);
+    expect(sql).toMatch(/FOREIGN KEY \(`empresa_id`,`colaborador_id`\) REFERENCES `colaboradores`\(`empresa_id`,`id`\)/);
+    expect(sql).toMatch(/CREATE INDEX `whatsapp_inbox_despesa_idx`/);
+  });
+
+  it("mantém schema, snapshot e journal sincronizados", () => {
+    expect(getTableColumns(notasFiscais).arquivoStorageProvider).toBeDefined();
+    expect(getTableColumns(whatsappInbox).despesaId).toBeDefined();
+    expect(existsSync(path.join(DIR, "meta", "0014_snapshot.json"))).toBe(true);
+    const journal = JSON.parse(readFileSync(path.join(DIR, "meta", "_journal.json"), "utf8")) as {
+      entries: { idx: number; tag: string }[];
+    };
+    expect(journal.entries.find(entry => entry.idx === 14)?.tag).toBe(
+      arquivos0014[0]!.replace(/\.sql$/, ""),
+    );
   });
 });
