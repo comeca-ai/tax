@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react"
 import { trpc } from "@/providers/trpc"
-import type { DadosReceitaCnpj } from "@contracts/types"
+import type { DadosReceitaCnpj } from "@contracts/empresas"
 
 /**
  * Consulta de CNPJ na Receita Federal via ReceitaWS (v1.3.0).

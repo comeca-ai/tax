@@ -8,13 +8,13 @@ import { Link } from "react-router"
 import { toast } from "sonner"
 import { REGIMES_TRIBUTARIOS, UFS_BRASIL } from "@contracts/types"
 import type { CnaeReceita, NivelConfianca, RegimeTributario, Uf } from "@contracts/types"
-import { cnaePorCodigo } from "@/lib/cnaes"
-import type { Cnae } from "@/lib/cnaes"
-import { cnpjValido, mascaraCnpj } from "@/lib/cnpj"
-import { useConsultaCnpj } from "@/lib/useConsultaCnpj"
+import { cnaePorCodigo } from "../lib/cnaes"
+import type { Cnae } from "../lib/cnaes"
+import { cnpjValido, mascaraCnpj } from "../lib/cnpj"
+import { useConsultaCnpj } from "../hooks/useConsultaCnpj"
 import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
-import CnaeCombobox from "@/components/ops/CnaeCombobox"
+import CnaeCombobox from "./CnaeCombobox"
 import {
   Select,
   SelectContent,

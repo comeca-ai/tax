@@ -1,16 +1,17 @@
 import { eq, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createRouter, protectedProcedure, publicQuery } from "../middleware";
-import { getDb } from "../queries/connection";
+import { createRouter, protectedProcedure, publicQuery } from "../../middleware";
+import { getDb } from "../../queries/connection";
 import { cnaesSecundarios, colaboradores, empresas } from "@db/schema";
-import { cnpjConsultaInput, empresaInput } from "@contracts/types";
+import { cnpjConsultaInput, empresaInput } from "@contracts/empresas";
 import {
   cnpjValido,
   consultarCnpjReceitaWs,
   somenteDigitos,
-} from "../modules/fiscal/cnpj/receitaws";
-import { assertEmpresaAcesso, registrarLog } from "./_shared";
+} from "./cnpj/receitaws";
+import { assertEmpresaAcesso, registrarLog } from "../../routers/_shared";
+import { criarEmpresa } from "./service";
 
 /** RF-00: cadastro completo exige CNAE principal, regime tributário e UF. */
 function cadastroCompleto(empresa: typeof empresas.$inferSelect): boolean {
@@ -106,30 +107,7 @@ export const empresasRouter = createRouter({
     .input(empresaInput)
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
-      const result = await db.insert(empresas).values({
-        usuarioId: ctx.usuario.id,
-        razaoSocial: input.razaoSocial,
-        cnpj: input.cnpj,
-        cnaePrincipal: input.cnaePrincipal,
-        regimeTributario: input.regimeTributario,
-        uf: input.uf,
-      });
-      const id = Number(result[0].insertId);
-
-      if (input.cnaesSecundarios.length > 0) {
-        await db.insert(cnaesSecundarios).values(
-          input.cnaesSecundarios.map((cnae) => ({ empresaId: id, cnae })),
-        );
-      }
-
-      await registrarLog(db, {
-        usuarioId: ctx.usuario.id,
-        empresaId: id,
-        acao: "empresa.create",
-        entidade: "empresa",
-        entidadeId: id,
-        detalhes: `CNAE ${input.cnaePrincipal}, regime ${input.regimeTributario}, UF ${input.uf}, LGPD ${input.aceiteLgpd ? "aceito" : "n/a"}, poderes ${input.declaracaoPoderes ? "declarados" : "n/a"}`,
-      });
+      const id = await db.transaction((tx) => criarEmpresa(tx, ctx.usuario.id, input));
 
       return { id, cadastroCompleto: true };
     }),

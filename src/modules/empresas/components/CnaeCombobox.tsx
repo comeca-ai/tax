@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { X } from "lucide-react"
-import { buscarCnaes, cnaePorCodigo } from "@/lib/cnaes"
-import type { Cnae } from "@/lib/cnaes"
+import { buscarCnaes, cnaePorCodigo } from "../lib/cnaes"
+import type { Cnae } from "../lib/cnaes"
 import { cn } from "@/lib/utils"
 
 interface CnaeComboboxProps {
@@ -19,7 +19,7 @@ interface CnaeComboboxProps {
 }
 
 /**
- * Combobox pesquisável de CNAE (tabela CONCLA/IBGE, subset em src/lib/cnaes).
+ * Combobox pesquisável de CNAE (tabela CONCLA/IBGE, subset em src/modules/empresas/lib/cnaes).
  * Navegável por teclado (↑/↓/Enter/Esc). Código mono + descrição.
  */
 export default function CnaeCombobox({ multi, selecionados, onChange, placeholder, extras }: CnaeComboboxProps) {

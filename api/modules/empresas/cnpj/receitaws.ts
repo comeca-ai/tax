@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import type { CnaeReceita, DadosReceitaCnpj } from "@contracts/types";
+import type { CnaeReceita, DadosReceitaCnpj } from "@contracts/empresas";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Consulta de CNPJ na Receita Federal via ReceitaWS (v1.3.0)

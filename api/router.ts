@@ -1,6 +1,6 @@
 import { createRouter, publicQuery } from "./middleware";
 import { authRouter } from "./routers/auth";
-import { empresasRouter } from "./routers/empresas";
+import { empresasRouter } from "./modules/empresas";
 import { despesasRouter } from "./routers/despesas";
 import { revisaoRouter } from "./routers/revisao";
 import { dashboardRouter, relatoriosRouter } from "./routers/dashboard";

@@ -3,7 +3,7 @@ import { registroComEmpresaInput } from "./types";
 
 // O contrato do wizard é plano de propósito: os caminhos dos issues do zod
 // precisam casar com os rótulos que a tela usa em descreverErroEmpresa
-// (src/pages/cadastroErro.ts). Se alguém aninhar a empresa num sub-objeto,
+// (src/modules/empresas/lib/cadastroErro.ts). Se alguém aninhar a empresa num sub-objeto,
 // a mensagem de erro da tela deixa de citar o campo.
 
 const payloadValido = {

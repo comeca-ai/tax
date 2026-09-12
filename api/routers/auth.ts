@@ -3,7 +3,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { createRouter, protectedProcedure, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
-import { cnaesSecundarios, empresas, resetsSenha, usuarios } from "@db/schema";
+import { resetsSenha, usuarios } from "@db/schema";
+import { criarEmpresa } from "../modules/empresas";
 import { loginInput, registroComEmpresaInput, registroInput } from "@contracts/types";
 import { podeGerenciarEquipe, podeRevisarDespesas } from "@contracts/permissoes";
 import { hashSenha, verificarSenha } from "../auth/password";
@@ -124,36 +125,13 @@ export const authRouter = createRouter({
         });
         const id = Number(rUsuario[0].insertId);
 
-        const rEmpresa = await tx.insert(empresas).values({
-          usuarioId: id,
-          razaoSocial: input.razaoSocial,
-          cnpj: input.cnpj,
-          cnaePrincipal: input.cnaePrincipal,
-          regimeTributario: input.regimeTributario,
-          uf: input.uf,
-        });
-        const empresaId = Number(rEmpresa[0].insertId);
-
-        if (input.cnaesSecundarios.length > 0) {
-          await tx.insert(cnaesSecundarios).values(
-            input.cnaesSecundarios.map((cnae) => ({ empresaId, cnae })),
-          );
-        }
-
         await registrarLog(tx, {
           usuarioId: id,
           acao: "usuario.registro",
           entidade: "usuario",
           entidadeId: id,
         });
-        await registrarLog(tx, {
-          usuarioId: id,
-          empresaId,
-          acao: "empresa.create",
-          entidade: "empresa",
-          entidadeId: empresaId,
-          detalhes: `CNAE ${input.cnaePrincipal}, regime ${input.regimeTributario}, UF ${input.uf}, LGPD ${input.aceiteLgpd ? "aceito" : "n/a"}, poderes ${input.declaracaoPoderes ? "declarados" : "n/a"}`,
-        });
+        const empresaId = await criarEmpresa(tx, id, input);
 
         return { id, empresaId };
       });
