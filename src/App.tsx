@@ -21,6 +21,7 @@ import Politica from "@/pages/app/Politica"
 import Revisao from "@/pages/app/Revisao"
 import Relatorios from "@/pages/app/Relatorios"
 import Regras from "@/pages/app/Regras"
+import Ajustes from "@/pages/app/Ajustes"
 
 export default function App() {
   return (
@@ -52,6 +53,7 @@ export default function App() {
             </Route>
             <Route element={<RequireAdmin />}>
               <Route path="regras" element={<Regras />} />
+              <Route path="ajustes" element={<Ajustes />} />
             </Route>
           </Route>
         </Route>

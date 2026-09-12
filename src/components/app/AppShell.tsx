@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, NavLink, Outlet } from "react-router"
 import {
   Building2, Check, ChevronDown, CirclePlus, ClipboardCheck, FileChartColumn,
-  LayoutDashboard, LogOut, Menu, Receipt, Scale, ScrollText, Users, X, Zap,
+  LayoutDashboard, LogOut, Menu, Receipt, Scale, ScrollText, SlidersHorizontal, Users, X, Zap,
   type LucideIcon,
 } from "lucide-react"
 import {
@@ -44,6 +44,7 @@ const NAVEGACAO_SECUNDARIA: NavItem[] = [
   { to: "/app/equipe", label: "Equipe", icon: Users, equipeOnly: true },
   { to: "/app/relatorios", label: "Relatórios", icon: FileChartColumn },
   { to: "/app/regras", label: "Regras & matriz", icon: Scale, adminOnly: true },
+  { to: "/app/ajustes", label: "Ajustes", icon: SlidersHorizontal, adminOnly: true },
 ]
 
 function itemPermitido(item: NavItem, perfil: string | undefined, podeGerenciarEquipe: boolean, podeRevisar: boolean) {
