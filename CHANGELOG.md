@@ -4,6 +4,19 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [Unreleased]
+
+### Alterado
+
+- Renovada a apresentação das telas Visão geral, Fila de revisão, Detalhe de
+  despesa e Política, preservando os contratos, permissões e regras existentes.
+
+### Qualidade
+
+- A `main` integrada passou em lint, checagem de tipos, 435 testes e build de
+  produção. A evidência e o aceite pendente estão em
+  `docs/VALIDACAO-RELEASES.md`.
+
 ## [1.13.2] — 2026-09-12
 
 **Banco local e convite multicanal prontos para produção.**
