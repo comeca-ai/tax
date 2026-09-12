@@ -161,6 +161,8 @@ describe("OpenAiPolicyParser", () => {
       expect(chamadas[0].url).toBe("https://api.openai.com/v1/responses");
       expect(chamadas[0].corpo.model).toBe("modelo-de-teste");
       expect(chamadas[0].corpo.store).toBe(false);
+      const input = chamadas[0].corpo.input as { content?: { file_data?: string }[] }[];
+      expect(input[1].content?.[0].file_data).toMatch(/^data:application\/pdf;base64,/);
       expect(resultado.provedor).toBe("openai:modelo-de-teste");
       expect(resultado.regras.limitesPorCategoria.alimentacao).toBe(50);
       expect(resultado.confiancaExtracao).toBe("alta");

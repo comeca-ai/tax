@@ -134,7 +134,13 @@ function conteudoDoArquivo(input: ArquivoPolitica): Record<string, unknown> {
       detail: "high",
     };
   }
-  return { type: "input_file", filename: input.arquivoNome, file_data: input.base64 };
+  // A Responses API valida `file_data` como data URL. Base64 cru é recusado
+  // para PDFs, embora seja válido dentro do data URL abaixo.
+  return {
+    type: "input_file",
+    filename: input.arquivoNome,
+    file_data: `data:${mime};base64,${input.base64}`,
+  };
 }
 
 function textoDaResposta(resposta: unknown): string {
