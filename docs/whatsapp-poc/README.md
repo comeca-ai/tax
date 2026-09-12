@@ -46,8 +46,8 @@ contrato inicial; ela não altera comportamento de produção.
 |---|---|---|---|---|
 | WP-00 | Mesclado | `feat/whatsapp-poc-foundation` | plano, contrato inicial e decisão de arquitetura | documentação revisada e nenhum segredo no Git |
 | WP-01 | Mesclado | `feat/whatsapp-poc-mensageria` | tabelas aditivas de sessão, inbox/outbox e chave de idempotência | migração testada, rollback e reentrega sem duplicação |
-| WP-02 | Em revisão | `feat/whatsapp-poc-api-servico` | autenticação de serviço e APIs internas versionadas | token inválido bloqueado; empresa isolada; contrato testado |
-| WP-03 | Planejado | `feat/whatsapp-poc-identificacao` | resolver telefone e estado do colaborador | telefone estranho não revela tenant; vínculo suspenso é recusado |
+| WP-02 | Mesclado | `feat/whatsapp-poc-api-servico` | autenticação de serviço e APIs internas versionadas | token inválido bloqueado; empresa isolada; contrato testado |
+| WP-03 | Em revisão | `feat/whatsapp-poc-identificacao` | resolver telefone e estado do colaborador | telefone estranho não revela tenant; vínculo suspenso é recusado |
 | WP-04 | Planejado | `feat/whatsapp-poc-comprovantes` | baixar mídia, validar arquivo e abrir/complementar despesa | mesma mensagem não cria duas despesas; arquivo perigoso é recusado |
 | WP-05 | Planejado | `feat/whatsapp-poc-conversa` | máquina de estados para pendências e respostas | transições e expiração cobertas por testes |
 | WP-06 | Planejado | `feat/whatsapp-poc-decisao` | evento de decisão e mensagem transacional ao colaborador | callback idempotente, assinado e auditável |

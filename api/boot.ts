@@ -8,6 +8,8 @@ import { env } from "./lib/env";
 import { getWhatsappProvider, parseEvolutionPayload } from "./modules/reembolso/whatsapp";
 import { processarMensagemRecebida } from "./modules/reembolso/agente";
 import { processarWebhookDialog360 } from "./modules/reembolso/whatsapp/dialog360";
+import { criarRouterIdentificacaoWhatsapp } from "./modules/reembolso/whatsapp/identificacao";
+import { resolverColaboradoresPorTelefone } from "./modules/reembolso/whatsapp/identificacaoDb";
 import { exigirServicoAutenticado } from "./modules/reembolso/whatsapp/servicoAuth";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
@@ -32,6 +34,7 @@ app.use("/api/v1/*", exigirServicoAutenticado(env.whatsappServiceApiTokens));
 app.get("/api/v1/whatsapp/status", (c) =>
   c.json({ ok: true, service: "whatsapp-poc", channelEnabled: false }),
 );
+app.route("/api/v1", criarRouterIdentificacaoWhatsapp(resolverColaboradoresPorTelefone));
 
 // ── Webhook WhatsApp (fundação — v1.2.0) ────────────────────────────────────
 // Base para o futuro bot: o usuário envia foto do recibo pelo WhatsApp e o

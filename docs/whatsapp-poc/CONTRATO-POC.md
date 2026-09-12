@@ -23,6 +23,17 @@ telefone, colaborador ou empresa existe.
 | Consultar estado da despesa | Preparar a resposta conversacional | somente dados apresentáveis ao próprio colaborador |
 | Publicar decisão | Notificar resultado de decisão já tomada | evento assinado, idempotente e auditável |
 
+### Identificação já publicada para revisão
+
+`GET /api/v1/colaboradores?telefone=%2B5511999999999`
+
+Exige `Authorization: Bearer <token de serviço>`. O telefone deve estar em
+E.164 estrito, é comparado por igualdade exata após remover o `+` e nunca é
+registrado no log da rota. A resposta é `{ "colaboradores": [...] }`; número
+desconhecido recebe `{ "colaboradores": [] }`. Cada item contém somente
+`colaboradorId`, `empresaId`, `empresaNome`, `nome`, `situacao`, `politicaId`
+e `tags`. Não inclui e-mail, documento, CNPJ, senha ou dados de sessão.
+
 ## Modelo de eventos
 
 O webhook é apenas a porta de entrada. Cada evento aceito é gravado na inbox
