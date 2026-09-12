@@ -18,6 +18,7 @@ instruções dispersas na raiz do repositório.
 - [Runbook de deploy](DEPLOY.md)
 - [Configuração de banco e e-mail](CONFIGURACAO-BANCO-E-EMAIL.md)
 - [Validação da release em preparação](VALIDACAO-RELEASES.md)
+- [POC WhatsApp](whatsapp-poc/README.md): escopo, sequência de PRs e contrato inicial.
 
 ## Decisões e histórico
 
