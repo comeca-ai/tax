@@ -1,0 +1,359 @@
+{
+  "generatedAt": "2026-09-12T00:11:00.010Z",
+  "branches": [
+    {
+      "name": "copilot/organizar-reembolsos-estruturados",
+      "source": "local",
+      "current": true
+    },
+    {
+      "name": "copilot/organizar-reembolsos-estruturados",
+      "source": "remote",
+      "current": false
+    }
+  ],
+  "entities": [
+    {
+      "name": "usuarios",
+      "file": "db/schema.ts",
+      "line": 79
+    },
+    {
+      "name": "empresas",
+      "file": "db/schema.ts",
+      "line": 96
+    },
+    {
+      "name": "cnaesSecundarios",
+      "file": "db/schema.ts",
+      "line": 113
+    },
+    {
+      "name": "veiculos",
+      "file": "db/schema.ts",
+      "line": 125
+    },
+    {
+      "name": "notasFiscais",
+      "file": "db/schema.ts",
+      "line": 142
+    },
+    {
+      "name": "despesas",
+      "file": "db/schema.ts",
+      "line": 171
+    },
+    {
+      "name": "regrasElegibilidade",
+      "file": "db/schema.ts",
+      "line": 223
+    },
+    {
+      "name": "creditosApurados",
+      "file": "db/schema.ts",
+      "line": 244
+    },
+    {
+      "name": "evidenciasDocumentais",
+      "file": "db/schema.ts",
+      "line": 262
+    },
+    {
+      "name": "logAuditoria",
+      "file": "db/schema.ts",
+      "line": 279
+    },
+    {
+      "name": "politicasReembolso",
+      "file": "db/schema.ts",
+      "line": 302
+    },
+    {
+      "name": "convites",
+      "file": "db/schema.ts",
+      "line": 334
+    },
+    {
+      "name": "resetsSenha",
+      "file": "db/schema.ts",
+      "line": 358
+    },
+    {
+      "name": "colaboradores",
+      "file": "db/schema.ts",
+      "line": 405
+    },
+    {
+      "name": "sessoesConversa",
+      "file": "db/schema.ts",
+      "line": 445
+    },
+    {
+      "name": "declaracoesPerfil",
+      "file": "db/schema.ts",
+      "line": 469
+    },
+    {
+      "name": "empresasConfig",
+      "file": "db/schema.ts",
+      "line": 498
+    },
+    {
+      "name": "veiculosColaborador",
+      "file": "db/schema.ts",
+      "line": 548
+    },
+    {
+      "name": "delegacoesDecisao",
+      "file": "db/schema.ts",
+      "line": 585
+    }
+  ],
+  "features": [
+    {
+      "name": "auth",
+      "file": "api/routers/auth.ts",
+      "procedures": 8
+    },
+    {
+      "name": "empresas",
+      "file": "api/routers/empresas.ts",
+      "procedures": 5
+    },
+    {
+      "name": "despesas",
+      "file": "api/routers/despesas.ts",
+      "procedures": 6
+    },
+    {
+      "name": "revisao",
+      "file": "api/routers/revisao.ts",
+      "procedures": 2
+    },
+    {
+      "name": "regras",
+      "file": "api/routers/regras.ts",
+      "procedures": 3
+    },
+    {
+      "name": "politica",
+      "file": "api/routers/politica.ts",
+      "procedures": 9
+    },
+    {
+      "name": "convites",
+      "file": "api/routers/convites.ts",
+      "procedures": 6
+    },
+    {
+      "name": "colaboradores",
+      "file": "api/routers/colaboradores.ts",
+      "procedures": 4
+    }
+  ],
+  "integrations": [
+    {
+      "domain": "email",
+      "term": "convite",
+      "file": "api/lib/conviteAcesso.ts",
+      "occurrences": 15
+    },
+    {
+      "domain": "email",
+      "term": "convite",
+      "file": "db/schema.ts",
+      "occurrences": 4
+    },
+    {
+      "domain": "llm",
+      "term": "openai",
+      "file": "api/modules/fiscal/ocr/visao.ts",
+      "occurrences": 13
+    },
+    {
+      "domain": "ocr",
+      "term": "ocr",
+      "file": "api/modules/fiscal/ocr/visao.ts",
+      "occurrences": 20
+    },
+    {
+      "domain": "ocr",
+      "term": "danfe",
+      "file": "api/modules/fiscal/ocr/visao.ts",
+      "occurrences": 3
+    },
+    {
+      "domain": "ocr",
+      "term": "visao",
+      "file": "api/modules/fiscal/ocr/visao.ts",
+      "occurrences": 3
+    },
+    {
+      "domain": "ocr",
+      "term": "ocr",
+      "file": "db/schema.ts",
+      "occurrences": 3
+    },
+    {
+      "domain": "ocr",
+      "term": "visao",
+      "file": "db/schema.ts",
+      "occurrences": 6
+    },
+    {
+      "domain": "receita",
+      "term": "cnpj",
+      "file": "api/modules/fiscal/ocr/visao.ts",
+      "occurrences": 19
+    },
+    {
+      "domain": "receita",
+      "term": "cnpj",
+      "file": "db/schema.ts",
+      "occurrences": 9
+    },
+    {
+      "domain": "receita",
+      "term": "cnpj",
+      "file": "src/lib/cnpj.ts",
+      "occurrences": 4
+    },
+    {
+      "domain": "whatsapp",
+      "term": "whatsapp",
+      "file": "api/lib/conviteAcesso.ts",
+      "occurrences": 1
+    },
+    {
+      "domain": "whatsapp",
+      "term": "whatsapp",
+      "file": "api/modules/reembolso/whatsapp/evolution.ts",
+      "occurrences": 5
+    },
+    {
+      "domain": "whatsapp",
+      "term": "evolution",
+      "file": "api/modules/reembolso/whatsapp/evolution.ts",
+      "occurrences": 10
+    },
+    {
+      "domain": "whatsapp",
+      "term": "whatsapp",
+      "file": "db/schema.ts",
+      "occurrences": 2
+    },
+    {
+      "domain": "whatsapp",
+      "term": "whatsapp",
+      "file": "src/lib/whatsapp.ts",
+      "occurrences": 2
+    }
+  ],
+  "screens": [
+    {
+      "path": "(index)",
+      "component": "Home",
+      "protected": false
+    },
+    {
+      "path": "/tese",
+      "component": "Tese",
+      "protected": false
+    },
+    {
+      "path": "/login",
+      "component": "Login",
+      "protected": false
+    },
+    {
+      "path": "/cadastro",
+      "component": "Cadastro",
+      "protected": false
+    },
+    {
+      "path": "/convite/:token",
+      "component": "Convite",
+      "protected": false
+    },
+    {
+      "path": "/redefinir-senha/:token",
+      "component": "RedefinirSenha",
+      "protected": false
+    },
+    {
+      "path": "/app",
+      "component": "AppShell",
+      "protected": true
+    },
+    {
+      "path": "(index)",
+      "component": "Navigate",
+      "protected": true
+    },
+    {
+      "path": "dashboard",
+      "component": "Dashboard",
+      "protected": true
+    },
+    {
+      "path": "despesas",
+      "component": "Despesas",
+      "protected": true
+    },
+    {
+      "path": "despesas/nova",
+      "component": "NovaDespesa",
+      "protected": true
+    },
+    {
+      "path": "rapido",
+      "component": "EnvioRapido",
+      "protected": true
+    },
+    {
+      "path": "politica",
+      "component": "Politica",
+      "protected": true
+    },
+    {
+      "path": "revisao",
+      "component": "Revisao",
+      "protected": true
+    },
+    {
+      "path": "empresas",
+      "component": "Empresas",
+      "protected": true
+    },
+    {
+      "path": "relatorios",
+      "component": "Relatorios",
+      "protected": true
+    },
+    {
+      "path": "equipe",
+      "component": "Equipe",
+      "protected": true
+    },
+    {
+      "path": "regras",
+      "component": "Regras",
+      "protected": true
+    },
+    {
+      "path": "*",
+      "component": "Navigate",
+      "protected": true
+    }
+  ],
+  "history": [
+    {
+      "hash": "2b75be2",
+      "subject": "docs: D-015 (exclusão = anonimização) + briefs da fila (FK audit, resgate OCR) + index de runs versionado"
+    },
+    {
+      "hash": "e051aa5",
+      "subject": "merge: norma-0009 — FK composta delegação×despesa (fecha furo multi-tenant da 0008)"
+    }
+  ]
+}

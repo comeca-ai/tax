@@ -1,0 +1,28 @@
+name: Proposta de funcionalidade
+description: Sugira uma melhoria com problema, resultado e critérios claros.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Problema a resolver
+    validations:
+      required: true
+  - type: textarea
+    id: resultado
+    attributes:
+      label: Resultado esperado
+    validations:
+      required: true
+  - type: textarea
+    id: criterios
+    attributes:
+      label: Critérios de aceite
+      placeholder: "- [ ] ..."
+    validations:
+      required: true
+  - type: textarea
+    id: riscos
+    attributes:
+      label: Impactos em dados, regras fiscais, LGPD ou integrações

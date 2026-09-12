@@ -1,0 +1,84 @@
+# reembolsa.ia — Tax Engine | Stack completa self-hosted
+# Uso: docker compose up -d --build
+# App: http://localhost:3000 (ou http://SEU_IP:3000)
+#
+# NOTA: o serviço se chama `tax-app` (não `app`) de propósito — em servidores
+# com proxy reverso (Caddy/Traefik) e rede compartilhada entre projetos, um
+# serviço chamado `app` colide com o `app` de OUTRO projeto e o alias de rede
+# passa a resolver para os dois containers em round-robin (site errado no ar).
+# Se ligar este stack a uma rede externa de proxy, use o alias `tax-app`.
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_troque_isto}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-taxengine}
+      MYSQL_USER: ${MYSQL_USER:-tax}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-tax_troque_isto}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - tax-net
+
+  tax-app:
+    build: .
+    restart: unless-stopped
+    ports:
+      # Bind em localhost por padrão: em produção quem recebe o tráfego é o
+      # nginx (HTTPS). Porta aberta em 0.0.0.0 derrubou o cadastro em 24–28/08
+      # (sessão morria em HTTP puro — v1.9.2). Stacks acessadas direto pelo
+      # IP (teste/homologação) precisam definir APP_BIND=0.0.0.0 no .env delas.
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3000}:3000"
+    environment:
+      APP_ID: ${APP_ID:-selfhosted}
+      APP_SECRET: ${APP_SECRET:?defina APP_SECRET no .env (string longa e aleatória)}
+      DATABASE_URL: mysql://${MYSQL_USER:-tax}:${MYSQL_PASSWORD:-tax_troque_isto}@db:3306/${MYSQL_DATABASE:-taxengine}
+      # URL pública do app — usada no link de aceite do convite (v1.2.0).
+      # Ex.: https://tax.suaempresa.com.br (sem barra final). Default: localhost:3000
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      # Convites por e-mail (opcional — sem SMTP_HOST o app mostra o link para copiar)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      # Webhook WhatsApp (opcional — fundação do bot, v1.2.0)
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      # Webhook 360dialog (opcional — v1.13.0). Sem DIALOG_360_WEBHOOK_SECRET,
+      # /api/webhooks/360dialog fica fail-closed (403 sempre). O valor deve ser
+      # o header Authorization COMPLETO e literal configurado na conta 360dialog
+      # (ex.: "Bearer abc123xyz", com o prefixo — não só o token).
+      DIALOG_360_WEBHOOK_SECRET: ${DIALOG_360_WEBHOOK_SECRET:-}
+      DIALOG_360_API_KEY: ${DIALOG_360_API_KEY:-}
+      # Consulta CNPJ na Receita via ReceitaWS (opcional — v1.3.0)
+      RECEITAWS_TOKEN: ${RECEITAWS_TOKEN:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-medium-latest}
+      MISTRAL_OCR_MODEL: ${MISTRAL_OCR_MODEL:-mistral-ocr-latest}
+      POLICY_PROVIDER: ${POLICY_PROVIDER:-heuristico}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OCR_GEMINI_MODEL: ${OCR_GEMINI_MODEL:-gemini-2.5-flash}
+      # OCR de visão para notas fiscais (v1.8): OCR_PROVIDER=visao usa
+      # Mistral OCR com fallback OpenAI; default heuristico (XML/texto, gratuito).
+      # A 1ª tentativa reaproveita MISTRAL_API_KEY/MISTRAL_OCR_MODEL já declarados acima.
+      OCR_PROVIDER: ${OCR_PROVIDER:-heuristico}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OCR_OPENAI_MODEL: ${OCR_OPENAI_MODEL:-gpt-4o-mini}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - tax-net
+
+networks:
+  tax-net:
+    name: tax-net
+
+volumes:
+  db_data:

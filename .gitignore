@@ -1,0 +1,37 @@
+node_modules
+dist
+.DS_Store
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.bak*
+.env.backup*
+# Database
+*.db
+*.sqlite
+*.sqlite3
+# TypeScript cache
+*.tsbuildinfo
+# Build outputs
+dist/
+build/
+# Test coverage
+coverage/
+.nyc_output/
+# Logs
+*.log
+
+# Infra local de cada máquina — NÃO vai para o repo (público):
+# override do compose é por servidor (portas, redes, variáveis locais);
+# proxy/ e afins guardam topologia de infra (Caddy, rotas, IPs).
+# Runbook de deploy: docs/DEPLOY.md
+docker-compose.override.yml
+proxy/
+uploads/
+
+# Time Claude Code (contém caminhos/domínio do servidor — repo público)
+.claude/
+pipeline/runs/*
+!pipeline/runs/index.jsonl
+pipeline/locks/

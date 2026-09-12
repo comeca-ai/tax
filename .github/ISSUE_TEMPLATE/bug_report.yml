@@ -1,0 +1,35 @@
+name: Relato de falha
+description: Registre um comportamento que diverge do esperado.
+title: "fix: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto e comportamento observado
+      description: Não inclua senhas, tokens, dados fiscais reais ou dados pessoais.
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Comportamento esperado
+    validations:
+      required: true
+  - type: textarea
+    id: reproducao
+    attributes:
+      label: Como reproduzir
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: impacto
+    attributes:
+      label: Impacto
+      options:
+        - Bloqueia operação
+        - Afeta operação, com alternativa
+        - Sem bloqueio
+    validations:
+      required: true

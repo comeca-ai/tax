@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "3.2.0",
+  "objetivo": "Resgatar trabalho perdido da worktree wf_fff958d1 (auditado em 28/08): no OCR de visão, extrair o CNPJ do tomador/cliente separado do emitente — com proteção explícita contra o modelo ecoar o CNPJ do cliente para cnpjEmitente — e detectar documento que promete NF futura, avisando o usuário para anexar a NF quando chegar.",
+  "dentro": [
+    "prompt do OCR de visão: campo cnpjTomador com regra literal 'NUNCA coloque este CNPJ em cnpjEmitente'",
+    "normalização: 14 dígitos, descartar eco do emitente (igual ao cnpj extraído → null)",
+    "prompt: campo notaFiscalFutura (true se o documento diz que a NF será emitida/enviada depois)",
+    "campo cnpjTomador em OcrExtracao (contracts/types.ts)",
+    "colunas avisos (json) e cnpj_tomador em notas_fiscais — migração NOVA regerada sobre o trunk (a 0007 da worktree conflita com a 0007 já commitada; não reaproveitar o arquivo)",
+    "persistência no insert de api/routers/despesas.ts",
+    "avisos entram como `ressalvas` do decisor v1.8 (NÃO recriar o mecanismo antigo de anexar aos motivos — avisos só explicam, nunca decidem)",
+    "testes: eco do emitente descartado, 13/15 dígitos → null, cnpjTomador nunca preenche cnpjEmitente, texto exato dos avisos PT-BR"
+  ],
+  "fora": [
+    "tipoDocumento/classificação de documento — já existe no trunk (v1.8), não reimplementar",
+    "mecanismo de `avisos` anexados aos motivos de revisão — substituído por `ressalvas`",
+    "qualquer mudança no comportamento de decisão do motor (avisos nunca decidem)"
+  ],
+  "riscos": [
+    "prompt do OCR mudou muito desde a worktree (v1.8) — resgatar a SEMÂNTICA, não o diff",
+    "coluna nova em notas_fiscais exige migração com ordem/journal consistentes (lições da 0008/0009)",
+    "se o aviso virar critério de decisão por acidente, viola D-013 — teste deve provar que a decisão não muda"
+  ],
+  "pronto": [
+    "0009 mergeada na main",
+    "numeração da migração definida no momento da geração (após 0010 ou conforme fila)"
+  ],
+  "decisoes": [
+    "diff original arquivado em pipeline/runs/wf_fff958d1-resgate.patch (+ untracked em pipeline/runs/wf_fff958d1-untracked/) — referência, não fonte",
+    "avisos vivem em `ressalvas`, não em motivos de decisão"
+  ],
+  "complexidade": "M",
+  "criterioDeAceite": [
+    "documento com CNPJ do tomador rotulado não contamina cnpjEmitente — teste automatizado",
+    "documento 'NF será enviada por e-mail' gera ressalva visível ao usuário — teste automatizado",
+    "decisão do motor idêntica com e sem os novos campos — teste automatizado",
+    "migração aplica e reverte em banco de teste",
+    "vitest e tsc passam na worktree"
+  ]
+}
