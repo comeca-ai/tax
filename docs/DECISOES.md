@@ -5,6 +5,27 @@
 
 ---
 
+## D-021 · POC WhatsApp começa pelo comprovante e decisão, não pelo ERP conversacional completo — 12/09/2026
+
+**Contexto:** a proposta de integração pela 360dialog reúne canal, filas,
+identificação, comprovantes, check-in, consulta e retorno de decisão. A maior
+parte é desejável, mas implementar tudo antes de testar o fluxo principal
+aumenta prazo, risco de dados pessoais e custo sem validar a hipótese central.
+
+**Decisão (do usuário):** a primeira POC será construída internamente, em
+branches curtas e PRs separados, com o caminho colaborador identificado →
+comprovante → despesa → pendências → decisão. Ela terá idempotência persistente,
+isolamento por empresa, testes e homologação. Consulta, múltiplos vínculos e
+check-in ficam para fases posteriores.
+
+**Consequência:** o plano e contrato estão em `docs/whatsapp-poc/`. O canal não
+será ligado em produção apenas porque uma etapa técnica foi mesclada; a liberação
+depende de aceite ponta a ponta e da política de release. **Invalidaria:** uma
+exigência de piloto que comprove que consulta, localização ou múltiplas empresas
+é pré-requisito para validar o uso de comprovantes.
+
+---
+
 ## D-020 · WhatsApp é o canal principal, mas produção espera homologação — 29/08/2026
 
 **Contexto:** o posicionamento do produto foi reafirmado como fintech de
