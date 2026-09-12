@@ -29,6 +29,7 @@ export default defineConfig({
       "contracts/**/*.test.ts",
       "src/**/*.test.ts",
       "src/**/*.test.tsx",
+      "tools/**/*.test.ts",
     ],
   },
 });
