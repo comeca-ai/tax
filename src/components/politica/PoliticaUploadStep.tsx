@@ -12,17 +12,20 @@ const TAMANHO_MAX = 10 * 1024 * 1024 // 10 MB
 export interface PoliticaUploadItem {
   nome: string
   tamanho: number
-  status: "enviando" | "extraindo" | "concluido" | "falha"
+  status: "pronto" | "enviando" | "extraindo" | "concluido" | "falha"
   erro?: string
 }
 
 interface PoliticaUploadStepProps {
   item: PoliticaUploadItem | null
   onArquivo: (arquivo: File) => void
+  onAnalisar: () => void
+  onRemover: () => void
   processando: boolean
 }
 
 const STATUS_LABEL: Record<PoliticaUploadItem["status"], string> = {
+  pronto: "Pronto para analisar",
   enviando: "Enviando…",
   extraindo: "Extraindo regras…",
   concluido: "Concluído",
@@ -30,7 +33,7 @@ const STATUS_LABEL: Record<PoliticaUploadItem["status"], string> = {
 }
 
 /** Passo 1 do wizard de política: upload do documento (PDF/imagem/TXT/MD). */
-export default function PoliticaUploadStep({ item, onArquivo, processando }: PoliticaUploadStepProps) {
+export default function PoliticaUploadStep({ item, onArquivo, onAnalisar, onRemover, processando }: PoliticaUploadStepProps) {
   const onDrop = useCallback(
     (aceitos: File[], rejeitados: FileRejection[]) => {
       if (rejeitados.length > 0) {
@@ -70,24 +73,19 @@ export default function PoliticaUploadStep({ item, onArquivo, processando }: Pol
         })}
       >
         <input {...getInputProps()} />
-        <motion.img
-          src="/ocr-scan.svg"
-          alt=""
-          animate={{
-            scale: isDragActive ? 1.04 : 1,
-            y: isDragActive ? 0 : [0, -6, 0],
-          }}
-          transition={
-            isDragActive
-              ? { duration: 0.2 }
-              : { duration: 4, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }
-          }
-          className="h-[160px] w-auto"
-        />
-        <h3 className="font-display text-lg font-medium tracking-[-0.01em] text-text-900">
-          {isDragActive ? "Solte para enviar" : "Arraste o documento da política aqui"}
-        </h3>
-        {!isDragActive && (
+        {!item && <>
+          <motion.img
+            src="/ocr-scan.svg"
+            alt=""
+            animate={{ scale: isDragActive ? 1.04 : 1, y: isDragActive ? 0 : [0, -6, 0] }}
+            transition={isDragActive ? { duration: 0.2 } : { duration: 4, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+            className="h-[160px] w-auto"
+          />
+          <h3 className="font-display text-lg font-medium tracking-[-0.01em] text-text-900">
+            {isDragActive ? "Solte para selecionar" : "Arraste o documento da política aqui"}
+          </h3>
+        </>}
+        {!isDragActive && !item && (
           <>
             <span className="text-[13px] text-text-500">ou</span>
             <button
@@ -111,10 +109,17 @@ export default function PoliticaUploadStep({ item, onArquivo, processando }: Pol
             </span>
           </>
         )}
+        {item && (
+          <div className="flex max-w-lg flex-col items-center gap-3 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#E6F2F0] text-[#0B7A75]"><FileText className="h-5 w-5" /></span>
+            <div><p className="text-[14px] font-semibold text-text-900">{item.nome}</p><p className="mt-1 font-mono text-[11px] text-text-500">{formatTamanho(item.tamanho)} · {STATUS_LABEL[item.status]}</p></div>
+            {!processando && item.status !== "concluido" && <div className="flex flex-wrap justify-center gap-2"><button type="button" onClick={onRemover} className="inline-flex h-10 items-center rounded-lg border border-line bg-surface px-4 text-[13px] font-semibold text-text-500 transition hover:bg-paper">Remover</button><button type="button" onClick={onAnalisar} className="inline-flex h-10 items-center gap-2 rounded-lg bg-brand-500 px-4 text-[13px] font-semibold text-white transition hover:bg-brand-500/90"><ScanLine className="h-4 w-4" />{item.status === "falha" ? "Tentar novamente" : "Analisar política"}</button></div>}
+          </div>
+        )}
       </div>
 
       {/* Status do upload */}
-      {item && (
+      {item && item.status !== "pronto" && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
