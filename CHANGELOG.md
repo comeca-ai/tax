@@ -4,6 +4,28 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [1.13.2] — 2026-09-12
+
+**Banco local e convite multicanal prontos para produção.**
+
+### Corrigido
+
+- Migrations e snapshots compatíveis com MariaDB: IDs usam `BIGINT UNSIGNED
+  AUTO_INCREMENT`, evitando a sintaxe inválida `serial AUTO_INCREMENT`.
+
+### Adicionado
+
+- Convite de colaborador por WhatsApp: link manual `wa.me` como fallback e
+  mensagem automática pelo template 360dialog `boas_vindas_reembolsa` após a
+  confirmação explícita do gestor.
+- Documentação para o MariaDB local e Cloudflare Email Sending, sem segredos
+  versionados.
+
+### Alterado
+
+- Cadastro de colaborador identifica o campo de telefone como WhatsApp e
+  deixa claro os canais de convite disponíveis.
+
 ## [1.13.1] — 2026-09-12
 
 **Primeira release governada no repositório oficial.** Consolida a importação
