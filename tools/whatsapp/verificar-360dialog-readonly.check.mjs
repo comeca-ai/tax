@@ -25,7 +25,7 @@ test('faz somente dois GETs fixos e sanitiza o resultado', async () => {
   assert(calls.every(x => x.key === apiKey));
   assert.deepEqual(result, { apiKeyAccepted: true, healthStatusClass: '2xx',
     webhookReadStatusClass: '2xx', webhookConfigured: true, webhookTarget: 'homologacao',
-    authorizationHeaderConfigured: true, authorizationMatchesSecret: true,
+    authorizationHeaderConfigured: true, webhookSecretConfigured: true, authorizationMatchesSecret: true,
     requests: ['GET /health_status', 'GET /v1/configs/webhook'],
     providerMutation: false, messageSent: false });
   assert(!JSON.stringify(result).includes(apiKey));
@@ -33,6 +33,8 @@ test('faz somente dois GETs fixos e sanitiza o resultado', async () => {
 });
 
 for (const [name, url, expected] of [
+  ['canal informado pelo usuário', 'https://oreembolsobot.app/api/webhooks/360dialog', 'canal_informado'],
+  ['caminho diferente no domínio do canal', 'https://oreembolsobot.app/outro', 'outro'],
   ['produção', 'https://oreembolsabot.app/api/webhooks/360dialog', 'producao'],
   ['outro', 'https://example.invalid/webhook', 'outro'],
   ['inválido', 'not a url', 'invalido'],
@@ -60,4 +62,37 @@ test('não confunde Authorization diferente com o secret', async () => {
       headers: { authorization: 'Basic different-secret' } }) });
   assert.equal(result.authorizationHeaderConfigured, true);
   assert.equal(result.authorizationMatchesSecret, false);
+});
+
+for (const secret of [undefined, '', '   ']) {
+  test(`consulta com API key sem segredo de referência (${JSON.stringify(secret)})`, async () => {
+    const calls = [];
+    const result = await verifyReadonly({ apiKey, webhookSecret: secret, fetchFn: async (url, options) => {
+      calls.push([url, options.method, options.headers]);
+      return response(200, { url: 'https://oreembolsobot.app/api/webhooks/360dialog',
+        headers: { Authorization: 'synthetic-provider-header' } });
+    } });
+    assert.equal(calls.length, 2);
+    assert(calls.every(([, method, headers]) => method === 'GET' && headers['D360-API-KEY'] === apiKey));
+    assert.equal(result.apiKeyAccepted, true);
+    assert.equal(result.webhookSecretConfigured, false);
+    assert.equal(result.authorizationHeaderConfigured, true);
+    assert.equal(result.authorizationMatchesSecret, null);
+    assert.equal(result.webhookTarget, 'canal_informado');
+    assert(!JSON.stringify(result).includes('synthetic-provider-header'));
+    assert(!JSON.stringify(result).includes(apiKey));
+  });
+}
+
+test('ausência de headers é aceita pela API sem afirmar autenticação do receptor', async () => {
+  const result = await verifyReadonly({ apiKey, fetchFn: async () => response(200, {}) });
+  assert.equal(result.apiKeyAccepted, true);
+  assert.equal(result.authorizationHeaderConfigured, false);
+  assert.equal(result.authorizationMatchesSecret, null);
+});
+
+test('API key ausente continua bloqueando a consulta antes da rede', async () => {
+  await assert.rejects(verifyReadonly({ fetchFn: async () => {
+    assert.fail('não deve fazer chamada sem API key');
+  } }), /API key ausente/);
 });

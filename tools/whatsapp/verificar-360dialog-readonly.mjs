@@ -6,6 +6,7 @@ const BRANCH_REF = 'refs/heads/main';
 const HEALTH = 'https://waba-v2.360dialog.io/health_status';
 const WEBHOOK = 'https://waba-v2.360dialog.io/v1/configs/webhook';
 const HOMOLOG_WEBHOOK = 'https://homolog.oreembolsabot.app/api/webhooks/360dialog';
+const CHANNEL_WEBHOOK = 'https://oreembolsobot.app/api/webhooks/360dialog';
 
 function assertSafe(condition, message) {
   if (!condition) throw new Error(message);
@@ -15,6 +16,7 @@ function classifyWebhook(raw) {
   if (typeof raw !== 'string' || !raw.trim()) return 'ausente';
   try {
     const url = new URL(raw);
+    if (url.href === CHANNEL_WEBHOOK) return 'canal_informado';
     if (url.href === HOMOLOG_WEBHOOK) return 'homologacao';
     if (url.hostname === 'oreembolsabot.app' || url.hostname === 'www.oreembolsabot.app') return 'producao';
     return 'outro';
@@ -32,7 +34,9 @@ async function fixedGet(fetchFn, url, apiKey) {
 
 export async function verifyReadonly({ apiKey, webhookSecret, fetchFn = fetch }) {
   assertSafe(typeof apiKey === 'string' && apiKey.trim(), 'API key ausente');
-  assertSafe(typeof webhookSecret === 'string' && webhookSecret.trim(), 'Webhook secret ausente');
+  // A 360dialog exige a API key para estes GETs. O segredo do receptor é
+  // uma configuração da aplicação, opcional apenas nesta comparação.
+  const webhookSecretConfigured = typeof webhookSecret === 'string' && Boolean(webhookSecret.trim());
   const health = await fixedGet(fetchFn, HEALTH, apiKey);
   const webhook = await fixedGet(fetchFn, WEBHOOK, apiKey);
   let configuration = null;
@@ -55,7 +59,9 @@ export async function verifyReadonly({ apiKey, webhookSecret, fetchFn = fetch })
     webhookConfigured: typeof url === 'string' && Boolean(url.trim()),
     webhookTarget: classifyWebhook(url),
     authorizationHeaderConfigured: typeof authorization === 'string' && Boolean(authorization),
-    authorizationMatchesSecret: typeof authorization === 'string' && authorization === webhookSecret,
+    webhookSecretConfigured,
+    authorizationMatchesSecret: webhookSecretConfigured
+      ? typeof authorization === 'string' && authorization === webhookSecret : null,
     requests: ['GET /health_status', 'GET /v1/configs/webhook'],
     providerMutation: false,
     messageSent: false,
@@ -77,7 +83,9 @@ async function cli() {
     `API key aceita: ${result.apiKeyAccepted ? 'sim' : 'não'}\n\n`
     + `Webhook configurado: ${result.webhookConfigured ? 'sim' : 'não'}\n\n`
     + `Destino classificado: ${result.webhookTarget}\n\n`
-    + `Authorization coincide com o secret: ${result.authorizationMatchesSecret ? 'sim' : 'não'}\n\n`
+    + `Authorization coincide com o secret: ${result.authorizationMatchesSecret === null
+      ? 'não verificado (segredo de referência ausente)' : result.authorizationMatchesSecret ? 'sim' : 'não'}\n\n`
+    + 'Esta consulta não valida o recebimento, a autenticação ou a persistência no servidor do webhook.\n\n'
     + 'Somente dois GETs; nenhuma mensagem ou mutação no provedor. Valores e respostas não são exibidos.\n');
 }
 

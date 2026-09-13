@@ -6,6 +6,20 @@ versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
 ## [Unreleased]
 
+### Correção do diagnóstico 360dialog
+
+- Documentado o cadastro atual verificado no GitHub: `API_KEY` e
+  `URL_API_MENSAGENS`. Workflows aceitam `API_KEY` como alternativa ao nome
+  legado `DIALOG_360_API_KEY`. O segredo de webhook é uma configuração própria do
+  receptor, não uma segunda credencial emitida pela 360dialog.
+- Consultas somente leitura exigem apenas a API key; sem segredo de referência,
+  a comparação de `Authorization` fica não verificada (`null`). O receptor
+  mantém sua autenticação e continua recusando eventos sem segredo válido.
+- Registradas as URLs distintas de canal e WABA. O diagnóstico reconhece a URL
+  exata do canal informado (`oreembolsobot.app`) sem classificá-la como ambiente.
+- Acrescentada prestação de contas com fontes, limites da medição de tempo e
+  correções do inventário de credenciais. Nenhum deploy ou mudança no provedor.
+
 ### Segurança e CI
 
 - Workflows que acessam credenciais da 360dialog agora são exclusivamente
@@ -29,7 +43,7 @@ versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
 ### Adicionado
 
-- Fluxo manual, restrito à homologação, para aplicar os dois secrets 360dialog
+- Fluxo manual, restrito à homologação, para aplicar a API key e o segredo do receptor
   via SSH com comando fixo, backup, teste de autenticação local e tentativa de
   reversão. Preparado para revisão; bootstrap e execução continuam pendentes.
   Não altera produção, código implantado, banco ou webhook no provedor.

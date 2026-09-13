@@ -3,14 +3,22 @@
 ## Estado em 13/09/2026
 
 **Preparado para revisão, ainda não instalado nem executado no servidor.**
-Os dois secrets 360dialog já têm presença confirmada no Actions, mas isso não
-comprova validade no provedor nem aplicação ao processo de homologação.
+O usuário confirmou somente a chave e a URL da API no GitHub. A consulta
+atual aos nomes dos secrets do repositório encontrou `API_KEY` e
+`URL_API_MENSAGENS`. Esses campos correspondem à chave gerada e ao endereço da API de
+mensagens. `DIALOG_360_WEBHOOK_SECRET` é uma configuração própria do receptor
+do projeto, não uma segunda credencial fornecida pela 360dialog. Sua presença
+atual não está confirmada. Ver [inventário e uso dos campos](SECRETS-ACTIONS.md).
+Os workflows aceitam `API_KEY` como alternativa ao nome legado
+`DIALOG_360_API_KEY` e a repassam à variável interna `DIALOG_360_API_KEY`.
 
 O environment GitHub `homologacao` foi criado e limitado à branch `main` em
-13/09/2026. Ele ainda não possui secrets nem variables. As duas credenciais
-continuam no nível do repositório e precisam ser recadastradas no environment;
-até isso ocorrer, os workflows permanecem fechados por execução manual e a
-ausência de `WHATSAPP_HOMOLOG_ENABLED=true`. O plano atual do GitHub não oferece
+13/09/2026. Na inspeção daquela preparação, não possuía secrets nem variables.
+O cadastro atual informado pelo usuário é no GitHub; a aplicação ao servidor
+não foi comprovada. O workflow de instalação exige execução manual,
+`WHATSAPP_HOMOLOG_ENABLED=true` e as credenciais próprias do receptor.
+Os workflows de diagnóstico são manuais, mas não exigem essa variável de
+habilitação de instalação. O plano atual do GitHub não oferece
 aprovação por revisor para este environment privado, e há somente um colaborador;
 essa limitação deve permanecer registrada ou ser substituída por plano/controle
 que permita aprovação independente.
@@ -28,6 +36,43 @@ deve separar a identidade/permissões da homologação ou registrar uma exceçã
 aprovada com risco, responsável e prazo; não considerar apenas portas
 diferentes como isolamento. Banco, armazenamento e canal também precisam
 ser conferidos. Esta preparação não alterou esses acessos.
+
+## URLs informadas pelo usuário — 13/09/2026
+
+Registro solicitado explicitamente pelo usuário, com base na configuração
+informada e na captura do painel 360dialog:
+
+| Configuração | URL informada |
+|---|---|
+| Webhook da WABA | `https://springs-cheapest-respond-elevation.trycloudflare.com/api/webhooks/360dialog` |
+| Webhook do canal | `https://oreembolsobot.app/api/webhooks/360dialog` |
+
+Estas URLs representam a configuração informada; este registro não comprova
+disponibilidade, recebimento de eventos ou correspondência do `Authorization`.
+O usuário informou que o campo do header não aparece no editor do painel.
+Nenhum valor de API key ou segredo de webhook é registrado aqui.
+
+O verificador passa a classificar a URL exata do canal informado como
+`canal_informado`. As classificações anteriores para `oreembolsabot.app` e
+`homolog.oreembolsabot.app` permanecem como referências legadas e não provam
+qual ambiente atende esses domínios. O destino efetivamente servido pela
+aplicação ainda precisa ser validado. O diagnóstico consulta somente o webhook
+do canal (`GET /v1/configs/webhook`); a URL da WABA acima é informação do
+usuário, não resultado dessa consulta.
+
+## Autenticação: requisito do provedor e requisito do projeto
+
+A [referência oficial 360dialog](https://docs.360dialog.com/docs/messaging-api/api-reference/webhooks.md)
+define `D360-API-KEY` para autenticar chamadas à API e permite o objeto `headers`
+na configuração de webhook. Ela não fornece uma variável chamada
+`DIALOG_360_WEBHOOK_SECRET`. Essa variável foi adotada pelo código deste projeto:
+o receptor `/api/webhooks/360dialog` responde 403 quando ela está ausente ou
+quando o header recebido não coincide com seu valor.
+
+A consulta à API funciona sem esse segredo próprio; nesse caso, a comparação
+do header fica **não verificada**. Essa correção do diagnóstico não altera a
+proteção do receptor, não configura o provedor e não demonstra recebimento real.
+Configurar a autenticação do receptor continua sendo uma etapa da integração.
 
 ## Componentes
 
@@ -59,15 +104,16 @@ ser conferidos. Esta preparação não alterou esses acessos.
    dependem do plano. Se indisponíveis, manter o fluxo desabilitado até haver
    procedimento de aprovação equivalente registrado; um checkbox não é uma
    aprovação independente. [Limites e proteções](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments).
-4. Cadastrar neste ambiente as configurações abaixo. Os secrets 360dialog
-   precisam pertencer ao environment `homologacao`, preservando os mesmos
+4. Para instalar a configuração do receptor atual, cadastrar neste ambiente as
+   configurações abaixo. A API key e o segredo próprio do receptor precisam
+   pertencer ao environment `homologacao`, preservando os mesmos
    nomes. Depois de confirmar a migração, remover as cópias no nível do
    repositório para que não exista fallback fora do gate de homologação.
 
 | Nome | Tipo | Conteúdo/finalidade |
 |---|---|---|
-| `DIALOG_360_API_KEY` | secret | chave do canal autorizado para homologação |
-| `DIALOG_360_WEBHOOK_SECRET` | secret | valor literal completo de `Authorization`, distinto da API key |
+| `API_KEY` (ou `DIALOG_360_API_KEY`) | secret | chave do canal autorizado para homologação; o workflow usa `DIALOG_360_API_KEY` internamente e dá precedência ao nome legado se ambos existirem |
+| `DIALOG_360_WEBHOOK_SECRET` | secret | segredo próprio da aplicação, valor literal completo de `Authorization`, distinto da API key e não emitido pela 360dialog |
 | `HOMOLOG_SSH_PRIVATE_KEY` | secret | identidade SSH exclusiva para o comando restrito; nunca a chave de produção ou de push ao GitHub |
 | `HOMOLOG_SSH_KNOWN_HOSTS` | secret | entrada `known_hosts` obtida por canal confiável e conferida pela operação |
 | `HOMOLOG_SSH_HOST` | variable | host alcançável pelo runner; inventário fica na infra privada |
@@ -171,6 +217,8 @@ pela operação; não há limpeza automática de credenciais nesta preparação.
   a configuração atual do webhook. Ele registra apenas classes HTTP, booleanos
   e classificação do destino; não registra URL, resposta ou secrets. A evidência
   sanitizada é um artifact da execução e não gera commit automático.
+  A API key é a única credencial exigida para esses GETs. Sem segredo de
+  referência, `authorizationMatchesSecret=null` indica comparação não feita.
 - Conferir no provedor a validade da chave e o webhook do número específico.
   Na 360dialog, o webhook do número tem precedência sobre o da WABA; modificar
   o da WABA pode afetar outros números. O endpoint público precisa de HTTPS e

@@ -79,6 +79,10 @@ até o aceite de WP-07.
 
 ## Dependências externas
 
+O cadastro atual de chave e URL da API, confirmado pelo usuário, está em
+[Secrets WhatsApp no GitHub Actions](SECRETS-ACTIONS.md). As URLs de webhook
+do canal e da WABA estão em [Configuração de homologação](CONFIGURACAO-HOMOLOG.md).
+
 Antes de WP-04, precisam estar disponíveis em homologação: canal 360dialog,
 webhook configurado, templates aprovados, credencial de teste e um destino de
 armazenamento de mídia. Credenciais são inseridas exclusivamente no ambiente.
