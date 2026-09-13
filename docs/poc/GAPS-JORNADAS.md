@@ -35,7 +35,7 @@ Não deve expor segredos nem dados pessoais fora do escopo autorizado.
 
 | Tema | PDF de 07/09 | Orientação adotada / decisão pendente |
 |---|---|---|
-| SEFAZ | Expressamente fora da POC, pp. 3–5 | E8 do plano de entregas prevê consulta fiscal. POC-12 deve registrar qual recorte vale para o aceite. Até essa decisão, não declarar consulta implementada nem E8 cumprida; OCR, integridade e conciliação não comprovam validação fiscal externa |
+| SEFAZ | Expressamente fora da POC, pp. 3–5 | E8 prevê consulta fiscal. D-025 encaminha prova com Focus NFe e NFE.io como alternativa em POC-12; o resultado fundamenta o recorte no aceite. Avaliação não é contratação, integração habilitada ou E8 cumprida; OCR e conciliação não comprovam consulta fiscal externa |
 | Mais de uma empresa por telefone | Selecionar empresa se necessário, p. 2 | Plano posterior D-021 adia a seleção. Identidade ambígua deve ser interrompida/tratada sem vazamento; não escolher tenant arbitrariamente |
 | Aprovação | Jornada destaca revisão humana, p. 2 | D-024 acrescenta aprovação automática do trajeto quando política validada, perfil, evidências e modo autorizam; humano cuida dos casos exigidos e das exceções |
 | Campo | Check-in/check-out experimental e trechos A→B/B→C, pp. 2–3 | D-023 inclui checkpoints por visita, consolidação posterior e conciliação por período. Continua sem rastreamento contínuo |
@@ -69,5 +69,6 @@ o mesmo resultado nem armazenar resposta além das condições do provedor.
    correlacionadas, métricas e limites aceitos. Somente então registrar aceite.
 
 As alçadas e os limiares não são inventados por este roteiro: vêm da política
-validada e das definições explícitas do teste. A divergência sobre SEFAZ e as
-metas ainda em aberto precisam ser resolvidas antes de declarar a POC fechada.
+validada e das definições explícitas do teste. O recorte E8 após a prova do
+integrador (D-025) e as metas ainda em aberto precisam ser resolvidos antes de
+declarar a POC fechada.

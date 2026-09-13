@@ -12,6 +12,8 @@ versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
   CNPJ do empregador, conciliação, cobrança e aceite em `docs/poc/`.
 - Acrescentados desenho de topologia e revisão de hierarquia: a política é a
   fonte de cargos, responsabilidades e condições de aprovação automática.
+- Registrada D-025 em POC-12: avaliar Focus NFe primeiro e NFE.io como
+  alternativa, com critérios técnicos/comerciais, sem contratação ou ativação.
 - Planejamento não altera decisões, permissões, banco ou ativação do canal.
 
 ### Adicionado

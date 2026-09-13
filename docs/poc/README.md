@@ -123,6 +123,11 @@ ser definidos; não foram atribuídos automaticamente.
    A interpretação é validada e vinculada ao cadastro real. Com trajeto elegível,
    evidências suficientes e regra/modo autorizando, o decisor aplica aprovação
    automática; revisão humana ocorre quando exigida ou diante de pendências.
+9. Prova técnica fiscal por integrador (D-025): **Focus NFe primeiro; NFE.io
+   como alternativa**, dentro de POC-12. Testar uma empresa e NF-e modelo 55,
+   XML/itens/eventos, certificado/manifestações, custos e uso multiempresa.
+   Trata-se de avaliação planejada, sem contratação ou integração ativada;
+   o resultado fundamenta a decisão sobre o recorte E8 no aceite.
 
 ## Decisões abertas com entrega responsável
 
@@ -135,7 +140,7 @@ ser definidos; não foram atribuídos automaticamente.
 | Acesso/retenção de localização e campos realmente fornecidos pelo canal | POC-04, POC-09 |
 | Serviço Google, orçamento e retenção permitida dos resultados | POC-10 |
 | Cobertura da consulta fiscal, manipulação documental e avaliação de falsos positivos | POC-12 |
-| Consulta SEFAZ no aceite: exclusão nas jornadas de 07/09 versus previsão em E8 | POC-12, POC-16 |
+| Homologação do integrador e recorte E8 no aceite após a prova Focus NFe / alternativa NFE.io (D-025) | POC-12, POC-16 |
 | Empresa piloto, responsáveis e metas de sucesso | POC-01, POC-15 |
 
 ## Portão de aceite

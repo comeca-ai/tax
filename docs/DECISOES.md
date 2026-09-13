@@ -5,6 +5,33 @@
 
 ---
 
+## D-025 · Avaliar integrador fiscal: Focus NFe primeiro, NFE.io como alternativa — 13/09/2026
+
+**Decisão do usuário:** incluir no plano uma prova técnica de captura de NF-e
+por integrador, com **Focus NFe como primeira opção** e **NFE.io como
+alternativa**. O recorte inicial é uma empresa piloto, NF-e modelo 55 e notas
+de combustível conhecidas e autorizadas para teste.
+
+**Consequências:** a avaliação fica em POC-12, sem criar uma entrega concorrente.
+Verificar XML completo, itens/quantidades, eventos e cancelamentos, certificado,
+controle das manifestações, custo do volume total capturado e condições para
+atender múltiplos clientes. A Reembolsa mantém a associação de nota, vendedor,
+veículo e jornada, a aplicação da política e a cobrança de pendências.
+
+A escolha é uma preferência para avaliação, não homologação ou contratação.
+Registrar o plano não autoriza criar conta, aceitar contrato, transmitir
+certificado/dados reais, manifestar operações fiscais ou ativar produção.
+Essas ações exigem autorização própria. Aprovar reembolso pela política não
+autoriza manifestação fiscal automaticamente.
+
+**Portão de decisão:** anexar resultados e recomendação de seguir ou não com
+Focus; se não atender, avaliar NFE.io. Fechar então o recorte de consulta fiscal
+E8 exigido no aceite. A prova isolada não conclui E8, integridade E9 ou a POC.
+**Invalidaria:** resultado técnico/comercial incompatível com os critérios, ou
+nova escolha explícita de produto registrada antes da contratação.
+
+---
+
 ## D-024 · Política define cargos, responsabilidades e aprovação do trajeto — 13/09/2026
 
 **Decisão do usuário:** a política é também a fonte normativa de cargos,
