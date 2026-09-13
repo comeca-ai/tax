@@ -170,11 +170,13 @@ milestones, um épico e 17 issues com dependências por links. Os títulos possu
 IDs estáveis para permitir reexecução sem duplicar tarefas. Issues existentes
 não são fechadas, reabertas ou atribuídas a pessoas automaticamente.
 
-A automação de publicação roda somente na branch documental
-`docs/360dialog-canal-unico` e com o token temporário do próprio GitHub Actions.
-Ela não faz merge, deploy ou alteração de proteção da main. O resultado fica em
-[publicacao-github.json](publicacao-github.json), criado após a execução; uma
-falha nesse relatório não representa criação bem-sucedida.
+A publicação inicial foi executada na branch documental
+`docs/360dialog-canal-unico` com o token temporário do próprio GitHub Actions.
+O workflow remanescente não roda mais em `push`: uma eventual republicação é
+manual, exige confirmação explícita e mantém os gates internos da branch. Ele
+não faz merge, deploy ou alteração de proteção da main. O arquivo
+[publicacao-github.json](publicacao-github.json) é a evidência histórica daquela
+execução; uma falha nesse relatório não representa criação bem-sucedida.
 
 ## Fontes de escopo
 

@@ -1,18 +1,15 @@
 name: Publicar planejamento da POC
 
 on:
-  push:
-    branches: [docs/360dialog-canal-unico]
-    paths:
-      - docs/poc/backlog.json
-      - tools/github/publicar-roadmap.mjs
-      - .github/workflows/publicar-roadmap-poc.yml
   workflow_dispatch:
+    inputs:
+      confirm_publish:
+        description: Confirmo a atualização idempotente do roadmap no GitHub
+        type: boolean
+        required: true
+        default: false
 
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+permissions: {}
 
 concurrency:
   group: publicar-roadmap-poc
@@ -20,14 +17,18 @@ concurrency:
 
 jobs:
   publicar:
-    if: github.repository == 'comeca-ai/projeto_tribureembolsa' && github.ref == 'refs/heads/docs/360dialog-canal-unico'
+    if: github.repository == 'comeca-ai/projeto_tribureembolsa' && github.ref == 'refs/heads/docs/360dialog-canal-unico' && inputs.confirm_publish
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
       - name: Validar arquivos e dependências

@@ -6,6 +6,17 @@ versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
 ## [Unreleased]
 
+### Segurança e CI
+
+- Workflows que acessam credenciais da 360dialog agora são exclusivamente
+  manuais, partem da `main`, usam o environment `homologacao` e recebem apenas
+  as permissões mínimas por job.
+- Actions de terceiros foram fixadas por SHA completo e passam a receber
+  atualizações semanais por PR do Dependabot.
+- O diagnóstico somente leitura gera artifact sanitizado, sem escrever commits
+  automaticamente; um teste de regressão impede gatilhos inseguros e referências
+  móveis de actions.
+
 ### Planejamento da POC
 
 - Consolidado o roadmap de canal 360dialog, jornadas, Google Maps, notas no

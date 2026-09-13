@@ -33,6 +33,21 @@ Quando o novo repositório estiver criado, configure as regras de proteção:
 5. exigir branches atualizadas antes do merge;
 6. bloquear merge quando houver conversa pendente.
 
+### Estado aplicado em 13/09/2026
+
+- `main` exige PR, branch atualizada e o check
+  `Lint, tipos, testes e build`; administradores também respeitam a regra.
+- Histórico linear e resolução de conversas estão ativos; force-push e exclusão
+  da branch estão bloqueados.
+- O repositório aceita somente actions mantidas pelo GitHub e exige referência
+  por SHA completo. O Dependabot propõe as atualizações desses SHAs por PR.
+- Há somente um colaborador cadastrado. Por isso a proteção exige PR, mas está
+  temporariamente com zero aprovações obrigatórias para não bloquear todo merge.
+  A revisão independente continua sendo requisito de processo para áreas
+  sensíveis; ao adicionar um segundo revisor, elevar imediatamente a proteção
+  para uma aprovação e ativar revisão por `CODEOWNERS` quando os donos forem
+  definidos.
+
 Áreas sensíveis: `api/auth/`, `api/routers/auth.ts`, permissões, regras
 fiscais, `db/migrations/`, integrações de cobrança/mensageria e qualquer
 mudança que processe dados pessoais.

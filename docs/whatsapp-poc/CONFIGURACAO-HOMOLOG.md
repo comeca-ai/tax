@@ -6,6 +6,15 @@
 Os dois secrets 360dialog já têm presença confirmada no Actions, mas isso não
 comprova validade no provedor nem aplicação ao processo de homologação.
 
+O environment GitHub `homologacao` foi criado e limitado à branch `main` em
+13/09/2026. Ele ainda não possui secrets nem variables. As duas credenciais
+continuam no nível do repositório e precisam ser recadastradas no environment;
+até isso ocorrer, os workflows permanecem fechados por execução manual e a
+ausência de `WHATSAPP_HOMOLOG_ENABLED=true`. O plano atual do GitHub não oferece
+aprovação por revisor para este environment privado, e há somente um colaborador;
+essa limitação deve permanecer registrada ou ser substituída por plano/controle
+que permita aprovação independente.
+
 Esta mudança prepara configuração, não deploy de código: nenhuma branch é
 publicada no servidor, não há migrações, alteração de produção, configuração
 do provedor ou envio de mensagens. A versão já instalada permanece a mesma.
@@ -42,17 +51,18 @@ ser conferidos. Esta preparação não alterou esses acessos.
 1. Revisão independente de segurança, PR e CI verde; merge aprovado em `main`.
    O workflow não executa no push. O disparo manual depende de o arquivo estar
    na branch padrão. [Documentação do GitHub](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
-2. Criar/configurar previamente o environment **homologacao**, restrito a
-   `main`. Não confiar na criação automática de um ambiente sem proteções.
+2. O environment **homologacao** já existe e está restrito a `main`. Conferir
+   essa política antes de cada mudança administrativa e não recriá-lo
+   automaticamente sem as mesmas restrições.
 3. Habilitar aprovação independente e impedir autoaprovação quando o plano
    permitir. Em repositórios privados, recursos de ambientes e revisores
    dependem do plano. Se indisponíveis, manter o fluxo desabilitado até haver
    procedimento de aprovação equivalente registrado; um checkbox não é uma
    aprovação independente. [Limites e proteções](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments).
-4. Cadastrar neste ambiente as configurações abaixo. Recomenda-se colocar os
-   secrets 360dialog no ambiente também, preservando os mesmos nomes, para que
-   estas credenciais pertençam claramente à homologação. Os já cadastrados
-   no repositório são um fallback técnico do Actions, não prova dessa separação.
+4. Cadastrar neste ambiente as configurações abaixo. Os secrets 360dialog
+   precisam pertencer ao environment `homologacao`, preservando os mesmos
+   nomes. Depois de confirmar a migração, remover as cópias no nível do
+   repositório para que não exista fallback fora do gate de homologação.
 
 | Nome | Tipo | Conteúdo/finalidade |
 |---|---|---|
@@ -96,7 +106,7 @@ administrativa controlada. O workflow não instala seu próprio acesso elevado.
 3. Autorizar no sudoers **apenas o wrapper sem argumentos**, sem `SETENV`,
    sem shell, comandos genéricos ou `systemctl *`; validar com `visudo -c`.
    O wrapper também recusa argumentos. Nunca conceder sudo genérico ao runner.
-4. Criar `/etc/reembolsa/whatsapp-homolog` root:root `0700` e seu
+4. Criar `/etc/reembolsa-whatsapp-homolog` root:root `0700` e seu
    `secrets.env` inicialmente vazio, root:root `0600`, **somente se ainda não
    existirem**. Não truncar uma configuração existente. Backups ficam nesse
    diretório protegido, jamais no Git ou em artifacts do Actions.
@@ -105,7 +115,7 @@ administrativa controlada. O workflow não instala seu próprio acesso elevado.
 
    ```ini
    [Service]
-   EnvironmentFile=/etc/reembolsa/whatsapp-homolog/secrets.env
+   EnvironmentFile=/etc/reembolsa-whatsapp-homolog/secrets.env
    ```
 
    Após aprovação, recarregar a configuração systemd e confirmar o arquivo na
@@ -155,6 +165,12 @@ pela operação; não há limpeza automática de credenciais nesta preparação.
 - Confirmar se a nova API key pertence a um **canal/número de teste**. Se for
   o canal usado por produção, parar e decidir uma janela/estratégia explícita:
   não redirecionar seu webhook automaticamente.
+- Com a confirmação do usuário de que o canal pode ser usado em homologação,
+  o workflow manual `verificar-360dialog-readonly.yml`, disponível na `main` e
+  associado ao environment `homologacao`, consulta somente `health_status` e
+  a configuração atual do webhook. Ele registra apenas classes HTTP, booleanos
+  e classificação do destino; não registra URL, resposta ou secrets. A evidência
+  sanitizada é um artifact da execução e não gera commit automático.
 - Conferir no provedor a validade da chave e o webhook do número específico.
   Na 360dialog, o webhook do número tem precedência sobre o da WABA; modificar
   o da WABA pode afetar outros números. O endpoint público precisa de HTTPS e

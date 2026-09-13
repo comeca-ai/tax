@@ -1,0 +1,135 @@
+name: Verificar 360dialog em modo somente leitura
+
+# Credenciais reais nunca são usadas automaticamente por push. A execução parte
+# da main revisada e passa pelo environment de homologação.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_readonly:
+        description: Confirmo a consulta somente leitura no canal autorizado
+        type: boolean
+        required: true
+        default: false
+      change_reference:
+        description: Referência da autorização (somente letras, números e ._/#:-)
+        type: string
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: verificar-360dialog-readonly
+  cancel-in-progress: false
+
+jobs:
+  consultar:
+    if: github.repository == 'comeca-ai/projeto_tribureembolsa' && github.ref == 'refs/heads/main' && inputs.confirm_readonly
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: homologacao
+    permissions:
+      contents: read
+    outputs:
+      report: ${{ steps.consulta.outputs.report }}
+    steps:
+      - name: Obter código revisado
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+      - name: Validar autorização sem dados pessoais
+        env:
+          CHANGE_REFERENCE: ${{ inputs.change_reference }}
+        run: |
+          node --input-type=module <<'NODE'
+          const value = process.env.CHANGE_REFERENCE?.trim() ?? '';
+          if (!/^[A-Za-z0-9._/#:-]{3,120}$/.test(value)) {
+            console.error('Referência de autorização inválida.');
+            process.exit(1);
+          }
+          NODE
+      - name: Testar consulta com respostas sintéticas
+        run: node --test tools/whatsapp/verificar-360dialog-readonly.check.mjs
+      - name: Consultar saúde e configuração, sem alterar provedor
+        id: consulta
+        env:
+          DIALOG_360_API_KEY: ${{ secrets.DIALOG_360_API_KEY }}
+          DIALOG_360_WEBHOOK_SECRET: ${{ secrets.DIALOG_360_WEBHOOK_SECRET }}
+        run: |
+          node tools/whatsapp/verificar-360dialog-readonly.mjs
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const output = fs.readFileSync(process.env.GITHUB_OUTPUT, 'utf8');
+          const entries = Object.fromEntries(output.trim().split('\n').map(line => {
+            const index = line.indexOf('='); return [line.slice(0, index), line.slice(index + 1)];
+          }));
+          const report = {
+            apiKeyAccepted: entries.apiKeyAccepted === 'true',
+            healthStatusClass: entries.healthStatusClass,
+            webhookReadStatusClass: entries.webhookReadStatusClass,
+            webhookConfigured: entries.webhookConfigured === 'true',
+            webhookTarget: entries.webhookTarget,
+            authorizationHeaderConfigured: entries.authorizationHeaderConfigured === 'true',
+            authorizationMatchesSecret: entries.authorizationMatchesSecret === 'true',
+            requests: JSON.parse(entries.requests), providerMutation: false, messageSent: false,
+          };
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,
+            `report=${JSON.stringify(report)}\n`);
+          NODE
+
+  registrar:
+    needs: consultar
+    if: always() && needs.consultar.outputs.report != '' && github.repository == 'comeca-ai/projeto_tribureembolsa' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions: {}
+    steps:
+      - name: Gerar evidência sanitizada
+        env:
+          REPORT: ${{ needs.consultar.outputs.report }}
+          CHANGE_REFERENCE: ${{ inputs.change_reference }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const details = JSON.parse(process.env.REPORT);
+          const report = {
+            verification: 'provider_readonly',
+            sourceCommit: process.env.GITHUB_SHA,
+            run: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            checkedAt: new Date().toISOString(),
+            changeReference: process.env.CHANGE_REFERENCE,
+            ...details,
+          };
+          fs.writeFileSync('provider-readonly-status.json', `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `Evidência sanitizada gerada para o commit \`${process.env.GITHUB_SHA}\`.\n`);
+          NODE
+      - name: Armazenar evidência sem escrever no repositório
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: provider-readonly-status-${{ github.run_id }}
+          path: provider-readonly-status.json
+          if-no-files-found: error
+          retention-days: 30
+
+  validar:
+    needs: [consultar, registrar]
+    if: always() && needs.consultar.outputs.report != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Exigir chave aceita depois de registrar diagnóstico
+        env:
+          REPORT: ${{ needs.consultar.outputs.report }}
+        run: |
+          node --input-type=module <<'NODE'
+          const result = JSON.parse(process.env.REPORT);
+          if (!result.apiKeyAccepted) {
+            console.error('A 360dialog não aceitou a chave nas duas consultas somente leitura.');
+            process.exit(1);
+          }
+          NODE

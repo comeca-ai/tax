@@ -7,8 +7,8 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 export const TARGET = Object.freeze({
-  directory: '/etc/reembolsa/whatsapp-homolog',
-  file: '/etc/reembolsa/whatsapp-homolog/secrets.env',
+  directory: '/etc/reembolsa-whatsapp-homolog',
+  file: '/etc/reembolsa-whatsapp-homolog/secrets.env',
   service: 'reembolsa-homolog.service',
   workingDirectory: '/srv/reembolsa/homolog/app',
   origin: 'http://127.0.0.1:3101',
@@ -109,7 +109,7 @@ function runtimeIO() {
   return {
     async preflight() {
       requireSafe(process.getuid() === 0, 'ROOT_REQUIRED');
-      for (const parent of ['/etc', '/etc/reembolsa']) {
+      for (const parent of ['/etc']) {
         const stat = fs.lstatSync(parent);
         requireSafe(stat.isDirectory() && !stat.isSymbolicLink() && stat.uid === 0
           && (stat.mode & 0o022) === 0, 'UNSAFE_PARENT_DIRECTORY');

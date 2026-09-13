@@ -4,13 +4,16 @@ Em 13/09/2026, o usuário informou ter cadastrado os secrets
 `DIALOG_360_API_KEY` e `DIALOG_360_WEBHOOK_SECRET` no repositório.
 Não registrar os valores neste documento, em commits, logs ou chat.
 
-## Verificação de presença
+## Evidência histórica de presença
+
+O arquivo `docs/whatsapp-poc/secrets-actions-status.json` registra a checagem
+pontual feita na branch documental. Ele é evidência histórica, não é atualizado
+automaticamente e não comprova que as credenciais continuam válidas.
 
 O workflow [verificar-secrets-whatsapp.yml](../../.github/workflows/verificar-secrets-whatsapp.yml)
-executa somente na branch `docs/360dialog-canal-unico`. Um job sem permissões
-de escrita verifica os dois valores e produz apenas booleanos. Outro job,
-sem receber credenciais da 360dialog, grava o resultado em
-`docs/whatsapp-poc/secrets-actions-status.json` nessa mesma branch.
+agora executa somente por disparo manual a partir da `main`, com confirmação
+explícita e no environment `homologacao`. O resultado fica no resumo imutável
+da execução; o workflow não escreve commits no repositório.
 
 Nenhum valor, trecho, tamanho ou hash das credenciais é exportado. O workflow
 não consulta a 360dialog, não envia mensagens, não configura webhooks, não

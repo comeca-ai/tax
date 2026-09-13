@@ -64,6 +64,11 @@ Artefatos gerados:
 - **Sem Railway**: agente = 2º container no docker-compose da VPS (D-009)
 - **Execução priorizada**: v1.5.0 (fundação do agente) + v1.6.0 (motor de decisão) (D-008)
 
+> **Atualização de 13/09/2026:** D-022 substituiu a escolha operacional de
+> D-010 para esta POC. O canal exclusivo agora é a 360dialog; Evolution não é
+> alternativa de homologação ou produção neste ciclo. Consulte o roadmap em
+> `docs/poc/README.md` para o estado corrente.
+
 ---
 
 ## Futuro — roadmap (ordem de valor-desbloqueio)
