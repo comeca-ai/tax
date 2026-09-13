@@ -6,6 +6,14 @@ versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
 ## [Unreleased]
 
+### Adicionado
+
+- POC de WhatsApp: recebimento multipart de comprovantes com validação de
+  tipo, tamanho, assinatura binária e nome de arquivo, armazenamento privado
+  abstraído e criação idempotente de despesa em revisão.
+- Migração aditiva `0014` para associar o comprovante recebido à inbox e à
+  despesa, preservando a reentrega segura da mesma mensagem.
+
 ### Alterado
 
 - Renovada a apresentação das telas Visão geral, Fila de revisão, Detalhe de

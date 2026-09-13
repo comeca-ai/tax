@@ -41,17 +41,16 @@ valor do fluxo principal.
 
 ## Entregas e branches
 
-Cada item abaixo terá uma branch curta, um PR e uma revisão independente. A
-branch atual (`feat/whatsapp-poc-foundation`) entrega somente este plano e o
-contrato inicial; ela não altera comportamento de produção.
+Cada item abaixo terá uma branch curta, um PR e uma revisão independente.
+Nenhuma dessas branches ativa o canal em produção por si só.
 
 | ID | Status | Branch prevista | Entrega | Critério de aceite |
 |---|---|---|---|---|
 | WP-00 | Mesclado | `feat/whatsapp-poc-foundation` | plano, contrato inicial e decisão de arquitetura | documentação revisada e nenhum segredo no Git |
 | WP-01 | Mesclado | `feat/whatsapp-poc-mensageria` | tabelas aditivas de sessão, inbox/outbox e chave de idempotência | migração testada, rollback e reentrega sem duplicação |
 | WP-02 | Mesclado | `feat/whatsapp-poc-api-servico` | autenticação de serviço e APIs internas versionadas | token inválido bloqueado; empresa isolada; contrato testado |
-| WP-03 | Em revisão | `feat/whatsapp-poc-identificacao` | resolver telefone e estado do colaborador | telefone estranho não revela tenant; vínculo suspenso é recusado |
-| WP-04 | Planejado | `feat/whatsapp-poc-comprovantes` | baixar mídia, validar arquivo e abrir/complementar despesa | mesma mensagem não cria duas despesas; arquivo perigoso é recusado |
+| WP-03 | Mesclado | `feat/whatsapp-poc-identificacao` | resolver telefone e estado do colaborador | telefone estranho não revela tenant; vínculo suspenso é recusado |
+| WP-04 | Em revisão | `feat/whatsapp-poc-comprovantes` | baixar mídia, validar arquivo e abrir/complementar despesa | mesma mensagem não cria duas despesas; arquivo perigoso é recusado |
 | WP-05 | Planejado | `feat/whatsapp-poc-conversa` | máquina de estados para pendências e respostas | transições e expiração cobertas por testes |
 | WP-06 | Planejado | `feat/whatsapp-poc-decisao` | evento de decisão e mensagem transacional ao colaborador | callback idempotente, assinado e auditável |
 | WP-07 | Planejado | `feat/whatsapp-poc-aceite` | roteiro E2E, evidência de homologação e preparação de release | cenário completo aprovado em homologação |
