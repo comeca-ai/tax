@@ -159,6 +159,12 @@ export const notasFiscais = mysqlTable("notas_fiscais", {
   arquivoNome: varchar("arquivo_nome", { length: 255 }),
   arquivoMime: varchar("arquivo_mime", { length: 100 }),
   arquivoBase64: mediumtext("arquivo_base64"),
+  // POC: o binário permanece no MySQL privado. Os metadados permitem migrar
+  // gradualmente para S3/R2 sem alterar a identidade da nota ou o histórico.
+  arquivoStorageProvider: varchar("arquivo_storage_provider", { length: 30 }),
+  arquivoStorageKey: varchar("arquivo_storage_key", { length: 500 }),
+  arquivoChecksum: varchar("arquivo_checksum", { length: 64 }),
+  arquivoTamanhoBytes: int("arquivo_tamanho_bytes"),
   origem: mysqlEnum("origem", ["ocr", "manual"]).notNull().default("manual"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -766,6 +772,12 @@ export const whatsappInbox = mysqlTable(
     tipoEvento: varchar("tipo_evento", { length: 50 }).notNull(),
     mensagemId: varchar("mensagem_id", { length: 128 }),
     telefone: varchar("telefone", { length: 20 }),
+    empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
+      .references(() => empresas.id),
+    colaboradorId: bigint("colaborador_id", { mode: "number", unsigned: true })
+      .references(() => colaboradores.id),
+    despesaId: bigint("despesa_id", { mode: "number", unsigned: true })
+      .references(() => despesas.id),
     payload: json("payload").notNull(),
     status: varchar("status", { length: 30 }).notNull().default("pendente"),
     tentativas: int("tentativas").notNull().default(0),
@@ -781,6 +793,12 @@ export const whatsappInbox = mysqlTable(
     uniqueIndex("whatsapp_inbox_provider_chave_unique").on(t.provider, t.chaveIdempotencia),
     index("whatsapp_inbox_processamento_idx").on(t.status, t.proximaTentativaAt),
     index("whatsapp_inbox_mensagem_idx").on(t.provider, t.mensagemId),
+    index("whatsapp_inbox_despesa_idx").on(t.despesaId),
+    foreignKey({
+      name: "whatsapp_inbox_empresa_colaborador_fk",
+      columns: [t.empresaId, t.colaboradorId],
+      foreignColumns: [colaboradores.empresaId, colaboradores.id],
+    }),
   ],
 );
 

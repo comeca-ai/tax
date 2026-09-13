@@ -51,6 +51,9 @@ despesa original.
 
 - aceitar somente tipos, tamanho e origem permitidos;
 - baixar mídia usando credencial de servidor e armazená-la fora do repositório;
+- durante a POC, o adaptador `database` guarda o binário privado no MySQL e
+  registra provedor, hash e tamanho; a mesma interface permite mover apenas
+  os binários novos para S3/R2 posteriormente;
 - registrar hash, tipo, tamanho e relação com a despesa;
 - não gravar binários, URLs assinadas ou payloads completos em logs de aplicação;
 - limitar acesso ao arquivo à empresa e às permissões já existentes;
