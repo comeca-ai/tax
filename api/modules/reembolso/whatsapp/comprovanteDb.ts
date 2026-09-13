@@ -115,7 +115,7 @@ export async function receberComprovanteWhatsapp(
       return despesaId;
     });
     return { despesaId: resultado, situacao: "em_revisao", idempotente: false };
-  } catch (erro) {
+  } catch {
     await db
       .update(whatsappInbox)
       .set({ status: "falhou", tentativas: 1, ultimoErro: "Falha ao registrar comprovante." })

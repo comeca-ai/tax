@@ -31,7 +31,8 @@ function mimeConfereComAssinatura(mime: string, conteudo: Buffer): boolean {
 
 function nomeSeguro(nome: string): string | null {
   const limpo = nome.trim();
-  if (!limpo || limpo.length > 255 || /[\0-\x1f\\/]/.test(limpo)) return null;
+  const contemCaractereDeControle = [...limpo].some((caractere) => caractere.charCodeAt(0) < 0x20);
+  if (!limpo || limpo.length > 255 || contemCaractereDeControle || /[\\/]/.test(limpo)) return null;
   return limpo;
 }
 
