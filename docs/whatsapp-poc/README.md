@@ -105,3 +105,6 @@ Integrações externas, banco e autorização exigem segunda revisão antes do
 merge. Um PR verde não autoriza deploy: a promoção segue a política de release.
 
 Leia também o [contrato inicial da POC](CONTRATO-POC.md).
+
+Operação do canal: [presença dos secrets no Actions](SECRETS-ACTIONS.md) e
+[fluxo de configuração de homologação, ainda não instalado](CONFIGURACAO-HOMOLOG.md).

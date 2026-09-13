@@ -18,6 +18,10 @@ versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
 ### Adicionado
 
+- Fluxo manual, restrito à homologação, para aplicar os dois secrets 360dialog
+  via SSH com comando fixo, backup, teste de autenticação local e tentativa de
+  reversão. Preparado para revisão; bootstrap e execução continuam pendentes.
+  Não altera produção, código implantado, banco ou webhook no provedor.
 - POC de WhatsApp: recebimento multipart de comprovantes com validação de
   tipo, tamanho, assinatura binária e nome de arquivo, armazenamento privado
   abstraído e criação idempotente de despesa em revisão.

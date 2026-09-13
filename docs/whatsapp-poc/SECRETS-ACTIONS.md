@@ -19,10 +19,11 @@ comprova validade da chave nem correspondência do segredo com o provedor.
 
 ## Próxima etapa, separada
 
-Preparar a aplicação segura dos secrets à homologação por um fluxo de
-configuração autorizado, com acesso de deploy restrito e separação de ambientes.
+Foi preparado um [fluxo manual de configuração de homologação](CONFIGURACAO-HOMOLOG.md),
+com acesso de deploy restrito, backup e reversão. Está pendente de revisão,
+bootstrap de infraestrutura, configuração do environment e confirmação do canal.
 Não redirecionar o número/webhook de produção para homologação sem decisão
-explícita. O repositório ainda não contém esse fluxo de aplicação no servidor.
+explícita. A preparação não aplicou secrets ao servidor nem reiniciou serviços.
 
 Depois de aplicar a configuração e conferir o canal de teste, validar entrada
 real e persistência. Receber um evento não conclui o fluxo de comprovante,
