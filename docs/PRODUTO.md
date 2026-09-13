@@ -89,8 +89,8 @@ Funcionário: conversa → Superior: fila de decisões → Admin: caixa de entra
    e começar a receber, chama aqui." — link `wa.me` com mensagem pré-preenchida
    (identificação por matrícula/token).
 2. **O funcionário inicia a conversa** — decisão deliberada: o funcionário vem até o
-   agente. Na API oficial da Meta isso abre a janela de atendimento sem cobrança de
-   template; na largada (Evolution API) é simplesmente a melhor UX.
+   agente. Pelo canal oficial 360dialog, isso abre a janela de atendimento prevista
+   pelo provedor e reduz a necessidade de templates.
    O e-mail é só o isqueiro; lembretes de não-ativados seguem por e-mail (centavos).
 3. Primeira conversa = **confirmação, não cadastro**:
    - "Cadastramos você assim: João Silva, matrícula 1234, joao@... Confere?"
@@ -111,14 +111,10 @@ portão único — elimina o estado "despesa órfã de usuário inativo".
 **Painel do admin durante ativação:** resumo, não operação.
 "87 convidados · 82 confirmaram · 4 pendentes · 1 divergência de dado (aceita?)"
 
-**Transporte WhatsApp (decisão de largada, 12/08/2026):** usamos **Evolution API**
-(self-hosted, container na VPS) no piloto e nas primeiras empresas — zero burocracia
-Meta, custo zero por mensagem, velocidade de validação. Risco conhecido e aceito:
-API não-oficial (risco de banimento do número e instabilidade de protocolo) —
-mitigado por número dedicado, volume baixo e conversas iniciadas pelo funcionário.
-A camada de transporte é isolada atrás de `WHATSAPP_PROVIDER=evolution|meta`:
-quando fizer sentido (escala), migramos para a Cloud API oficial **sem mudar o
-produto** — sessões, máquina de estados e decisor permanecem idênticos.
+**Transporte WhatsApp da POC (D-022):** usamos exclusivamente a **360dialog**,
+canal oficial. A camada de transporte permanece isolada: sessões, máquina de
+estados e decisor não conhecem o provedor. Não haverá piloto paralelo pela
+Evolution; o canal só é ativado após a homologação do número, webhook e templates.
 
 ### 4.3 Ciclo de uma despesa (D-014: extrai e verifica; ninguém preenche nada)
 
@@ -253,7 +249,7 @@ exceções, apertar o botão do dossiê.
 
 > **Prioridade confirmada (12/08/2026):** executar as ondas 1 e 2 primeiro —
 > onboarding conversacional + motor de decisão. Onda 3+ segue o plano.
-> Transporte WhatsApp da largada: Evolution API (ver §4.2).
+> Transporte WhatsApp da POC: 360dialog (ver §4.2 e D-022).
 
 1. **Fundação do agente**: credenciais Meta + webhook + sessão de conversa;
    convite vira e-mail → wa.me; onboarding conversacional (confirmação + declaração +

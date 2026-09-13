@@ -1,0 +1,146 @@
+{
+  "version": "poc-campo-combustivel-2026-09-13",
+  "status": "publicado",
+  "sourceCommit": "b545bc292692ac8af5bcd1d96c023f4e5d4dc43b",
+  "run": "https://github.com/comeca-ai/projeto_tribureembolsa/actions/runs/34750712340",
+  "milestones": [
+    {
+      "id": "M1",
+      "number": 1,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/milestone/1"
+    },
+    {
+      "id": "M2",
+      "number": 2,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/milestone/2"
+    },
+    {
+      "id": "M3",
+      "number": 3,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/milestone/3"
+    },
+    {
+      "id": "M4",
+      "number": 4,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/milestone/4"
+    },
+    {
+      "id": "M5",
+      "number": 5,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/milestone/5"
+    }
+  ],
+  "issues": [
+    {
+      "id": "POC-01",
+      "number": 19,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/19",
+      "state": "open"
+    },
+    {
+      "id": "POC-02",
+      "number": 20,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/20",
+      "state": "open"
+    },
+    {
+      "id": "POC-03",
+      "number": 21,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/21",
+      "state": "open"
+    },
+    {
+      "id": "POC-04",
+      "number": 22,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/22",
+      "state": "open"
+    },
+    {
+      "id": "POC-05",
+      "number": 23,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/23",
+      "state": "open"
+    },
+    {
+      "id": "POC-06",
+      "number": 24,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/24",
+      "state": "open"
+    },
+    {
+      "id": "POC-07",
+      "number": 25,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/25",
+      "state": "open"
+    },
+    {
+      "id": "POC-08",
+      "number": 26,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/26",
+      "state": "open"
+    },
+    {
+      "id": "POC-09",
+      "number": 27,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/27",
+      "state": "open"
+    },
+    {
+      "id": "POC-10",
+      "number": 28,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/28",
+      "state": "open"
+    },
+    {
+      "id": "POC-11",
+      "number": 29,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/29",
+      "state": "open"
+    },
+    {
+      "id": "POC-12",
+      "number": 30,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/30",
+      "state": "open"
+    },
+    {
+      "id": "POC-13",
+      "number": 31,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/31",
+      "state": "open"
+    },
+    {
+      "id": "POC-14",
+      "number": 32,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/32",
+      "state": "open"
+    },
+    {
+      "id": "POC-15",
+      "number": 33,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/33",
+      "state": "open"
+    },
+    {
+      "id": "POC-16",
+      "number": 34,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/34",
+      "state": "open"
+    },
+    {
+      "id": "POC-17",
+      "number": 35,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/35",
+      "state": "open"
+    }
+  ],
+  "warnings": [
+    "PR não criado automaticamente: HTTP 403; conferir configuração de criação de PR pelo Actions."
+  ],
+  "epic": {
+    "number": 18,
+    "url": "https://github.com/comeca-ai/projeto_tribureembolsa/issues/18"
+  },
+  "pullRequest": null,
+  "compare": "https://github.com/comeca-ai/projeto_tribureembolsa/compare/main...docs/360dialog-canal-unico?expand=1"
+}

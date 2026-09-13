@@ -4,6 +4,14 @@ Este diretório é a fonte de verdade do plano de entrega da POC de WhatsApp
 oficial pela 360dialog. Ele transforma a proposta externa em entregas pequenas,
 revisáveis e compatíveis com a política de release do repositório.
 
+**Transporte único:** a POC usa exclusivamente a 360dialog (D-022). Evolution
+não é alternativa operacional, de homologação ou de produção deste ciclo.
+
+Este plano descreve o **marco inicial do canal**. O aceite da POC completa
+inclui jornada de campo, Google Maps, conciliação e cobrança de combustível
+(D-023), organizados no [roadmap consolidado](../poc/README.md). A política
+define cargos, responsabilidades e condições de aprovação automática (D-024).
+
 ## Objetivo da POC
 
 Validar com colaboradores reais, em homologação, este caminho completo:
@@ -31,10 +39,9 @@ Inclui:
 - APIs de serviço internas, documentadas e autenticadas;
 - testes automatizados, homologação e evidência manual do fluxo.
 
-Ficam para uma fase posterior: escolha de empresa para múltiplos vínculos,
-consulta de despesas, check-in de localização, console operacional e SLA de
-produção. Nada impede que sejam planejados; apenas não bloqueiam a prova de
-valor do fluxo principal.
+Escolha de empresa para múltiplos vínculos, consulta de despesas e console
+operacional permanecem posteriores. Localização sai deste marco inicial,
+mas integra o aceite da POC completa por POC-09/10/13/16 (D-023).
 
 ## Entregas e branches
 
@@ -47,7 +54,7 @@ Nenhuma dessas branches ativa o canal em produção por si só.
 | WP-01 | Mesclado | `feat/whatsapp-poc-mensageria` | tabelas aditivas de sessão, inbox/outbox e chave de idempotência | migração testada, rollback e reentrega sem duplicação |
 | WP-02 | Mesclado | `feat/whatsapp-poc-api-servico` | autenticação de serviço e APIs internas versionadas | token inválido bloqueado; empresa isolada; contrato testado |
 | WP-03 | Mesclado | `feat/whatsapp-poc-identificacao` | resolver telefone e estado do colaborador | telefone estranho não revela tenant; vínculo suspenso é recusado |
-| WP-04 | Em revisão | `feat/whatsapp-poc-comprovantes` | baixar mídia, validar arquivo e abrir/complementar despesa | mesma mensagem não cria duas despesas; arquivo perigoso é recusado |
+| WP-04 | Base mesclada no PR #17; integração/aceite em POC-07 | `feat/whatsapp-poc-comprovantes` | receber/validar arquivo e persistir despesa; conectar mídia do canal | reentrega e recuperação comprovadas no fluxo completo |
 | WP-05 | Planejado | `feat/whatsapp-poc-conversa` | máquina de estados para pendências e respostas | transições e expiração cobertas por testes |
 | WP-06 | Planejado | `feat/whatsapp-poc-decisao` | evento de decisão e mensagem transacional ao colaborador | callback idempotente, assinado e auditável |
 | WP-07 | Planejado | `feat/whatsapp-poc-aceite` | roteiro E2E, evidência de homologação e preparação de release | cenário completo aprovado em homologação |
@@ -76,10 +83,10 @@ Antes de WP-04, precisam estar disponíveis em homologação: canal 360dialog,
 webhook configurado, templates aprovados, credencial de teste e um destino de
 armazenamento de mídia. Credenciais são inseridas exclusivamente no ambiente.
 
-Antes de WP-07, produto define os textos finais, os campos que podem ser
-perguntados e a pessoa responsável pelo aceite. Se localização for adicionada
-em fase posterior, haverá decisão específica de consentimento, retenção e
-acesso sob LGPD.
+Antes de WP-07, produto define os textos finais, os limites das perguntas
+(preservando D-014) e a pessoa responsável pelo aceite. Localização agora está
+planejada no roadmap completo: acesso, retenção e comunicação ao colaborador
+são resolvidos em POC-04/09 antes da coleta real.
 
 ## Como cada PR será validado
 
@@ -98,3 +105,6 @@ Integrações externas, banco e autorização exigem segunda revisão antes do
 merge. Um PR verde não autoriza deploy: a promoção segue a política de release.
 
 Leia também o [contrato inicial da POC](CONTRATO-POC.md).
+
+Operação do canal: [presença dos secrets no Actions](SECRETS-ACTIONS.md) e
+[fluxo de configuração de homologação, ainda não instalado](CONFIGURACAO-HOMOLOG.md).

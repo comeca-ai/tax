@@ -6,8 +6,22 @@ versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
 ## [Unreleased]
 
+### Planejamento da POC
+
+- Consolidado o roadmap de canal 360dialog, jornadas, Google Maps, notas no
+  CNPJ do empregador, conciliação, cobrança e aceite em `docs/poc/`.
+- Acrescentados desenho de topologia e revisão de hierarquia: a política é a
+  fonte de cargos, responsabilidades e condições de aprovação automática.
+- Registrada D-025 em POC-12: avaliar Focus NFe primeiro e NFE.io como
+  alternativa, com critérios técnicos/comerciais, sem contratação ou ativação.
+- Planejamento não altera decisões, permissões, banco ou ativação do canal.
+
 ### Adicionado
 
+- Fluxo manual, restrito à homologação, para aplicar os dois secrets 360dialog
+  via SSH com comando fixo, backup, teste de autenticação local e tentativa de
+  reversão. Preparado para revisão; bootstrap e execução continuam pendentes.
+  Não altera produção, código implantado, banco ou webhook no provedor.
 - POC de WhatsApp: recebimento multipart de comprovantes com validação de
   tipo, tamanho, assinatura binária e nome de arquivo, armazenamento privado
   abstraído e criação idempotente de despesa em revisão.

@@ -5,6 +5,117 @@
 
 ---
 
+## D-025 · Avaliar integrador fiscal: Focus NFe primeiro, NFE.io como alternativa — 13/09/2026
+
+**Decisão do usuário:** incluir no plano uma prova técnica de captura de NF-e
+por integrador, com **Focus NFe como primeira opção** e **NFE.io como
+alternativa**. O recorte inicial é uma empresa piloto, NF-e modelo 55 e notas
+de combustível conhecidas e autorizadas para teste.
+
+**Consequências:** a avaliação fica em POC-12, sem criar uma entrega concorrente.
+Verificar XML completo, itens/quantidades, eventos e cancelamentos, certificado,
+controle das manifestações, custo do volume total capturado e condições para
+atender múltiplos clientes. A Reembolsa mantém a associação de nota, vendedor,
+veículo e jornada, a aplicação da política e a cobrança de pendências.
+
+A escolha é uma preferência para avaliação, não homologação ou contratação.
+Registrar o plano não autoriza criar conta, aceitar contrato, transmitir
+certificado/dados reais, manifestar operações fiscais ou ativar produção.
+Essas ações exigem autorização própria. Aprovar reembolso pela política não
+autoriza manifestação fiscal automaticamente.
+
+**Portão de decisão:** anexar resultados e recomendação de seguir ou não com
+Focus; se não atender, avaliar NFE.io. Fechar então o recorte de consulta fiscal
+E8 exigido no aceite. A prova isolada não conclui E8, integridade E9 ou a POC.
+**Invalidaria:** resultado técnico/comercial incompatível com os critérios, ou
+nova escolha explícita de produto registrada antes da contratação.
+
+---
+
+## D-024 · Política define cargos, responsabilidades e aprovação do trajeto — 13/09/2026
+
+**Decisão do usuário:** a política é também a fonte normativa de cargos,
+responsabilidades, elegibilidade e condições de aprovação. Sua leitura deve
+identificar essas relações para que um trajeto elegível possa ser aprovado
+automaticamente conforme as regras da empresa.
+
+**Aplicação no planejamento:** extrair regras e suas referências ao documento,
+vincular os perfis às pessoas reais do cadastro e apresentar ambiguidades para
+validação humana antes de ativar a política. Cargo em texto livre ou relação
+inferida pela IA não concede permissão por si só. Regras não presentes no
+documento não são inventadas.
+
+Com política validada, perfil resolvido, trajeto consolidado e evidências
+suficientes, o decisor pode aplicar a aprovação automática quando autorizada
+pela regra e pelo modo da empresa. Sombra registra sem efeito; assistido exige
+confirmação; autônomo aplica as decisões autorizadas. Revisão humana trata as
+pendências/exceções ou etapas que a própria política exigir. Aprovação de
+reembolso não executa pagamento nem confirma crédito fiscal.
+
+**Consequência:** POC-17 passa a tratar interpretação e vinculação da hierarquia
+normativa, além das lacunas atuais de autorização. A fonte das regras é a
+política; o cadastro resolve quais pessoas ocupam cada função. Mudanças
+preservam versões e autoria. **Invalidaria:** nova decisão explícita de produto
+sobre a fonte normativa ou os limites da automação.
+
+---
+
+## D-023 · POC completa inclui campo, conciliação e cobrança de combustível — 13/09/2026
+
+**Contexto:** após a reunião de produto e a revisão da topologia, o usuário
+incluiu o ciclo de check-in/checkpoints/check-out, consolidação posterior pelo
+Google Maps e cobrança das notas de combustível no CNPJ do empregador.
+
+**Decisão do usuário:** registrar a jornada de campo e usar seu consolidado,
+veículo e notas no módulo de conciliação de combustível por período. O canal
+continua exclusivamente 360dialog. A cobrança solicita documentação pendente e
+acompanha sua regularização.
+
+**Consequências:** o marco inicial de comprovantes definido em D-021 permanece;
+campo deixa de ser excluído do aceite da POC completa. WP-07 valida o canal e
+POC-16 valida o conjunto ampliado descrito em `docs/poc/README.md`. Pontos
+originais permanecem preservados; rotas entre eles são estimadas. Um
+abastecimento pode abranger várias jornadas e não equivale automaticamente ao
+consumo do período. A política define uso comercial, prazos e eventual efeito
+da falta de nota. Nota com CNPJ correto não garante crédito tributário.
+
+**Invalidaria:** recorte posterior explicitamente aceito pelo responsável de
+produto antes de declarar a POC concluída.
+
+---
+
+## D-022 · 360dialog é o único transporte WhatsApp da POC — 13/09/2026
+
+**Contexto:** documentos anteriores descrevem a Evolution API como piloto,
+enquanto a POC vigente já define a 360dialog como canal oficial. Manter as duas
+opções operacionais cria credenciais, webhooks e evidências de homologação
+concorrentes sem agregar valor à prova de conceito.
+
+**Decisão (do usuário):** a POC usa exclusivamente a **360dialog**. Não haverá
+nova configuração, implantação ou homologação pela Evolution. A abstração de
+transporte permanece, mas só o adapter 360dialog será implementado e ativado
+neste ciclo.
+
+**Consequências:**
+
+1. `/api/webhooks/360dialog` é a entrada canônica. O adapter normalizará eventos,
+   baixará mídia e enviará mensagens com credenciais `DIALOG_360_*`, sempre por
+   inbox/outbox persistentes.
+2. A seleção atual de Evolution como padrão é legado: não pode ser ativada em
+   ambientes novos e deve deixar de ser padrão no trabalho de integração. A
+   remoção ocorrerá somente após cobertura completa da 360dialog e testes de
+   regressão.
+3. D-010 e D-011 permanecem no histórico, mas são substituídas como orientação
+   operacional por esta decisão. Aplicação e banco continuam na infraestrutura
+   própria; a 360dialog é o provedor externo de transporte.
+4. A homologação terá um único conjunto de número, credenciais, templates,
+   webhook e roteiro de aceite.
+
+**Invalidaria:** decisão explícita de trocar o provedor oficial, registrada em
+novo ADR antes de habilitar outro canal.
+
+---
+
 ## D-021 · POC WhatsApp começa pelo comprovante e decisão, não pelo ERP conversacional completo — 12/09/2026
 
 **Contexto:** a proposta de integração pela 360dialog reúne canal, filas,

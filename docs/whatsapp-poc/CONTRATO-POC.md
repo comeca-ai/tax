@@ -61,6 +61,7 @@ despesa original.
 
 ## Fora do contrato inicial
 
-Múltiplas empresas por telefone, consulta de período, geolocalização, OCR novo,
-antifraude e console de operação serão contratos separados. Essa separação evita
-que uma expansão de produto altere o comportamento validado da POC.
+Múltiplas empresas por telefone, consulta de período, OCR novo e console de
+operação continuam fora deste contrato inicial. Geolocalização, conciliação e
+integridade documental recebem contratos próprios no [roadmap completo](../poc/README.md)
+(D-023). O aceite deste contrato não conclui sozinho a POC ampliada.
