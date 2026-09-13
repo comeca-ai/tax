@@ -5,6 +5,38 @@
 
 ---
 
+## D-022 · 360dialog é o único transporte WhatsApp da POC — 13/09/2026
+
+**Contexto:** documentos anteriores descrevem a Evolution API como piloto,
+enquanto a POC vigente já define a 360dialog como canal oficial. Manter as duas
+opções operacionais cria credenciais, webhooks e evidências de homologação
+concorrentes sem agregar valor à prova de conceito.
+
+**Decisão (do usuário):** a POC usa exclusivamente a **360dialog**. Não haverá
+nova configuração, implantação ou homologação pela Evolution. A abstração de
+transporte permanece, mas só o adapter 360dialog será implementado e ativado
+neste ciclo.
+
+**Consequências:**
+
+1. `/api/webhooks/360dialog` é a entrada canônica. O adapter normalizará eventos,
+   baixará mídia e enviará mensagens com credenciais `DIALOG_360_*`, sempre por
+   inbox/outbox persistentes.
+2. A seleção atual de Evolution como padrão é legado: não pode ser ativada em
+   ambientes novos e deve deixar de ser padrão no trabalho de integração. A
+   remoção ocorrerá somente após cobertura completa da 360dialog e testes de
+   regressão.
+3. D-010 e D-011 permanecem no histórico, mas são substituídas como orientação
+   operacional por esta decisão. Aplicação e banco continuam na infraestrutura
+   própria; a 360dialog é o provedor externo de transporte.
+4. A homologação terá um único conjunto de número, credenciais, templates,
+   webhook e roteiro de aceite.
+
+**Invalidaria:** decisão explícita de trocar o provedor oficial, registrada em
+novo ADR antes de habilitar outro canal.
+
+---
+
 ## D-021 · POC WhatsApp começa pelo comprovante e decisão, não pelo ERP conversacional completo — 12/09/2026
 
 **Contexto:** a proposta de integração pela 360dialog reúne canal, filas,

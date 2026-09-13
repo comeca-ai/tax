@@ -4,6 +4,9 @@ Este diretório é a fonte de verdade do plano de entrega da POC de WhatsApp
 oficial pela 360dialog. Ele transforma a proposta externa em entregas pequenas,
 revisáveis e compatíveis com a política de release do repositório.
 
+**Transporte único:** a POC usa exclusivamente a 360dialog (D-022). Evolution
+não é alternativa operacional, de homologação ou de produção deste ciclo.
+
 ## Objetivo da POC
 
 Validar com colaboradores reais, em homologação, este caminho completo:
