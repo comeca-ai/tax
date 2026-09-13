@@ -6,6 +6,9 @@ instruções dispersas na raiz do repositório.
 
 ## Comece por aqui
 
+- [Roadmap da POC completa](poc/README.md): módulos, dependências e aceite de campo/combustível.
+- [Topologia da POC](poc/TOPOLOGIA.md): desenho com estado atual e integrações pendentes.
+- [Revisão de hierarquia](poc/REVISAO-HIERARQUIA.md): lacunas atuais e regras derivadas da política.
 - [Produto](PRODUTO.md): escopo e linguagem de negócio.
 - [Arquitetura](ARQUITETURA.md): módulos e decisões técnicas.
 - [Mapa do repositório](MAPA-REPOS.md): onde cada parte do código vive.

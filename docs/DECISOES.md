@@ -5,6 +5,58 @@
 
 ---
 
+## D-024 · Política define cargos, responsabilidades e aprovação do trajeto — 13/09/2026
+
+**Decisão do usuário:** a política é também a fonte normativa de cargos,
+responsabilidades, elegibilidade e condições de aprovação. Sua leitura deve
+identificar essas relações para que um trajeto elegível possa ser aprovado
+automaticamente conforme as regras da empresa.
+
+**Aplicação no planejamento:** extrair regras e suas referências ao documento,
+vincular os perfis às pessoas reais do cadastro e apresentar ambiguidades para
+validação humana antes de ativar a política. Cargo em texto livre ou relação
+inferida pela IA não concede permissão por si só. Regras não presentes no
+documento não são inventadas.
+
+Com política validada, perfil resolvido, trajeto consolidado e evidências
+suficientes, o decisor pode aplicar a aprovação automática quando autorizada
+pela regra e pelo modo da empresa. Sombra registra sem efeito; assistido exige
+confirmação; autônomo aplica as decisões autorizadas. Revisão humana trata as
+pendências/exceções ou etapas que a própria política exigir. Aprovação de
+reembolso não executa pagamento nem confirma crédito fiscal.
+
+**Consequência:** POC-17 passa a tratar interpretação e vinculação da hierarquia
+normativa, além das lacunas atuais de autorização. A fonte das regras é a
+política; o cadastro resolve quais pessoas ocupam cada função. Mudanças
+preservam versões e autoria. **Invalidaria:** nova decisão explícita de produto
+sobre a fonte normativa ou os limites da automação.
+
+---
+
+## D-023 · POC completa inclui campo, conciliação e cobrança de combustível — 13/09/2026
+
+**Contexto:** após a reunião de produto e a revisão da topologia, o usuário
+incluiu o ciclo de check-in/checkpoints/check-out, consolidação posterior pelo
+Google Maps e cobrança das notas de combustível no CNPJ do empregador.
+
+**Decisão do usuário:** registrar a jornada de campo e usar seu consolidado,
+veículo e notas no módulo de conciliação de combustível por período. O canal
+continua exclusivamente 360dialog. A cobrança solicita documentação pendente e
+acompanha sua regularização.
+
+**Consequências:** o marco inicial de comprovantes definido em D-021 permanece;
+campo deixa de ser excluído do aceite da POC completa. WP-07 valida o canal e
+POC-16 valida o conjunto ampliado descrito em `docs/poc/README.md`. Pontos
+originais permanecem preservados; rotas entre eles são estimadas. Um
+abastecimento pode abranger várias jornadas e não equivale automaticamente ao
+consumo do período. A política define uso comercial, prazos e eventual efeito
+da falta de nota. Nota com CNPJ correto não garante crédito tributário.
+
+**Invalidaria:** recorte posterior explicitamente aceito pelo responsável de
+produto antes de declarar a POC concluída.
+
+---
+
 ## D-022 · 360dialog é o único transporte WhatsApp da POC — 13/09/2026
 
 **Contexto:** documentos anteriores descrevem a Evolution API como piloto,

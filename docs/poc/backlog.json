@@ -1,0 +1,333 @@
+{
+  "repository": "comeca-ai/projeto_tribureembolsa",
+  "branch": "docs/360dialog-canal-unico",
+  "version": "poc-campo-combustivel-2026-09-13",
+  "epic": {
+    "title": "[POC] Campo e combustível — roadmap e aceite completo",
+    "file": "docs/poc/README.md"
+  },
+  "phases": [
+    {
+      "id": "M1",
+      "title": "POC 1 — Base segura e cadastros",
+      "description": "Preparar operação, isolamento, política, modos e cadastros para uma empresa piloto."
+    },
+    {
+      "id": "M2",
+      "title": "POC 2 — Canal único 360dialog",
+      "description": "Completar a jornada de comprovante, conversa e decisão no canal oficial."
+    },
+    {
+      "id": "M3",
+      "title": "POC 3 — Jornada de campo e Google Maps",
+      "description": "Capturar saída, visitas e retorno; consolidar distâncias depois, preservando evidências."
+    },
+    {
+      "id": "M4",
+      "title": "POC 4 — Combustível e documentação fiscal",
+      "description": "Receber notas no CNPJ do empregador, validar, conciliar e cobrar pendências por período."
+    },
+    {
+      "id": "M5",
+      "title": "POC 5 — Métricas, homologação e release",
+      "description": "Comprovar o fluxo completo e medir os resultados antes de promover uma release."
+    }
+  ],
+  "issues": [
+    {
+      "id": "POC-01",
+      "title": "[POC-01] Preparar homologação, governança e reversão",
+      "file": "docs/poc/entregas/01-operacao.md",
+      "phase": "M1",
+      "priority": "P0",
+      "area": "Operação",
+      "dependsOn": [],
+      "legacy": [
+        "condições comuns",
+        "E12"
+      ]
+    },
+    {
+      "id": "POC-02",
+      "title": "[POC-02] Provar identidade, isolamento e reentrega segura na API e no banco",
+      "file": "docs/poc/entregas/02-isolamento.md",
+      "phase": "M1",
+      "priority": "P0",
+      "area": "Backend e dados",
+      "dependsOn": [
+        "POC-01"
+      ],
+      "legacy": [
+        "E2",
+        "WP-01",
+        "WP-02",
+        "WP-03"
+      ]
+    },
+    {
+      "id": "POC-03",
+      "title": "[POC-03] Configurar política, responsáveis, tarifa e modos por empresa",
+      "file": "docs/poc/entregas/03-politica-modos.md",
+      "phase": "M1",
+      "priority": "P0",
+      "area": "Produto e backend",
+      "dependsOn": [
+        "POC-02"
+      ],
+      "legacy": [
+        "E1",
+        "E3"
+      ]
+    },
+    {
+      "id": "POC-04",
+      "title": "[POC-04] Ativar equipe pelo WhatsApp e classificar interno/externo",
+      "file": "docs/poc/entregas/04-onboarding-equipe.md",
+      "phase": "M1",
+      "priority": "P0",
+      "area": "Produto e interface",
+      "dependsOn": [
+        "POC-02",
+        "POC-03"
+      ],
+      "legacy": [
+        "E5",
+        "E10"
+      ]
+    },
+    {
+      "id": "POC-05",
+      "title": "[POC-05] Unificar veículo e consumo declarado do colaborador",
+      "file": "docs/poc/entregas/05-veiculos.md",
+      "phase": "M1",
+      "priority": "P0",
+      "area": "Backend e interface",
+      "dependsOn": [
+        "POC-02"
+      ],
+      "legacy": [
+        "E4"
+      ]
+    },
+    {
+      "id": "POC-06",
+      "title": "[POC-06] Conectar 360dialog à inbox/outbox e desativar caminhos legados",
+      "file": "docs/poc/entregas/06-transporte-360dialog.md",
+      "phase": "M2",
+      "priority": "P0",
+      "area": "Integração WhatsApp",
+      "dependsOn": [
+        "POC-02"
+      ],
+      "legacy": [
+        "E10",
+        "WP-01",
+        "WP-02",
+        "D-022"
+      ]
+    },
+    {
+      "id": "POC-07",
+      "title": "[POC-07] Homologar comprovantes integrados e conectar OCR existente",
+      "file": "docs/poc/entregas/07-comprovantes.md",
+      "phase": "M2",
+      "priority": "P0",
+      "area": "Backend e documentos",
+      "dependsOn": [
+        "POC-02",
+        "POC-06"
+      ],
+      "legacy": [
+        "WP-04",
+        "E10"
+      ]
+    },
+    {
+      "id": "POC-08",
+      "title": "[POC-08] Concluir conversa, pendências de evidência e retorno da decisão",
+      "file": "docs/poc/entregas/08-conversa-decisao.md",
+      "phase": "M2",
+      "priority": "P0",
+      "area": "Reembolso e WhatsApp",
+      "dependsOn": [
+        "POC-03",
+        "POC-04",
+        "POC-06",
+        "POC-07",
+        "POC-17"
+      ],
+      "legacy": [
+        "WP-05",
+        "WP-06",
+        "WP-07",
+        "E10"
+      ]
+    },
+    {
+      "id": "POC-09",
+      "title": "[POC-09] Registrar check-in, checkpoints e check-out com jornada persistente",
+      "file": "docs/poc/entregas/09-jornadas-campo.md",
+      "phase": "M3",
+      "priority": "P0",
+      "area": "Campo e dados",
+      "dependsOn": [
+        "POC-02",
+        "POC-04",
+        "POC-06"
+      ],
+      "legacy": [
+        "E11",
+        "escopo atualizado de campo"
+      ]
+    },
+    {
+      "id": "POC-10",
+      "title": "[POC-10] Consolidar jornadas posteriormente com Google Maps",
+      "file": "docs/poc/entregas/10-consolidacao-maps.md",
+      "phase": "M3",
+      "priority": "P0",
+      "area": "Campo e integrações",
+      "dependsOn": [
+        "POC-03",
+        "POC-05",
+        "POC-09"
+      ],
+      "legacy": [
+        "E11"
+      ]
+    },
+    {
+      "id": "POC-11",
+      "title": "[POC-11] Receber notas de combustível no CNPJ do empregador",
+      "file": "docs/poc/entregas/11-notas-combustivel.md",
+      "phase": "M4",
+      "priority": "P0",
+      "area": "Fiscal e documentos",
+      "dependsOn": [
+        "POC-02",
+        "POC-05",
+        "POC-07"
+      ],
+      "legacy": [
+        "E7",
+        "motor fiscal combustível"
+      ]
+    },
+    {
+      "id": "POC-12",
+      "title": "[POC-12] Validar notas e detectar duplicidade e inconsistência documental",
+      "file": "docs/poc/entregas/12-integridade-fiscal.md",
+      "phase": "M4",
+      "priority": "P1",
+      "area": "Fiscal e integridade",
+      "dependsOn": [
+        "POC-11"
+      ],
+      "legacy": [
+        "E8",
+        "E9"
+      ]
+    },
+    {
+      "id": "POC-13",
+      "title": "[POC-13] Conciliar jornada, quilômetros, veículo e notas por período",
+      "file": "docs/poc/entregas/13-conciliacao-combustivel.md",
+      "phase": "M4",
+      "priority": "P0",
+      "area": "Campo e combustível",
+      "dependsOn": [
+        "POC-03",
+        "POC-05",
+        "POC-10",
+        "POC-11",
+        "POC-12"
+      ],
+      "legacy": [
+        "E4",
+        "E11",
+        "decisão de conciliação"
+      ]
+    },
+    {
+      "id": "POC-14",
+      "title": "[POC-14] Cobrar notas pendentes pelo WhatsApp e encerrar lembretes ao regularizar",
+      "file": "docs/poc/entregas/14-cobranca-notas.md",
+      "phase": "M4",
+      "priority": "P0",
+      "area": "WhatsApp e operação",
+      "dependsOn": [
+        "POC-06",
+        "POC-08",
+        "POC-13"
+      ],
+      "legacy": [
+        "E10",
+        "decisão de cobrança de combustível"
+      ]
+    },
+    {
+      "id": "POC-15",
+      "title": "[POC-15] Medir o piloto e registrar pagamento com autoria",
+      "file": "docs/poc/entregas/15-metricas-pagamento.md",
+      "phase": "M5",
+      "priority": "P0",
+      "area": "Produto e relatórios",
+      "dependsOn": [
+        "POC-03",
+        "POC-08"
+      ],
+      "legacy": [
+        "E6"
+      ]
+    },
+    {
+      "id": "POC-16",
+      "title": "[POC-16] Executar aceite ponta a ponta e preparar release da POC completa",
+      "file": "docs/poc/entregas/16-aceite-final.md",
+      "phase": "M5",
+      "priority": "P0",
+      "area": "Produto, revisão e operação",
+      "dependsOn": [
+        "POC-01",
+        "POC-02",
+        "POC-03",
+        "POC-04",
+        "POC-05",
+        "POC-06",
+        "POC-07",
+        "POC-08",
+        "POC-09",
+        "POC-10",
+        "POC-11",
+        "POC-12",
+        "POC-13",
+        "POC-14",
+        "POC-15",
+        "POC-17"
+      ],
+      "legacy": [
+        "E12",
+        "WP-07"
+      ]
+    },
+    {
+      "id": "POC-17",
+      "title": "[POC-17] Extrair da política cargos, responsabilidades e condições de aprovação",
+      "file": "docs/poc/entregas/17-hierarquia-alcadas.md",
+      "phase": "M1",
+      "priority": "P0",
+      "area": "Produto e autorização",
+      "dependsOn": [
+        "POC-02",
+        "POC-03",
+        "POC-04"
+      ],
+      "legacy": [
+        "E2",
+        "E3",
+        "E5",
+        "revisão solicitada pelo usuário"
+      ]
+    }
+  ]
+}

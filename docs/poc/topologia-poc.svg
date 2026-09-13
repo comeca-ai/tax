@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="1370" viewBox="0 0 1240 1370" role="img" aria-labelledby="title desc">
+<title id="title">Topologia da Reembolsa para a POC: base existente e módulos a concluir</title>
+<desc id="desc">Colaborador usa 360dialog e gestores usam o painel. Um núcleo modular compartilha o banco. Jornada, Google Maps, conciliação e cobrança são planejados. A hierarquia atual tem responsáveis por empresa e precisa ser revisada.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#60738b"/></marker></defs>
+<style>
+text{font-family:Arial,Helvetica,sans-serif;fill:#1b3047}.h1{font-size:30px;font-weight:700}.h2{font-size:20px;font-weight:700}.label{font-size:17px;font-weight:700}.body{font-size:15px}.small{font-size:13px;fill:#53657c}.existing{fill:#e8f7ed;stroke:#258653;stroke-width:1.8}.partial{fill:#fff3dc;stroke:#bc811f;stroke-width:1.8}.future{fill:#f1f5f9;stroke:#7e90a7;stroke-width:1.8;stroke-dasharray:7 5}.wire{fill:none;stroke:#60738b;stroke-width:2;marker-end:url(#arrow)}.later{stroke-dasharray:7 5}
+</style>
+<rect width="1240" height="1370" fill="#fbfcfe"/>
+<text x="44" y="52" class="h1">Reembolsa · topologia da POC</text>
+<text x="44" y="81" class="body">Estado verificado: main c5a6bdf · PR #17 integrado · 13/09/2026</text>
+<rect x="44" y="103" width="16" height="16" rx="4" class="existing"/><text x="70" y="117" class="small">Base implementada</text>
+<rect x="250" y="103" width="16" height="16" rx="4" class="partial"/><text x="276" y="117" class="small">Integração parcial</text>
+<rect x="462" y="103" width="16" height="16" rx="4" class="future"/><text x="488" y="117" class="small">Planejado</text>
+<text x="682" y="117" class="small">Implementado ≠ homologado ≠ habilitado em produção</text>
+
+<rect x="44" y="151" width="534" height="73" rx="12" fill="#19354e"/>
+<text x="64" y="180" style="fill:white" class="h2">B2C · colaborador da empresa</text>
+<text x="64" y="204" style="fill:#d8e7f2" class="body">Campo ou interno · foto, documento e localização</text>
+<rect x="662" y="151" width="534" height="73" rx="12" fill="#19354e"/>
+<text x="682" y="180" style="fill:white" class="h2">B2B · empresa e responsáveis</text>
+<text x="682" y="204" style="fill:#d8e7f2" class="body">Política, cadastro e decisão · papéis conforme a regra</text>
+<path class="wire" d="M311 224V251"/><path class="wire" d="M929 224V251"/>
+
+<rect x="44" y="254" width="534" height="93" rx="12" class="partial"/>
+<text x="64" y="286" class="h2">360dialog · único canal WhatsApp</text>
+<text x="64" y="312" class="body">Webhook existente; mídia, worker e respostas a integrar</text>
+<text x="64" y="333" class="small">Evolution permanece no código legado e precisa ser desativado</text>
+<rect x="662" y="254" width="534" height="93" rx="12" class="existing"/>
+<text x="682" y="286" class="h2">Painel web · existente</text>
+<text x="682" y="312" class="body">Empresa, equipe, política, despesas e fila de revisão</text>
+<text x="682" y="333" class="small">Configuração e hierarquia operacional ainda incompletas</text>
+<path class="wire" d="M311 347V391"/><path class="wire" d="M929 347V391"/>
+
+<rect x="44" y="394" width="1152" height="391" rx="16" fill="#edf3f9" stroke="#a6b8cb" stroke-width="2"/>
+<text x="66" y="429" class="h2">Núcleo Reembolsa · módulos do mesmo repositório</text>
+<text x="66" y="453" class="small">API, autorização e persistência compartilhadas · não representa microserviços implantados</text>
+
+<rect x="66" y="475" width="263" height="139" rx="11" class="existing"/>
+<text x="82" y="504" class="label">Identidade e empresa</text>
+<text x="82" y="530" class="body">Usuário / colaborador</text>
+<text x="82" y="552" class="body">Vínculo e permissões</text>
+<text x="82" y="574" class="body">Testes de isolamento</text>
+<text x="82" y="597" class="small">Base disponível; aceite pendente</text>
+
+<rect x="347" y="475" width="263" height="139" rx="11" class="partial"/>
+<text x="363" y="504" class="label">Evidência e OCR</text>
+<text x="363" y="530" class="body">Comprovante e documento</text>
+<text x="363" y="552" class="body">Validação / hash / storage</text>
+<text x="363" y="574" class="body">OCR existente, configurável</text>
+<text x="363" y="597" class="small">Integração do canal a concluir</text>
+
+<rect x="628" y="475" width="263" height="139" rx="11" class="partial"/>
+<text x="644" y="504" class="label">Reembolso</text>
+<text x="644" y="530" class="body">Política e decisor existentes</text>
+<text x="644" y="552" class="body">Revisão humana existente</text>
+<text x="644" y="574" class="body">Modos e alçadas pendentes</text>
+<text x="644" y="597" class="small">Hierarquia em revisão · POC-17</text>
+
+<rect x="909" y="475" width="263" height="139" rx="11" class="partial"/>
+<text x="925" y="504" class="label">Fiscal / combustível</text>
+<text x="925" y="530" class="body">Motor fiscal existente</text>
+<text x="925" y="552" class="body">Nota no CNPJ empregador</text>
+<text x="925" y="574" class="body">SEFAZ: escopo a decidir</text>
+<text x="925" y="597" class="small">Decisão própria; não herda crédito</text>
+
+<rect x="66" y="638" width="1106" height="122" rx="11" class="future"/>
+<text x="86" y="670" class="h2">Processamento assíncrono a conectar</text>
+<text x="86" y="698" class="body">Inbox → worker → conversa / jornada / cálculo / conciliação → outbox → 360dialog</text>
+<text x="86" y="724" class="body">Tabelas de fila existentes · retentativas, correlação e reprocessamento seguro a concluir</text>
+<text x="86" y="746" class="small">Gravação durável antes da confirmação de recebimento · nenhuma ativação produtiva pelo desenho</text>
+<path class="wire" d="M620 785V815"/>
+
+<rect x="44" y="818" width="1152" height="105" rx="16" class="existing"/>
+<text x="66" y="853" class="h2">MySQL / MariaDB · fonte persistente</text>
+<text x="66" y="880" class="body">Empresas, pessoas, política, despesas, notas, revisão, inbox/outbox e posições de campo</text>
+<text x="66" y="903" class="small">Jornadas, rotas, conciliações e pendências exigem novas estruturas; eventos originais preservados</text>
+
+<text x="44" y="968" class="h2">Detalhe do fluxo de campo a construir</text>
+<rect x="44" y="991" width="264" height="124" rx="11" class="future"/>
+<text x="60" y="1022" class="label">1 · Jornada</text>
+<text x="60" y="1048" class="body">Check-in de saída</text><text x="60" y="1070" class="body">Checkpoints nas visitas</text><text x="60" y="1092" class="body">Check-out de retorno</text>
+
+<path class="wire later" d="M308 1052H334"/>
+<rect x="339" y="991" width="264" height="124" rx="11" class="future"/>
+<text x="355" y="1022" class="label">2 · Google Maps</text>
+<text x="355" y="1048" class="body">Cálculo posterior dos trechos</text><text x="355" y="1070" class="body">Ordem real dos eventos</text><text x="355" y="1092" class="body">Distância estimada + gaps</text>
+
+<path class="wire later" d="M603 1052H629"/>
+<rect x="634" y="991" width="264" height="124" rx="11" class="future"/>
+<text x="650" y="1022" class="label">3 · Conciliação</text>
+<text x="650" y="1048" class="body">Jornadas + veículo + notas</text><text x="650" y="1070" class="body">Período e uso comercial</text><text x="650" y="1092" class="body">Pendências / divergências</text>
+
+<path class="wire later" d="M898 1052H924"/>
+<rect x="929" y="991" width="267" height="124" rx="11" class="future"/>
+<text x="945" y="1022" class="label">4 · Cobrança de notas</text>
+<text x="945" y="1048" class="body">CNPJ do empregador</text><text x="945" y="1070" class="body">360dialog → envio da nota</text><text x="945" y="1092" class="body">Validar e parar lembretes</text>
+<path class="wire later" d="M1060 1115V1139H766V1118"/>
+<text x="50" y="1159" class="small">Trajeto + perfil + política validada → aprovação automática quando autorizada; pendências seguem para revisão.</text>
+
+<rect x="44" y="1188" width="1152" height="100" rx="12" fill="#fff3dc" stroke="#bc811f"/>
+<text x="64" y="1218" class="label">POC-17 · cargos e responsabilidades derivados da política</text>
+<text x="64" y="1243" class="body">Ler → estruturar → validar → vincular às pessoas reais → aplicar regra ao trajeto e às evidências.</text>
+<text x="64" y="1267" class="body">Hoje: responsáveis gerais por empresa. Aprovação automática do trajeto ainda depende dessa integração.</text>
+<text x="44" y="1321" class="small">Reembolso por km, documentação fiscal e registro de pagamento têm estados próprios.</text>
+<text x="44" y="1345" class="small">Infra atual descrita no runbook: Node sob systemd · versão visual do roadmap · docs/poc/README.md</text>
+</svg>
