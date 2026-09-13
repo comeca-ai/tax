@@ -1,9 +1,9 @@
 # POC-15 — Medir o piloto e registrar pagamento com autoria
 
-**Marco:** POC 5 — Métricas, homologação e release  
-**Prioridade:** P0  
-**Responsabilidade:** Produto e relatórios; responsável nominal a definir  
-**Referências:** E6  
+**Marco:** POC 5 — Métricas, homologação e release\
+**Prioridade:** P0\
+**Responsabilidade:** Produto e relatórios; responsável nominal a definir\
+**Referências:** E6\
 **Depende de:** POC-03, POC-08
 
 ## Resultado esperado

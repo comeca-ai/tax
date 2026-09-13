@@ -1,9 +1,9 @@
 # POC-04 — Ativar equipe pelo WhatsApp e classificar interno/externo
 
-**Marco:** POC 1 — Base segura e cadastros  
-**Prioridade:** P0  
-**Responsabilidade:** Produto e interface; responsável nominal a definir  
-**Referências:** E5, E10  
+**Marco:** POC 1 — Base segura e cadastros\
+**Prioridade:** P0\
+**Responsabilidade:** Produto e interface; responsável nominal a definir\
+**Referências:** E5, E10\
 **Depende de:** POC-02, POC-03
 
 ## Resultado esperado

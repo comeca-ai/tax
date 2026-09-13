@@ -1,9 +1,9 @@
 # POC-07 — Homologar comprovantes integrados e conectar OCR existente
 
-**Marco:** POC 2 — Canal único 360dialog  
-**Prioridade:** P0  
-**Responsabilidade:** Backend e documentos; responsável nominal a definir  
-**Referências:** WP-04, E10  
+**Marco:** POC 2 — Canal único 360dialog\
+**Prioridade:** P0\
+**Responsabilidade:** Backend e documentos; responsável nominal a definir\
+**Referências:** WP-04, E10\
 **Depende de:** POC-02, POC-06
 
 ## Resultado esperado

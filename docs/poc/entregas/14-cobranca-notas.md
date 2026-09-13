@@ -1,9 +1,9 @@
 # POC-14 — Cobrar notas pendentes pelo WhatsApp e encerrar lembretes ao regularizar
 
-**Marco:** POC 4 — Combustível e documentação fiscal  
-**Prioridade:** P0  
-**Responsabilidade:** WhatsApp e operação; responsável nominal a definir  
-**Referências:** E10, decisão de cobrança de combustível  
+**Marco:** POC 4 — Combustível e documentação fiscal\
+**Prioridade:** P0\
+**Responsabilidade:** WhatsApp e operação; responsável nominal a definir\
+**Referências:** E10, decisão de cobrança de combustível\
 **Depende de:** POC-06, POC-08, POC-13
 
 ## Resultado esperado
@@ -30,4 +30,3 @@ Vincular PRs, testes relevantes e teste manual em homologação. Quando houver
 mudança de dados, autorização ou integração externa, anexar prova em banco/API
 e plano de reversão. Código mesclado, homologação e habilitação produtiva são
 estados distintos. Não fechar a issue apenas porque o PR foi aberto.
-

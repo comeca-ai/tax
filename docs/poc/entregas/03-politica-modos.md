@@ -1,9 +1,9 @@
 # POC-03 — Configurar política, responsáveis, tarifa e modos por empresa
 
-**Marco:** POC 1 — Base segura e cadastros  
-**Prioridade:** P0  
-**Responsabilidade:** Produto e backend; responsável nominal a definir  
-**Referências:** E1, E3  
+**Marco:** POC 1 — Base segura e cadastros\
+**Prioridade:** P0\
+**Responsabilidade:** Produto e backend; responsável nominal a definir\
+**Referências:** E1, E3\
 **Depende de:** POC-02
 
 ## Resultado esperado
@@ -34,4 +34,3 @@ Vincular PRs, testes relevantes e teste manual em homologação. Quando houver
 mudança de dados, autorização ou integração externa, anexar prova em banco/API
 e plano de reversão. Código mesclado, homologação e habilitação produtiva são
 estados distintos. Não fechar a issue apenas porque o PR foi aberto.
-

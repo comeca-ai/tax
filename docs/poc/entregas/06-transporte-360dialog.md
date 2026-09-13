@@ -1,9 +1,9 @@
 # POC-06 — Conectar 360dialog à inbox/outbox e desativar caminhos legados
 
-**Marco:** POC 2 — Canal único 360dialog  
-**Prioridade:** P0  
-**Responsabilidade:** Integração WhatsApp; responsável nominal a definir  
-**Referências:** E10, WP-01, WP-02, D-022  
+**Marco:** POC 2 — Canal único 360dialog\
+**Prioridade:** P0\
+**Responsabilidade:** Integração WhatsApp; responsável nominal a definir\
+**Referências:** E10, WP-01, WP-02, D-022\
 **Depende de:** POC-02
 
 ## Resultado esperado
@@ -30,4 +30,3 @@ Vincular PRs, testes relevantes e teste manual em homologação. Quando houver
 mudança de dados, autorização ou integração externa, anexar prova em banco/API
 e plano de reversão. Código mesclado, homologação e habilitação produtiva são
 estados distintos. Não fechar a issue apenas porque o PR foi aberto.
-

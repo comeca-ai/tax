@@ -1,9 +1,9 @@
 # POC-17 — Extrair da política cargos, responsabilidades e condições de aprovação
 
-**Marco:** POC 1 — Base segura e cadastros  
-**Prioridade:** P0  
-**Responsabilidade:** Produto e autorização; responsável nominal a definir  
-**Referências:** E2, E3, E5, revisão solicitada pelo usuário  
+**Marco:** POC 1 — Base segura e cadastros\
+**Prioridade:** P0\
+**Responsabilidade:** Produto e autorização; responsável nominal a definir\
+**Referências:** E2, E3, E5, revisão solicitada pelo usuário\
 **Depende de:** POC-02, POC-03, POC-04
 
 ## Resultado esperado

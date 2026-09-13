@@ -1,9 +1,9 @@
 # POC-10 — Consolidar jornadas posteriormente com Google Maps
 
-**Marco:** POC 3 — Jornada de campo e Google Maps  
-**Prioridade:** P0  
-**Responsabilidade:** Campo e integrações; responsável nominal a definir  
-**Referências:** E11  
+**Marco:** POC 3 — Jornada de campo e Google Maps\
+**Prioridade:** P0\
+**Responsabilidade:** Campo e integrações; responsável nominal a definir\
+**Referências:** E11\
 **Depende de:** POC-03, POC-05, POC-09
 
 ## Resultado esperado
@@ -30,4 +30,3 @@ Vincular PRs, testes relevantes e teste manual em homologação. Quando houver
 mudança de dados, autorização ou integração externa, anexar prova em banco/API
 e plano de reversão. Código mesclado, homologação e habilitação produtiva são
 estados distintos. Não fechar a issue apenas porque o PR foi aberto.
-

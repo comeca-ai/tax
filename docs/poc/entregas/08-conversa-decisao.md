@@ -1,9 +1,9 @@
 # POC-08 — Concluir conversa, pendências de evidência e retorno da decisão
 
-**Marco:** POC 2 — Canal único 360dialog  
-**Prioridade:** P0  
-**Responsabilidade:** Reembolso e WhatsApp; responsável nominal a definir  
-**Referências:** WP-05, WP-06, WP-07, E10  
+**Marco:** POC 2 — Canal único 360dialog\
+**Prioridade:** P0\
+**Responsabilidade:** Reembolso e WhatsApp; responsável nominal a definir\
+**Referências:** WP-05, WP-06, WP-07, E10\
 **Depende de:** POC-03, POC-04, POC-06, POC-07, POC-17
 
 ## Resultado esperado

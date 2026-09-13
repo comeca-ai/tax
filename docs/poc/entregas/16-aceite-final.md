@@ -1,9 +1,9 @@
 # POC-16 — Executar aceite ponta a ponta e preparar release da POC completa
 
-**Marco:** POC 5 — Métricas, homologação e release  
-**Prioridade:** P0  
-**Responsabilidade:** Produto, revisão e operação; responsável nominal a definir  
-**Referências:** E12, WP-07  
+**Marco:** POC 5 — Métricas, homologação e release\
+**Prioridade:** P0\
+**Responsabilidade:** Produto, revisão e operação; responsável nominal a definir\
+**Referências:** E12, WP-07\
 **Depende de:** POC-01, POC-02, POC-03, POC-04, POC-05, POC-06, POC-07, POC-08, POC-09, POC-10, POC-11, POC-12, POC-13, POC-14, POC-15, POC-17
 
 ## Resultado esperado

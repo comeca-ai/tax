@@ -1,9 +1,9 @@
 # POC-01 — Preparar homologação, governança e reversão
 
-**Marco:** POC 1 — Base segura e cadastros  
-**Prioridade:** P0  
-**Responsabilidade:** Operação; responsável nominal a definir  
-**Referências:** condições comuns, E12  
+**Marco:** POC 1 — Base segura e cadastros\
+**Prioridade:** P0\
+**Responsabilidade:** Operação; responsável nominal a definir\
+**Referências:** condições comuns, E12\
 **Depende de:** nenhuma entrega anterior
 
 ## Resultado esperado

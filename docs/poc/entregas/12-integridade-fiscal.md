@@ -1,9 +1,9 @@
 # POC-12 — Validar notas e detectar duplicidade e inconsistência documental
 
-**Marco:** POC 4 — Combustível e documentação fiscal  
-**Prioridade:** P1  
-**Responsabilidade:** Fiscal e integridade; responsável nominal a definir  
-**Referências:** E8, E9  
+**Marco:** POC 4 — Combustível e documentação fiscal\
+**Prioridade:** P1\
+**Responsabilidade:** Fiscal e integridade; responsável nominal a definir\
+**Referências:** E8, E9\
 **Depende de:** POC-11
 
 ## Resultado esperado
