@@ -11,6 +11,7 @@ import {
   Plus,
   Receipt,
   Save,
+  Sparkles,
   X,
 } from "lucide-react"
 import {
@@ -35,6 +36,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { trpc } from "@/providers/trpc"
 import { CATEGORIA_META } from "@/components/despesas/meta"
 import { numeroParaPt, parseNumeroPt } from "@/components/despesas/wizard/types"
 import { cn } from "@/lib/utils"
@@ -60,6 +62,7 @@ import {
 import PoliticaTextoExtraido from "./PoliticaTextoExtraido"
 
 interface PoliticaRegrasStepProps {
+  politicaId: number
   form: RegrasForm
   onChange: (form: RegrasForm) => void
   camposPendentes: string[]
@@ -194,6 +197,7 @@ function SecaoRegras({ titulo, descricao, pendente, children }: SecaoRegrasProps
 
 /** Passo 2 do wizard de política: revisão/edição das regras extraídas (única fonte dos parâmetros). */
 export default function PoliticaRegrasStep({
+  politicaId,
   form,
   onChange,
   camposPendentes,
@@ -214,6 +218,9 @@ export default function PoliticaRegrasStep({
 
   const [editando, setEditando] = useState<RascunhoRegra | null>(null)
   const [nova, setNova] = useState("")
+  const [pedidoArquiteto, setPedidoArquiteto] = useState("")
+  const [resultadoArquiteto, setResultadoArquiteto] = useState<{ resumo: string; alteracoes: string[] } | null>(null)
+  const arquiteto = trpc.politica.arquitetar.useMutation()
   const [temaNovo, setTemaNovo] = useState<TemaPolitica>(() => ultimoTemaComItens(grupos))
 
   function pendente(campo: string): boolean {
@@ -273,13 +280,31 @@ export default function PoliticaRegrasStep({
     if (editando?.id === id) setEditando(null)
   }
 
-  function adicionar() {
-    const descricao = nova.trim().slice(0, REGRA_TEXTO_MAX)
+  function adicionarDescricao(valor: string) {
+    const descricao = valor.trim().slice(0, REGRA_TEXTO_MAX)
     if (!descricao) return
     const regra = novaRegra(temaNovo, descricao)
     setLista(adicionarRegra(form.regrasExtraidas, regra))
     setEditando(rascunhoDe(regra))
     setNova("")
+  }
+
+  function adicionar() {
+    adicionarDescricao(nova)
+  }
+
+  async function prepararPedido() {
+    const pedido = pedidoArquiteto.trim()
+    if (!pedido) return
+    try {
+      const resultado = await arquiteto.mutateAsync({ id: politicaId, pedido })
+      setLista(resultado.regras)
+      setEditando(null)
+      setResultadoArquiteto({ resumo: resultado.resumo, alteracoes: resultado.alteracoes })
+      setPedidoArquiteto("")
+    } catch (error) {
+      setResultadoArquiteto({ resumo: error instanceof Error ? error.message : "Não foi possível preparar o rascunho.", alteracoes: [] })
+    }
   }
 
   const painelTexto = (
@@ -621,6 +646,38 @@ export default function PoliticaRegrasStep({
         {!isMobile && painelTexto}
 
         <div className="flex flex-col gap-4">
+          <aside className="rounded-xl border border-brand-500/25 bg-brand-500/[0.04] p-4" aria-label="Arquiteto de Política">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-brand-500" aria-hidden="true" />
+              <h2 className="text-[15px] font-semibold text-text-900">Arquiteto de Política</h2>
+              <span className="rounded-full bg-brand-500/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em] text-brand-700">rascunho</span>
+            </div>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-text-500">
+              Descreva o ajuste em linguagem natural. Ele entra como regra editável; revise categoria, limite e decisão antes de salvar a nova versão.
+            </p>
+            <textarea
+              value={pedidoArquiteto}
+              onChange={(e) => setPedidoArquiteto(e.target.value)}
+              placeholder="Ex.: alimentação em viagem até R$ 120 por dia, com comprovante e revisão humana"
+              maxLength={REGRA_TEXTO_MAX}
+              className={cn(INPUT_BASE, "mt-3 min-h-20 resize-y py-2 font-sans")}
+              aria-label="Ajuste desejado na política"
+            />
+            <button
+              type="button"
+              onClick={prepararPedido}
+              disabled={!pedidoArquiteto.trim() || arquiteto.isPending}
+              className={cn("mt-2 inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-brand-500 px-3 text-[12px] font-semibold text-white transition hover:bg-brand-500/90", !pedidoArquiteto.trim() && "cursor-not-allowed opacity-50")}
+            >
+              <Sparkles className="h-3.5 w-3.5" /> {arquiteto.isPending ? "Interpretando pedido…" : "Aplicar no rascunho"}
+            </button>
+            {resultadoArquiteto && (
+              <div className="mt-3 rounded-lg border border-line bg-surface px-3 py-2 text-[12px]" role="status">
+                <p className="font-semibold text-text-900">{resultadoArquiteto.resumo}</p>
+                {resultadoArquiteto.alteracoes.length > 0 && <ul className="mt-1 list-disc pl-4 text-text-500">{resultadoArquiteto.alteracoes.map((alteracao, i) => <li key={`${alteracao}-${i}`}>{alteracao}</li>)}</ul>}
+              </div>
+            )}
+          </aside>
           {/* Regras estruturadas por tema (fonte dos parâmetros do agente) */}
           <SecaoRegras
             titulo="Regras da política"
@@ -721,7 +778,7 @@ export default function PoliticaRegrasStep({
               )}
             >
               <Save className="h-4 w-4" />
-              {salvando ? "Salvando…" : "Salvar regras"}
+              {salvando ? "Salvando…" : "Revisar campos customizados →"}
             </button>
           </div>
         </div>

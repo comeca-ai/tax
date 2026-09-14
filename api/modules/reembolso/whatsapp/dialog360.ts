@@ -1,6 +1,8 @@
 // Import relativo (não `@db/*`): esse alias não existe em vitest.config.ts —
 // nenhum router tem teste hoje, então nunca precisou ser resolvido lá.
-import { whatsappWebhookEvents } from "../../../../db/schema";
+import { createHash, timingSafeEqual } from "node:crypto";
+import { whatsappWebhookEvents, whatsappInbox } from "../../../../db/schema";
+import { criarChaveIdempotenciaWhatsapp } from "./fila";
 import { getDb } from "../../../queries/connection";
 
 /**
@@ -8,7 +10,8 @@ import { getDb } from "../../../queries/connection";
  * dedicado da plataforma (`+55 21 96848 3003`), evento de PLATAFORMA, não por
  * empresa (sem FK, sem tenant). Este módulo NÃO implementa `WhatsappProvider`
  * e não é wireado em `getWhatsappProvider()` — é ingestão crua, isolada do
- * resto do produto (D-020). Zero decisão/roteamento de negócio (D-013/D-014).
+ * resto do produto. O ingresso registra inbox durável; o worker separado
+ * processa somente remetentes explicitamente habilitados na homologação.
  *
  * Formato do payload (WhatsApp Business Cloud API):
  * {
@@ -35,8 +38,8 @@ export interface EventoDialog360 {
 }
 
 export interface ResultadoWebhookDialog360 {
-  status: 200 | 403;
-  corpo: { received: true } | { error: "Forbidden" };
+  status: 200 | 400 | 403 | 503;
+  corpo: { received: true } | { error: string };
 }
 
 function textoOuNull(valor: unknown): string | null {
@@ -71,7 +74,9 @@ export function extrairEventosDialog360(body: unknown): EventoDialog360[] {
       const metadata = v.metadata;
       const canalTelefone =
         metadata && typeof metadata === "object"
-          ? textoOuNull((metadata as Record<string, unknown>).display_phone_number)
+          ? textoOuNull(
+              (metadata as Record<string, unknown>).display_phone_number
+            )
           : null;
 
       const mensagens = v.messages;
@@ -112,25 +117,76 @@ export function extrairEventosDialog360(body: unknown): EventoDialog360[] {
 }
 
 /**
- * Grava os eventos extraídos em `whatsapp_webhook_events`. Best-effort: quem
- * chama nunca aguarda esta função antes de responder à 360dialog (ver
- * `processarWebhookDialog360`) — falha aqui só vai para `console.error`.
+ * Grava inbox deduplicada e log na mesma transação, antes de responder ACK.
  * Sem eventos, não abre conexão nem chama `insert`.
  */
 export async function persistirEventosDialog360(
-  eventos: EventoDialog360[],
+  eventos: EventoDialog360[]
 ): Promise<void> {
   if (eventos.length === 0) return;
   const db = getDb();
-  await db.insert(whatsappWebhookEvents).values(eventos);
+  await db.transaction(async tx => {
+    for (const evento of eventos) {
+      if (!evento.mensagemId || evento.mensagemId.length > 128)
+        throw new Error("Evento sem identificação");
+      const chaveIdempotencia = criarChaveIdempotenciaWhatsapp({
+        provider: "dialog360",
+        direcao: "entrada",
+        tipoEvento: `${evento.tipoEvento}:${evento.statusEntrega ?? ""}`,
+        identificadorExterno: evento.mensagemId,
+      });
+      const inserted = await tx
+        .insert(whatsappInbox)
+        .ignore()
+        .values({
+          provider: "dialog360",
+          chaveIdempotencia,
+          mensagemId: evento.mensagemId,
+          telefone: evento.telefone,
+          tipoEvento: evento.tipoEvento,
+          recebidoEm: dataEvento(evento),
+          payload: evento.payload,
+          status: evento.tipoEvento === "mensagem" ? "pendente" : "processado",
+        });
+      if (inserted[0].affectedRows > 0)
+        await tx.insert(whatsappWebhookEvents).values(evento);
+    }
+  });
+}
+
+function dataEvento(evento: EventoDialog360): Date {
+  if (evento.tipoEvento !== "mensagem") return new Date();
+  const value = evento.payload as {
+    messages?: { id?: unknown; timestamp?: unknown }[];
+  };
+  const timestamp = value.messages?.find(
+    m => m.id === evento.mensagemId
+  )?.timestamp;
+  const seconds =
+    typeof timestamp === "string" && /^\d{1,12}$/.test(timestamp)
+      ? Number(timestamp)
+      : NaN;
+  if (
+    !Number.isFinite(seconds) ||
+    seconds <= 0 ||
+    seconds * 1000 > Date.now() + 300_000
+  )
+    throw new Error("Timestamp inválido");
+  return new Date(seconds * 1000);
+}
+
+export function autenticarWebhookDialog360(
+  recebido: string | null | undefined,
+  esperado: string | undefined
+): boolean {
+  if (!recebido || !esperado?.trim()) return false;
+  const hash = (value: string) => createHash("sha256").update(value).digest();
+  return timingSafeEqual(hash(recebido), hash(esperado));
 }
 
 /**
- * Decide a resposta ao webhook e dispara a persistência em segundo plano.
- * Síncrona de propósito (não é `async`): o 200 nunca espera a extração nem a
- * gravação no banco — é isso que garante o SLA de <5s mesmo com o MySQL
- * lento. A 360dialog só reenvia (retry) quando a resposta não é 2xx, então
- * todo 200 — mesmo com payload malformado — encerra o retry dela.
+ * ACK somente após commit. Falha de banco retorna 503 para permitir retry;
+ * efeitos de negócio e chamadas externas pertencem ao worker separado.
  *
  * Fail-closed: sem `segredoEsperado` configurado no ambiente, a rota fica
  * sempre 403 — diferente do `WHATSAPP_WEBHOOK_SECRET` do Evolution (opcional/
@@ -139,25 +195,37 @@ export async function persistirEventosDialog360(
  * publicamente). O corpo do erro é sempre o mesmo genérico, para não dar
  * pista a quem tenta a rota sem o segredo certo.
  */
-export function processarWebhookDialog360(
+export async function processarWebhookDialog360(
   authorization: string | null | undefined,
   body: unknown,
-  segredoEsperado: string | undefined,
-): ResultadoWebhookDialog360 {
-  if (!segredoEsperado || authorization !== segredoEsperado) {
+  segredoEsperado: string | undefined
+): Promise<ResultadoWebhookDialog360> {
+  if (!autenticarWebhookDialog360(authorization, segredoEsperado)) {
     return { status: 403, corpo: { error: "Forbidden" } };
   }
 
+  if (!body || typeof body !== "object")
+    return { status: 400, corpo: { error: "Invalid payload" } };
   const eventos = extrairEventosDialog360(body);
-  if (eventos.length > 0) {
-    const mensagens = eventos.filter(e => e.tipoEvento === "mensagem").length;
-    const statuses = eventos.filter(e => e.tipoEvento === "status").length;
-    console.log(
-      `[360dialog] evento recebido — ${mensagens} mensagem(ns), ${statuses} status(es)`,
-    );
-    void persistirEventosDialog360(eventos).catch(err => {
-      console.error("[360dialog] Falha ao persistir evento:", err);
-    });
+  if (
+    eventos.length > 100 ||
+    eventos.some(
+      e =>
+        !e.mensagemId ||
+        e.mensagemId.length > 128 ||
+        (e.telefone?.length ?? 0) > 20
+    )
+  )
+    return { status: 400, corpo: { error: "Invalid payload" } };
+  try {
+    eventos.forEach(dataEvento);
+  } catch {
+    return { status: 400, corpo: { error: "Invalid payload" } };
+  }
+  try {
+    await persistirEventosDialog360(eventos);
+  } catch {
+    return { status: 503, corpo: { error: "Temporarily unavailable" } };
   }
 
   return { status: 200, corpo: { received: true } };

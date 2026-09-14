@@ -1,7 +1,12 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq, or } from "drizzle-orm";
 import { getDb } from "../queries/connection";
-import { colaboradores, empresas, empresasConfig, logAuditoria } from "@db/schema";
+import {
+  colaboradores,
+  empresas,
+  empresasConfig,
+  logAuditoria,
+} from "@db/schema";
 import { podeRevisarDespesas } from "@contracts/permissoes";
 import type { PapelRevisao } from "@contracts/types";
 import type { TrpcContext } from "../context";
@@ -17,7 +22,7 @@ type Db = ReturnType<typeof getDb>;
  */
 async function ehColaboradorDaEmpresa(
   usuarioId: number,
-  empresaId: number,
+  empresaId: number
 ): Promise<boolean> {
   const db = getDb();
   const rows = await db
@@ -26,8 +31,9 @@ async function ehColaboradorDaEmpresa(
     .where(
       and(
         eq(colaboradores.usuarioId, usuarioId),
-        eq(colaboradores.empresaId, empresaId),
-      ),
+        eq(colaboradores.statusVinculo, "ativo"),
+        eq(colaboradores.empresaId, empresaId)
+      )
     )
     .limit(1);
   return rows.length > 0;
@@ -35,13 +41,18 @@ async function ehColaboradorDaEmpresa(
 
 /**
  * Garante que o usuário tem acesso à empresa:
- * - admin/revisor: acesso a qualquer empresa
- * - cliente: empresas próprias e aquelas em que é colaborador (v1.9.1)
+ * - admin da plataforma: suporte em qualquer empresa
+ * - demais perfis: empresas próprias ou vínculo ativo na empresa
  */
 export async function assertEmpresaAcesso(
   ctx: TrpcContext,
-  empresaId: number,
+  empresaId: number
 ): Promise<typeof empresas.$inferSelect> {
+  if (!ctx.usuario)
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "Autenticação necessária.",
+    });
   const db = getDb();
   const rows = await db
     .select()
@@ -50,11 +61,13 @@ export async function assertEmpresaAcesso(
     .limit(1);
   const empresa = rows[0];
   if (!empresa) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Empresa não encontrada." });
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Empresa não encontrada.",
+    });
   }
   if (
-    ctx.usuario &&
-    ctx.usuario.perfil === "cliente" &&
+    ctx.usuario.perfil !== "admin" &&
     empresa.usuarioId !== ctx.usuario.id &&
     !(await ehColaboradorDaEmpresa(ctx.usuario.id, empresa.id))
   ) {
@@ -83,7 +96,7 @@ export async function assertEmpresaAcesso(
 export async function assertAdminDaEmpresa(
   ctx: TrpcContext,
   empresaId: number,
-  mensagem = "Só o administrador da empresa pode alterar as regras e ativar a política de reembolso.",
+  mensagem = "Só o administrador da empresa pode alterar as regras e ativar a política de reembolso."
 ): Promise<typeof empresas.$inferSelect> {
   const empresa = await assertEmpresaAcesso(ctx, empresaId);
   const ehAdminDaPlataforma = ctx.usuario?.perfil === "admin";
@@ -100,7 +113,9 @@ export async function assertAdminDaEmpresa(
  * É o que faz dele "admin da empresa" em `assertAdminDaEmpresa` — aqui sem
  * empresa alvo, para responder "esta sessão pode gerenciar equipe?".
  */
-export async function ehAdminDeAlgumaEmpresa(usuarioId: number): Promise<boolean> {
+export async function ehAdminDeAlgumaEmpresa(
+  usuarioId: number
+): Promise<boolean> {
   const db = getDb();
   const rows = await db
     .select({ id: empresas.id })
@@ -116,13 +131,12 @@ export async function ehAdminDeAlgumaEmpresa(usuarioId: number): Promise<boolean
  * (`empresas_config`), do admin da empresa ou do admin da plataforma — ver
  * `podeRevisarDespesas` em `@contracts/permissoes`.
  *
- * A designação vale enquanto `empresas_config` apontar para o colaborador,
- * mesmo com `status_vinculo = desligado` — a higiene da designação pertence à
- * configuração da empresa; aqui é só leitura.
+ * Designação só produz autorização enquanto o vínculo estiver ativo.
+ * Referência a pessoa desligada é tratada como ausência de designação.
  */
 export async function papelRevisaoNaEmpresa(
   ctx: TrpcContext,
-  empresaId: number,
+  empresaId: number
 ): Promise<{
   empresa: typeof empresas.$inferSelect;
   papel: PapelRevisao;
@@ -130,7 +144,10 @@ export async function papelRevisaoNaEmpresa(
   colaboradorDoUsuarioId: number | null;
 }> {
   if (!ctx.usuario) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Autenticação necessária." });
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "Autenticação necessária.",
+    });
   }
   // NOT_FOUND de empresa e FORBIDDEN de vínculo continuam do assert existente.
   const empresa = await assertEmpresaAcesso(ctx, empresaId);
@@ -153,8 +170,9 @@ export async function papelRevisaoNaEmpresa(
     .where(
       and(
         eq(colaboradores.usuarioId, ctx.usuario.id),
-        eq(colaboradores.empresaId, empresaId),
-      ),
+        eq(colaboradores.statusVinculo, "ativo"),
+        eq(colaboradores.empresaId, empresaId)
+      )
     )
     .limit(1);
   const colaboradorDoUsuarioId = colabRows[0]?.id ?? null;
@@ -164,16 +182,25 @@ export async function papelRevisaoNaEmpresa(
     const designado = await db
       .select({ nome: colaboradores.nome })
       .from(colaboradores)
-      .where(eq(colaboradores.id, config.aprovadorId))
+      .where(
+        and(
+          eq(colaboradores.id, config.aprovadorId),
+          eq(colaboradores.empresaId, empresaId),
+          eq(colaboradores.statusVinculo, "ativo")
+        )
+      )
       .limit(1);
     aprovadorDesignadoNome = designado[0]?.nome ?? null;
+    if (!designado.length) config.aprovadorId = null;
   }
 
   const papel: PapelRevisao = {
     ehAprovadorDesignado:
-      colaboradorDoUsuarioId !== null && config.aprovadorId === colaboradorDoUsuarioId,
+      colaboradorDoUsuarioId !== null &&
+      config.aprovadorId === colaboradorDoUsuarioId,
     ehAnalistaDesignado:
-      colaboradorDoUsuarioId !== null && config.analistaId === colaboradorDoUsuarioId,
+      colaboradorDoUsuarioId !== null &&
+      config.analistaId === colaboradorDoUsuarioId,
     ehAdminDaEmpresa: empresa.usuarioId === ctx.usuario.id,
     ehAdminDaPlataforma: ctx.usuario.perfil === "admin",
     temAprovadorDesignado: config.aprovadorId !== null,
@@ -195,12 +222,17 @@ export async function papelRevisaoNaEmpresa(
     });
   }
 
-  return { empresa, papel, aprovadorId: config.aprovadorId, colaboradorDoUsuarioId };
+  return {
+    empresa,
+    papel,
+    aprovadorId: config.aprovadorId,
+    colaboradorDoUsuarioId,
+  };
 }
 
 /** auth.me: o usuário é aprovador ou analista designado de ALGUMA empresa? */
 export async function ehDesignadoDeAlgumaEmpresa(
-  usuarioId: number,
+  usuarioId: number
 ): Promise<{ aprovador: boolean; analista: boolean }> {
   const db = getDb();
   const rows = await db
@@ -210,19 +242,23 @@ export async function ehDesignadoDeAlgumaEmpresa(
       analistaId: empresasConfig.analistaId,
     })
     .from(colaboradores)
-    .innerJoin(empresasConfig, eq(empresasConfig.empresaId, colaboradores.empresaId))
+    .innerJoin(
+      empresasConfig,
+      eq(empresasConfig.empresaId, colaboradores.empresaId)
+    )
     .where(
       and(
         eq(colaboradores.usuarioId, usuarioId),
+        eq(colaboradores.statusVinculo, "ativo"),
         or(
           eq(empresasConfig.aprovadorId, colaboradores.id),
-          eq(empresasConfig.analistaId, colaboradores.id),
-        ),
-      ),
+          eq(empresasConfig.analistaId, colaboradores.id)
+        )
+      )
     );
   return {
-    aprovador: rows.some((r) => r.aprovadorId === r.id),
-    analista: rows.some((r) => r.analistaId === r.id),
+    aprovador: rows.some(r => r.aprovadorId === r.id),
+    analista: rows.some(r => r.analistaId === r.id),
   };
 }
 
@@ -239,7 +275,7 @@ export async function registrarLog(
     entidadeId?: number | null;
     detalhes?: string;
     regraVersao?: string;
-  },
+  }
 ): Promise<void> {
   await db.insert(logAuditoria).values({
     usuarioId: entrada.usuarioId ?? null,

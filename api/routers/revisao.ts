@@ -1,3 +1,5 @@
+import { registrarDecisaoDespesa } from "../modules/reembolso/decisoes/registro";
+import { metadadosDespesasWhatsapp } from "../modules/reembolso/whatsapp/metadadosDespesa";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
@@ -12,6 +14,7 @@ import {
 import { revisaoFilaInput, revisaoInput } from "@contracts/types";
 import { exigeMotivoDelegacao } from "@contracts/permissoes";
 import { papelRevisaoNaEmpresa, registrarLog } from "./_shared";
+import { notificarDecisaoWhatsapp } from "../modules/reembolso/revisao/notificacaoWhatsapp";
 
 /**
  * RF-05: fila de revisão humana — "Média confiança" e rebaixadas (RF-09).
@@ -64,7 +67,8 @@ export const revisaoRouter = createRouter({
       if (row.evidencias !== null) atual.quantidadeEvidencias += 1;
       porDespesa.set(row.despesa.id, atual);
     }
-    return { itens: [...porDespesa.values()], papel };
+    const envios = await metadadosDespesasWhatsapp(input.empresaId, [...porDespesa.keys()]);
+    return { itens: [...porDespesa.values()].map(item => ({ ...item, despesa: { ...item.despesa, colaborador: item.despesa.colaborador?.trim() || envios.get(item.despesa.id)?.nome || null }, envioWhatsapp: envios.get(item.despesa.id) ?? null })), papel };
   }),
 
   /**
@@ -172,6 +176,9 @@ export const revisaoRouter = createRouter({
           entidadeId: despesa.id,
           detalhes: input.justificativa,
         });
+        await registrarDecisaoDespesa(tx,{empresaId:despesa.empresaId,despesaId:despesa.id,origemDecisao:"humana",usuarioId:ctx.usuario.id,usuarioNome:ctx.usuario.nome,statusAplicado:novoStatus,motivo:input.justificativa,politicaId:null,politicaVersao:despesa.politicaVersaoAplicada,regrasAplicadas:[]});
+        // A intenção de resposta só existe se a decisão efetivamente fizer commit.
+        await notificarDecisaoWhatsapp(tx, { empresaId: despesa.empresaId, despesaId: despesa.id, status: novoStatus });
       });
 
       return { ok: true, status: novoStatus };

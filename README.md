@@ -1,4 +1,4 @@
-# reembolsa.ia — Tax Engine
+# reembolsa.ia.br — Tax Engine
 
 Motor de recuperação tributária para pequenas empresas brasileiras. O usuário sobe a nota fiscal (foto/PDF) na plataforma → o OCR extrai os campos fiscais → o motor classifica a elegibilidade de crédito por **CNAE × categoria × regime tributário**, quantifica o valor recuperável (**PIS/COFINS, ICMS, CBS/IBS**) e a dedutibilidade (**IRPJ/CSLL**) em trilhas paralelas, e gera relatórios, memorial de cálculo e trilha de auditoria imutável.
 
@@ -12,13 +12,9 @@ Motor de recuperação tributária para pequenas empresas brasileiras. O usuári
 ./setup.sh        # instala dependências, sincroniza o banco, roda o seed e sobe o app
 ```
 
-Acesse http://localhost:3000 e entre com uma das contas seed:
-
-| Perfil | Email | Senha |
-|---|---|---|
-| Admin | `admin@reembolsa.ia.br` | `Admin@12345` |
-| Revisor (fila RF-05) | `revisor@reembolsa.ia.br` | `Revisor@12345` |
-| Cliente (empresa demo) | `cliente@demo.com.br` | `Cliente@12345` |
+Acesse http://localhost:3000 com uma conta configurada para o ambiente local.
+O seed é destinado exclusivamente a um banco descartável de desenvolvimento.
+Credenciais de demonstração não devem ser usadas em homologação ou produção.
 
 A conta cliente vem com a empresa **Transportes Demo Ltda** (CNAE 49.30-2, Lucro Real, SP) e veículo demo (ABC1D23, 8,5 km/L, R$ 0,85/km) — pronta para lançar despesas e ver o motor em ação. O seed também carrega **111 regras de elegibilidade** (matriz CNAE × categoria × tributo + IRPJ/CSLL + ICMS ad rem).
 
@@ -41,7 +37,7 @@ Produção: `npm run build && npm start`.
 A stack completa (app + MySQL 8) sobe com **um comando**:
 
 ```bash
-git clone https://github.com/comeca-ai/tax.git && cd tax
+git clone https://github.com/comeca-ai/projeto_tribureembolsa.git && cd projeto_tribureembolsa
 
 # 1. Configure os segredos
 cp .env.docker.example .env
@@ -93,7 +89,7 @@ containers em round-robin e os domínios trocam de site entre si.
 Pré-requisitos: **Node 20+** e **MySQL 8** rodando.
 
 ```bash
-git clone https://github.com/comeca-ai/tax.git && cd tax
+git clone https://github.com/comeca-ai/projeto_tribureembolsa.git && cd projeto_tribureembolsa
 cp .env.example .env
 # edite .env:
 #   DATABASE_URL=mysql://USUARIO:SENHA@127.0.0.1:3306/taxengine
@@ -249,13 +245,12 @@ Contrato completo dos tipos em `contracts/types.ts`. Detalhes de implementação
 - **Opcional**: sem `RECEITAWS_TOKEN` no `.env`, a consulta fica indisponível e o formulário segue 100% manual.
 - Plano gratuito da ReceitaWS: **3 consultas/min** — ao estourar o limite, o app pede para aguardar ~1 minuto.
 
-### WhatsApp — agente de onboarding (v1.5.0)
+### WhatsApp — canal único da POC
 
-- **Transporte**: Evolution API (self-hosted, stack separado — decisões D-010/D-011 em `docs/DECISOES.md`), atrás do adapter `WHATSAPP_PROVIDER`. A Cloud API oficial da Meta é o provider futuro: trocar é mudar variáveis de ambiente, não o produto.
-- **O que já funciona**: o funcionário manda mensagem para o número do agente e passa pelo **onboarding conversacional** — confirma os dados cadastrados pelo admin, declara o que costuma pedir (combustível/viagem/alimentação) e, só se declarou combustível, cadastra o veículo (placa, modelo, consumo). Sem cadastro prévio do telefone pelo admin, o agente orienta a falar com o responsável (portão único).
-- **Configuração**: definir `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE` no `.env` e apontar o webhook da instância Evolution para `https://<seu-dominio>/api/whatsapp/webhook`. Se `WHATSAPP_WEBHOOK_SECRET` estiver definido, o Evolution deve enviar o mesmo valor no header `x-webhook-secret`. Sem essas variáveis, o agente roda em **modo log** (respostas no console) e o resto do app segue normal.
-- **Cadastro de colaboradores**: API `colaboradores.criar/listar` (admin) — nome, telefone, e-mail, matrícula, centro de custo. Upload em lote chega na v1.9.0 (ver `docs/ARQUITETURA.md` §8).
-- **Legado Meta**: o webhook `/api/webhooks/whatsapp` (verificação `hub.challenge` da Cloud API) continua ativo para a migração futura.
+- **Transporte**: 360dialog, conforme D-022. O seletor usa `dialog360` por padrão; Evolution não é fallback.
+- **Configuração**: `WHATSAPP_PROVIDER=dialog360` e `DIALOG_360_API_KEY` no servidor. No GitHub Actions, o secret `API_KEY` é mapeado explicitamente para essa variável. Não versionar valores.
+- **Recebimento**: `/api/webhooks/360dialog`, protegido pelo header definido em `DIALOG_360_WEBHOOK_SECRET`. Esse segredo é uma configuração do receptor, não uma credencial emitida pelo provedor.
+- **Estado de entrega**: implementação e teste local não comprovam recebimento real ou aceite. Consultar [roadmap da POC](docs/poc/README.md) e [critérios de aceite](docs/poc/entregas/16-aceite-final.md).
 
 ### Webhook 360dialog — WhatsApp Business Cloud API (v1.13.0)
 
@@ -271,16 +266,18 @@ Contrato completo dos tipos em `contracts/types.ts`. Detalhes de implementação
 - Sessão stateless: trocar a senha não revoga tokens antigos.
 - Upload de imagem/PDF sem IA de visão → preenchimento assistido (configure `OCR_PROVIDER=vision`).
 
-## 12. Roadmap (da especificação v1.1)
-
-1. ~~Fase 1 (MVP)~~ → entregue ampliado: todas as categorias + revisão + IRPJ/CSLL
-2. Captura de campos CBS/IBS conforme destaque obrigatório nas notas (2027+)
-3. Exportação EFD-Contribuições / integração contábil
-4. OCR de visão real (plugável, contrato pronto) e consulta ao Ambiente Nacional do IBS (art. 47, LC 214/2025)
-
 ## 10. Roadmap (da especificação v1.1)
 
 1. ~~Fase 1 (MVP)~~ → entregue ampliado: todas as categorias + revisão + IRPJ/CSLL
 2. Captura de campos CBS/IBS conforme destaque obrigatório nas notas (2027+)
 3. Exportação EFD-Contribuições / integração contábil
 4. OCR de visão real (plugável, contrato pronto) e consulta ao Ambiente Nacional do IBS (art. 47, LC 214/2025)
+
+## Colaboração e qualidade
+
+Antes de contribuir, leia o [guia de contribuição](CONTRIBUTING.md), a
+[governança do repositório](docs/GOVERNANCA-DE-REPOSITORIO.md) e a
+[linha de base de qualidade](docs/BASELINE-DE-QUALIDADE.md). Para promoção a
+homologação e produção, siga a [política de release e deploy](docs/POLITICA-DE-RELEASE-E-DEPLOY.md). O objetivo é
+que toda alteração seja revisada, validada automaticamente e rastreável por
+versão.

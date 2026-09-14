@@ -17,6 +17,7 @@ import { getPolicyParser } from "../modules/reembolso/policy/parser";
 import { consolidarRegras } from "../modules/reembolso/policy/derivar";
 import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "../modules/reembolso/policy/texto";
 import { avaliarDespesa } from "../modules/reembolso/policy/agent";
+import { arquitetarPolitica } from "../modules/reembolso/policy/arquiteto";
 import {
   POLITICA_ATIVA_IMUTAVEL,
   politicaEditavel,
@@ -29,7 +30,7 @@ import { assertAdminDaEmpresa, assertEmpresaAcesso, registrarLog } from "./_shar
  * (garantido na transação de ativação).
  */
 
-const UPLOADS_DIR = path.join(process.cwd(), "uploads", "politicas");
+const UPLOADS_DIR = path.join(process.env.UPLOADS_DIR ?? path.join(process.cwd(), "uploads"), "politicas");
 
 function nomeArquivoSeguro(nome: string): string {
   return nome.replace(/[^a-zA-Z0-9_.-]/g, "_").slice(-120);
@@ -50,6 +51,15 @@ async function buscarPoliticaOuFalhar(id: number) {
 }
 
 export const politicaRouter = createRouter({
+  /** Gera um rascunho estruturado a partir de um pedido; não grava nem ativa. */
+  arquitetar: protectedProcedure
+    .input(z.object({ id: z.number().int().positive(), pedido: z.string().trim().min(3).max(4_000) }))
+    .mutation(async ({ input, ctx }) => {
+      const politica = await buscarPoliticaOuFalhar(input.id);
+      await assertAdminDaEmpresa(ctx, politica.empresaId);
+      const regrasAtuais = regrasPoliticaSchema.parse(politica.regras ?? {}).regrasExtraidas;
+      return arquitetarPolitica({ pedido: input.pedido, regrasAtuais });
+    }),
   /**
    * Upload do documento da política → parser plugável extrai regras →
    * salva arquivo em uploads/ e registro em status "rascunho".
@@ -57,7 +67,9 @@ export const politicaRouter = createRouter({
   upload: protectedProcedure
     .input(politicaUploadInput)
     .mutation(async ({ input, ctx }) => {
-      await assertEmpresaAcesso(ctx, input.empresaId);
+      // Criar um rascunho também altera a política; não basta poder consultá-la.
+      // Autorizar antes do parser evita trabalho externo e escrita por leitores.
+      await assertAdminDaEmpresa(ctx, input.empresaId);
       const db = getDb();
 
       const parser = getPolicyParser();
@@ -225,7 +237,7 @@ export const politicaRouter = createRouter({
         acao: "politica.update_regras",
         entidade: "politica_reembolso",
         entidadeId: politica.id,
-        detalhes: `Regras editadas manualmente (${regras.regrasExtraidas.length} regras extraídas).`,
+        detalhes: `Regras editadas manualmente (${regras.regrasExtraidas.length} regras extraídas, ${regras.camposCustomizados.length} campos customizados).`,
       });
 
       return { ok: true, regras };

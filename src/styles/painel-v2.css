@@ -1,0 +1,27 @@
+@import './painel-fonts.css';
+@import './painel-tokens.css';
+
+/* Escopo exclusivo do produto autenticado: a página pública não é alterada. */
+.painel-v2,
+.painel-v2 button,
+.painel-v2 input,
+.painel-v2 select,
+.painel-v2 textarea {
+  font-family: "IBM Plex Sans", Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.painel-v2 .font-display { font-family: "IBM Plex Sans", Inter, ui-sans-serif, system-ui, sans-serif; }
+.painel-v2 .font-mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+/* Paleta do painel v2: teal somente para marca, navegação e ações. */
+.painel-v2 .bg-brand-500 { background-color: #0B7A75 !important; }
+.painel-v2 .text-brand-500 { color: #0B7A75 !important; }
+.painel-v2 .border-brand-500 { border-color: #0B7A75 !important; }
+.painel-v2 .focus\:border-brand-500:focus { border-color: #0B7A75 !important; }
+.painel-v2 .hover\:bg-brand-500\/90:hover { background-color: #075E5A !important; }
+.painel-v2 .bg-brand-500\/10 { background-color: #E6F2F0 !important; }
+.painel-v2 .bg-brand-500\/5 { background-color: rgba(11, 122, 117, .05) !important; }
+.painel-v2 .text-text-900 { color: #14211F; }
+.painel-v2 .text-text-500 { color: #5B6864; }
+.painel-v2 .border-line { border-color: #E1E6E3; }
+.painel-v2 .bg-paper { background-color: #F4F6F5; }

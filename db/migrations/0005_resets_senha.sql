@@ -1,5 +1,5 @@
 CREATE TABLE `resets_senha` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`email` varchar(255) NOT NULL,
 	`token` varchar(128) NOT NULL,
 	`expires_at` timestamp NOT NULL,

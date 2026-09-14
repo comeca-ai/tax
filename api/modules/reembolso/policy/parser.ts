@@ -3,7 +3,9 @@
 // @ts-expect-error — pdf-parse v1 não tem tipos para o subpath da lib
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { MistralPolicyParser } from "./mistral";
+import { OpenAiPolicyParser } from "./openai";
 import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
+import { extrairCamposCustomizadosLocais } from "./camposCustomizados";
 import {
   regrasPoliticaSchema,
   type CategoriaDespesa,
@@ -102,7 +104,11 @@ async function decodificarTexto(input: ArquivoPolitica): Promise<string | null> 
     input.mimeType.includes("xml") ||
     input.mimeType.includes("html") ||
     /\.(xml|html?|txt|md|csv)$/i.test(input.arquivoNome);
-  if (!isMarkup && /[^\x09\x0A\x0D\x20-\x7EÀ-ÿ]{20}/.test(texto)) {
+  const textoSemQuebras = texto
+    .replaceAll("\t", "")
+    .replaceAll("\n", "")
+    .replaceAll("\r", "")
+  if (!isMarkup && /[^\x20-\x7EÀ-ÿ]{20}/.test(textoSemQuebras)) {
     return null; // binário: imagem etc.
   }
   // XML/HTML: extrai apenas o texto (remove tags e entidades básicas)
@@ -197,7 +203,7 @@ export class HeuristicPolicyParser implements PolicyParser {
       };
     }
 
-    const regrasInput: Record<string, unknown> = {};
+    const regrasInput: Record<string, unknown> = { camposCustomizados: extrairCamposCustomizadosLocais(texto) };
     const camposPendentes: string[] = [];
     const observacoes: string[] = [];
     let regrasExtraidas = 0;
@@ -317,6 +323,7 @@ export class HeuristicPolicyParser implements PolicyParser {
           : ("baixa" as const);
 
     camposPendentes.push("regrasExtraidas");
+    camposPendentes.push("Campos customizados: a leitura local identifica somente listas explícitas; confira cargos, funções e particularidades no documento.");
     if (camposPendentes.length > 0) {
       avisos.push(
         `Regras não extraídas automaticamente: ${camposPendentes.join(", ")} — confirmar via preenchimento assistido.`,
@@ -344,7 +351,7 @@ export class HeuristicPolicyParser implements PolicyParser {
 export class LlmPolicyParser implements PolicyParser {
   nome = "llm";
 
-  async extract(_input: ArquivoPolitica): Promise<PolicyExtracao> {
+  async extract(): Promise<PolicyExtracao> {
     // TODO(v1.2+): implementar chamada OpenAI/Gemini devolvendo PolicyExtracao.
     // O contrato (textoExtraido/regras/confiancaExtracao/camposPendentes) já é
     // estável — basta preencher `regras` via structured output do modelo.
@@ -368,6 +375,7 @@ const parsers: Record<string, () => PolicyParser> = {
   // "llm" mantido como alias de "mistral" para não quebrar POLICY_PROVIDER=llm já em uso
   llm: () => new MistralPolicyParser(() => new HeuristicPolicyParser()),
   mistral: () => new MistralPolicyParser(() => new HeuristicPolicyParser()),
+  openai: () => new OpenAiPolicyParser(() => new HeuristicPolicyParser()),
 };
 
 export function getPolicyParser(): PolicyParser {

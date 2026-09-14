@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import { AnimatePresence, motion } from "framer-motion"
+import EnvioWhatsapp from "@/components/despesas/EnvioWhatsapp";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Check,
   FileText,
@@ -8,15 +9,15 @@ import {
   TriangleAlert,
   Upload,
   X,
-} from "lucide-react"
-import { toast } from "sonner"
-import { trpc } from "@/providers/trpc"
-import type { CategoriaDespesa } from "@contracts/types"
-import ConfidenceBadge from "@/components/app/ConfidenceBadge"
-import FiscalField from "@/components/app/FiscalField"
-import MoneyValue from "@/components/app/MoneyValue"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Textarea } from "@/components/ui/textarea"
+} from "lucide-react";
+import { toast } from "sonner";
+import { trpc } from "@/providers/trpc";
+import type { CategoriaDespesa } from "@contracts/types";
+import ConfidenceBadge from "@/components/app/ConfidenceBadge";
+import FiscalField from "@/components/app/FiscalField";
+import MoneyValue from "@/components/app/MoneyValue";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -24,20 +25,20 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/components/ui/select";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
+} from "@/components/ui/tooltip";
 import {
   CATEGORIA_ICONE,
   CATEGORIA_ROTULO,
@@ -46,36 +47,37 @@ import {
   formatarData,
   formatarDataHora,
   formatarNumero,
-} from "@/components/ops/rotulos"
-import { cn } from "@/lib/utils"
+} from "@/components/ops/rotulos";
+import { cn } from "@/lib/utils";
+import { podeConfirmarDecisao, pertenceAEmpresa } from "@/components/painel/seguranca";
 
 const MOTIVOS_REJEICAO = [
   "Documento insuficiente",
   "Despesa pessoal",
   "Fora do objeto social",
   "Outro",
-] as const
+] as const;
 
 export interface RevisaoDetalheProps {
-  despesaId: number
+  despesaId: number;
   /** Empresa da fila (v1.12.0) — obrigatória quando `somenteLeitura` é false. */
-  empresaId?: number
+  empresaId?: number;
   /** Há aprovador designado e quem decide não é ele: pede motivo de delegação (v1.12.0). */
-  exigeMotivoDelegacao?: boolean
+  exigeMotivoDelegacao?: boolean;
   /** Nome do aprovador designado, para o rótulo do motivo de delegação. */
-  aprovadorDesignadoNome?: string | null
+  aprovadorDesignadoNome?: string | null;
   /** Modo leitura (aba Resolvidas): sem barra de decisão nem upload. */
-  somenteLeitura?: boolean
+  somenteLeitura?: boolean;
   /** Chamado após decisão bem-sucedida, para animar a saída e selecionar o próximo. */
-  onDecidido?: (despesaId: number, decisao: "aprovar" | "rejeitar") => void
+  onDecidido?: (despesaId: number, decisao: "aprovar" | "rejeitar") => void;
   /** Registra o botão de anexar evidência para o atalho de teclado `e`. */
-  dropzoneRef?: React.RefObject<HTMLButtonElement | null>
+  dropzoneRef?: React.RefObject<HTMLButtonElement | null>;
   /** Abre o dialog de decisão por atalho de teclado (`a` / `r`). */
-  atalhoDecisao?: "aprovar" | "rejeitar" | null
-  onAtalhoConsumido?: () => void
+  atalhoDecisao?: "aprovar" | "rejeitar" | null;
+  onAtalhoConsumido?: () => void;
 }
 
-type Decisao = "aprovar" | "rejeitar"
+type Decisao = "aprovar" | "rejeitar";
 
 /** Painel de revisão da despesa selecionada (RF-05): dados + memorial + evidências + decisão. */
 export default function RevisaoDetalhe({
@@ -89,35 +91,40 @@ export default function RevisaoDetalhe({
   atalhoDecisao,
   onAtalhoConsumido,
 }: RevisaoDetalheProps) {
-  const utils = trpc.useUtils()
-  const detalhe = trpc.despesas.get.useQuery({ id: despesaId }, { retry: false })
+  const utils = trpc.useUtils();
+  const detalhe = trpc.despesas.get.useQuery(
+    { id: despesaId },
+    { retry: false }
+  );
 
-  const [notas, setNotas] = useState("")
-  const [dialog, setDialog] = useState<Decisao | null>(null)
-  const [motivoRejeicao, setMotivoRejeicao] = useState<string>(MOTIVOS_REJEICAO[0])
-  const [justificativa, setJustificativa] = useState("")
-  const [motivoDelegacao, setMotivoDelegacao] = useState("")
-  const [exigirEvidencia, setExigirEvidencia] = useState(false)
-  const [uploadProgresso, setUploadProgresso] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const dropzoneInternoRef = useRef<HTMLButtonElement>(null)
+  const [notas, setNotas] = useState("");
+  const [dialog, setDialog] = useState<Decisao | null>(null);
+  const [motivoRejeicao, setMotivoRejeicao] = useState<string>(
+    MOTIVOS_REJEICAO[0]
+  );
+  const [justificativa, setJustificativa] = useState("");
+  const [motivoDelegacao, setMotivoDelegacao] = useState("");
+  const [exigirEvidencia, setExigirEvidencia] = useState(false);
+  const [uploadProgresso, setUploadProgresso] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropzoneInternoRef = useRef<HTMLButtonElement>(null);
 
   // Reseta estado local ao trocar de despesa
   useEffect(() => {
-    setNotas("")
-    setDialog(null)
-    setJustificativa("")
-    setMotivoDelegacao("")
-    setExigirEvidencia(false)
-  }, [despesaId])
+    setNotas("");
+    setDialog(null);
+    setJustificativa("");
+    setMotivoDelegacao("");
+    setExigirEvidencia(false);
+  }, [despesaId]);
 
   // Atalhos de teclado vindos da página (`a` aprovar, `r` rejeitar)
   useEffect(() => {
-    if (!atalhoDecisao || somenteLeitura) return
-    abrirDialog(atalhoDecisao)
-    onAtalhoConsumido?.()
+    if (!atalhoDecisao || somenteLeitura) return;
+    abrirDialog(atalhoDecisao);
+    onAtalhoConsumido?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atalhoDecisao])
+  }, [atalhoDecisao]);
 
   const decidir = trpc.revisao.decidir.useMutation({
     onSuccess: async (_r, vars) => {
@@ -125,77 +132,90 @@ export default function RevisaoDetalhe({
         utils.revisao.fila.invalidate(),
         utils.despesas.get.invalidate({ id: despesaId }),
         utils.despesas.list.invalidate(),
-      ])
+      ]);
       toast.success(
         vars.decisao === "aprovar"
           ? "Despesa liberada — crédito movido para capturável."
-          : "Despesa rejeitada e registrada no log.",
-      )
-      setDialog(null)
-      onDecidido?.(despesaId, vars.decisao)
+          : "Despesa rejeitada e registrada no log."
+      );
+      setDialog(null);
+      onDecidido?.(despesaId, vars.decisao);
     },
-    onError: (erro) => {
-      const codigo = (erro as unknown as { data?: { code?: string } }).data?.code
+    onError: erro => {
+      const codigo = (erro as unknown as { data?: { code?: string } }).data
+        ?.code;
       // PRECONDITION_FAILED cobre dois casos distintos (v1.12.0): a evidência
       // do RF-04 (mensagem começa com "RF-04") e o motivo de delegação ausente.
-      if (codigo === "PRECONDITION_FAILED" && erro.message.startsWith("RF-04")) {
-        setDialog(null)
-        setExigirEvidencia(true)
-        toast.warning("Evidência obrigatória: anexe um documento de suporte antes de aprovar (RF-04).")
+      if (
+        codigo === "PRECONDITION_FAILED" &&
+        erro.message.startsWith("RF-04")
+      ) {
+        setDialog(null);
+        setExigirEvidencia(true);
+        toast.warning(
+          "Evidência obrigatória: anexe um documento de suporte antes de aprovar (RF-04)."
+        );
       } else {
-        toast.error(erro.message)
+        toast.error(erro.message);
       }
     },
-  })
+  });
 
   const addEvidencia = trpc.despesas.addEvidencia.useMutation({
     onSuccess: async () => {
-      await utils.despesas.get.invalidate({ id: despesaId })
-      await utils.revisao.fila.invalidate()
-      setExigirEvidencia(false)
-      toast.success("Evidência anexada à despesa.")
+      await utils.despesas.get.invalidate({ id: despesaId });
+      await utils.revisao.fila.invalidate();
+      setExigirEvidencia(false);
+      toast.success("Evidência anexada à despesa.");
     },
-    onError: (erro) => toast.error(erro.message),
+    onError: erro => toast.error(erro.message),
     onSettled: () => setUploadProgresso(false),
-  })
+  });
 
-  const dados = detalhe.data
-  const despesa = dados?.despesa
-  const nota = dados?.nota
-  const evidencias = useMemo(() => dados?.evidencias ?? [], [dados])
-  const creditos = useMemo(() => dados?.creditos ?? [], [dados])
+  const dados = pertenceAEmpresa(detalhe.data?.despesa, empresaId) ? detalhe.data : undefined;
+  const despesa = dados?.despesa;
+  const nota = dados?.nota;
+  const evidencias = useMemo(() => dados?.evidencias ?? [], [dados]);
+  const creditos = useMemo(() => dados?.creditos ?? [], [dados]);
 
-  const semEvidencia = evidencias.length === 0
-  const bloqueioAprovacao = !somenteLeitura && despesa?.confianca === "media" && semEvidencia
+  const semEvidencia = evidencias.length === 0;
+  const bloqueioAprovacao =
+    !somenteLeitura && despesa?.confianca === "media" && semEvidencia;
 
   function abrirDialog(decisao: Decisao) {
-    setJustificativa(notas)
-    setMotivoRejeicao(MOTIVOS_REJEICAO[0])
-    setDialog(decisao)
+    if (somenteLeitura || !empresaId || decidir.isPending) return;
+    setJustificativa(notas);
+    setMotivoRejeicao(MOTIVOS_REJEICAO[0]);
+    setDialog(decisao);
   }
 
   function confirmarDecisao() {
-    if (!despesa || !dialog) return
+    if (!despesa || !dialog || !podeConfirmarDecisao({ empresaId, somenteLeitura, pending: decidir.isPending, justificativa, exigeDelegacao: exigeMotivoDelegacao, motivoDelegacao })) return;
     const texto =
       dialog === "rejeitar"
         ? `${motivoRejeicao}: ${justificativa.trim()}`.slice(0, 2000)
-        : justificativa.trim()
+        : justificativa.trim();
     decidir.mutate({
       empresaId: empresaId!,
       despesaId: despesa.id,
       decisao: dialog,
       justificativa: texto,
-      motivoDelegacao: exigeMotivoDelegacao ? motivoDelegacao.trim() : undefined,
-    })
+      motivoDelegacao: exigeMotivoDelegacao
+        ? motivoDelegacao.trim()
+        : undefined,
+    });
   }
 
   function aoSelecionarArquivo(arquivo: File) {
-    if (!despesa) return
-    setUploadProgresso(true)
-    const leitor = new FileReader()
+    if (!despesa || somenteLeitura || uploadProgresso) return;
+    if (arquivo.size === 0 || arquivo.size > 10 * 1024 * 1024) { toast.error("Selecione um arquivo não vazio de até 10 MB."); return; }
+    setUploadProgresso(true);
+    const leitor = new FileReader();
     leitor.onload = () => {
-      const resultado = String(leitor.result ?? "")
-      const base64 = resultado.includes(",") ? resultado.split(",")[1] : resultado
+      const resultado = String(leitor.result ?? "");
+      const base64 = resultado.includes(",")
+        ? resultado.split(",")[1]
+        : resultado;
       addEvidencia.mutate({
         despesaId: despesa.id,
         tipo: "documento_suporte",
@@ -203,13 +223,13 @@ export default function RevisaoDetalhe({
         arquivoMime: arquivo.type || undefined,
         arquivoBase64: base64 || undefined,
         observacao: notas.trim() || undefined,
-      })
-    }
+      });
+    };
     leitor.onerror = () => {
-      setUploadProgresso(false)
-      toast.error("Falha ao ler o arquivo selecionado.")
-    }
-    leitor.readAsDataURL(arquivo)
+      setUploadProgresso(false);
+      toast.error("Falha ao ler o arquivo selecionado.");
+    };
+    leitor.readAsDataURL(arquivo);
   }
 
   if (detalhe.isLoading) {
@@ -220,7 +240,7 @@ export default function RevisaoDetalhe({
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-24 w-full" />
       </div>
-    )
+    );
   }
 
   if (detalhe.isError || !despesa) {
@@ -231,10 +251,12 @@ export default function RevisaoDetalhe({
           {detalhe.error?.message ?? "Não foi possível carregar a despesa."}
         </p>
       </div>
-    )
+    );
   }
 
-  const IconeCategoria = CATEGORIA_ICONE[despesa.categoria as CategoriaDespesa] ?? FileText
+  const envioWhatsapp = detalhe.data?.envioWhatsapp;
+  const IconeCategoria =
+    CATEGORIA_ICONE[despesa.categoria as CategoriaDespesa] ?? FileText;
 
   return (
     <motion.div
@@ -244,23 +266,34 @@ export default function RevisaoDetalhe({
       transition={{ duration: 0.3, ease: "easeOut" }}
       className="flex min-h-full flex-col"
     >
-      {/* Header */}
-      <div className="border-b border-line p-6 pb-5">
+      {/* Cabeçalho de decisão: conserva os dados extraídos e prioriza o veredito. */}
+      <div className="border-b border-line bg-[#0B7A75]/[0.035] p-6 pb-5">
+        <EnvioWhatsapp envio={envioWhatsapp} categoria={despesa.categoria} />
+        <p className="mb-3 font-mono text-[10px] font-medium uppercase tracking-[0.09em] text-[#0B7A75]">
+          Despesa #{despesa.id} · conferência operacional
+        </p>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-brand-500/10 text-brand-500">
+          <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[#0B7A75]/10 text-[#0B7A75]">
             <IconeCategoria className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
             <h2 className="font-display text-lg font-medium tracking-[-0.01em] text-text-900">
-              {CATEGORIA_ROTULO[despesa.categoria as CategoriaDespesa] ?? despesa.categoria}
+              {CATEGORIA_ROTULO[despesa.categoria as CategoriaDespesa] ??
+                despesa.categoria}
               {nota?.cnpjEmitente && (
-                <span className="text-text-500"> · CNPJ {nota.cnpjEmitente}</span>
+                <span className="text-text-500">
+                  {" "}
+                  · CNPJ {nota.cnpjEmitente}
+                </span>
               )}
             </h2>
             <p className="font-mono text-[11px] tracking-[0.02em] text-text-500">
               entrou na fila em {formatarDataHora(despesa.createdAt)}
-              {despesa.confianca === "media" && " · motivo: média confiança exige documento de suporte (RF-04)"}
-              {despesa.motivoRevisao && somenteLeitura && ` · ${despesa.motivoRevisao}`}
+              {despesa.confianca === "media" &&
+                " · motivo: média confiança exige documento de suporte (RF-04)"}
+              {despesa.motivoRevisao &&
+                somenteLeitura &&
+                ` · ${despesa.motivoRevisao}`}
             </p>
           </div>
           <MoneyValue value={nota?.valor ?? despesa.valorFiscal} size="lg" />
@@ -296,8 +329,8 @@ export default function RevisaoDetalhe({
               {nota?.arquivoMime ?? "arquivo"} · armazenado na plataforma
             </p>
             <p className="max-w-[280px] text-[11px] leading-relaxed text-text-500">
-              A pré-visualização do arquivo não está disponível nesta consulta; os campos
-              extraídos via OCR estão ao lado para conferência.
+              A pré-visualização do arquivo não está disponível nesta consulta;
+              os campos extraídos via OCR estão ao lado para conferência.
             </p>
           </div>
         </div>
@@ -305,15 +338,40 @@ export default function RevisaoDetalhe({
         {/* Dados + memorial */}
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-xl border border-line bg-surface p-5">
-            <FiscalField label="CNPJ emitente" value={nota?.cnpjEmitente ?? "—"} />
-            <FiscalField label="Data do fato gerador" value={formatarData(nota?.dataFatoGerador)} />
+            <FiscalField
+              label="CNPJ emitente"
+              value={nota?.cnpjEmitente ?? "—"}
+            />
+            <FiscalField
+              label="Data do fato gerador"
+              value={formatarData(nota?.dataFatoGerador)}
+            />
             <FiscalField label="CFOP" value={nota?.cfop ?? "—"} />
             <FiscalField label="NCM" value={nota?.ncm ?? "—"} />
             <FiscalField label="CST" value={nota?.cst ?? "—"} />
-            <FiscalField label="Litros" value={despesa.litros != null ? `${formatarNumero(despesa.litros)} L` : "—"} />
-            <FiscalField label="Km comercial" value={`${formatarNumero(despesa.kmComercial, 0)} km`} />
-            <FiscalField label="Km não comercial" value={`${formatarNumero(despesa.kmNaoComercial, 0)} km`} />
-            {despesa.colaborador && <FiscalField label="Colaborador" value={despesa.colaborador} mono={false} />}
+            <FiscalField
+              label="Litros"
+              value={
+                despesa.litros != null
+                  ? `${formatarNumero(despesa.litros)} L`
+                  : "—"
+              }
+            />
+            <FiscalField
+              label="Km comercial"
+              value={`${formatarNumero(despesa.kmComercial, 0)} km`}
+            />
+            <FiscalField
+              label="Km não comercial"
+              value={`${formatarNumero(despesa.kmNaoComercial, 0)} km`}
+            />
+            {despesa.colaborador && (
+              <FiscalField
+                label="Colaborador"
+                value={despesa.colaborador}
+                mono={false}
+              />
+            )}
           </div>
 
           {/* Memorial de cálculo (dark, compacto) */}
@@ -334,21 +392,31 @@ export default function RevisaoDetalhe({
               </p>
             ) : (
               <ul className="flex flex-col gap-2.5">
-                {creditos.map((c) => (
-                  <li key={c.id} className="flex items-baseline justify-between gap-3">
+                {creditos.map(c => (
+                  <li
+                    key={c.id}
+                    className="flex items-baseline justify-between gap-3"
+                  >
                     <div className="min-w-0">
                       <span className="font-mono text-[12px] font-medium text-brand-400">
                         {TRIBUTO_ROTULO[c.tributo] ?? c.tributo}
                       </span>
                       <span className="ml-2 font-mono text-[10px] uppercase tracking-[0.04em] text-text-dark-400">
-                        {c.tipoBeneficio === "credito" ? "crédito" : "dedutibilidade"}
+                        {c.tipoBeneficio === "credito"
+                          ? "crédito"
+                          : "dedutibilidade"}
                       </span>
                       <p className="mt-0.5 truncate font-mono text-[11px] text-text-dark-400">
                         {c.memorial}
                       </p>
                     </div>
                     <span className="shrink-0 font-mono text-[13px] font-medium tabular text-text-dark-100">
-                      <MoneyValue value={c.valor} size="sm" color="positive" className="text-brand-400" />
+                      <MoneyValue
+                        value={c.valor}
+                        size="sm"
+                        color="positive"
+                        className="text-brand-400"
+                      />
                     </span>
                   </li>
                 ))}
@@ -379,16 +447,17 @@ export default function RevisaoDetalhe({
             >
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
               <p className="text-[13px] leading-snug text-conf-media-text">
-                <span className="font-semibold">Evidência obrigatória.</span> Despesas de média
-                confiança só podem ser aprovadas com um documento de suporte anexado (RF-04).
-                Anexe abaixo e tente aprovar novamente.
+                <span className="font-semibold">Evidência obrigatória.</span>{" "}
+                Despesas de média confiança só podem ser aprovadas com um
+                documento de suporte anexado (RF-04). Anexe abaixo e tente
+                aprovar novamente.
               </p>
             </motion.div>
           )}
         </AnimatePresence>
 
         <div className="flex flex-wrap items-start gap-3">
-          {evidencias.map((ev) => (
+          {evidencias.map(ev => (
             <motion.div
               key={ev.id}
               initial={{ scale: 0.8, opacity: 0 }}
@@ -400,7 +469,9 @@ export default function RevisaoDetalhe({
                 <Paperclip className="h-4 w-4" />
               </span>
               <div className="min-w-0">
-                <p className="truncate font-mono text-[11.5px] text-text-900">{ev.arquivoNome}</p>
+                <p className="truncate font-mono text-[11.5px] text-text-900">
+                  {ev.arquivoNome}
+                </p>
                 <p className="font-mono text-[10px] text-text-500">
                   {formatarDataHora(ev.createdAt)}
                 </p>
@@ -415,17 +486,17 @@ export default function RevisaoDetalhe({
                 type="file"
                 accept="application/pdf,image/*"
                 className="hidden"
-                onChange={(e) => {
-                  const arquivo = e.target.files?.[0]
-                  if (arquivo) aoSelecionarArquivo(arquivo)
-                  e.target.value = ""
+                onChange={e => {
+                  const arquivo = e.target.files?.[0];
+                  if (arquivo) aoSelecionarArquivo(arquivo);
+                  e.target.value = "";
                 }}
               />
               <button
                 type="button"
-                ref={(el) => {
-                  dropzoneInternoRef.current = el
-                  if (dropzoneRef) dropzoneRef.current = el
+                ref={el => {
+                  dropzoneInternoRef.current = el;
+                  if (dropzoneRef) dropzoneRef.current = el;
                 }}
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadProgresso}
@@ -434,15 +505,25 @@ export default function RevisaoDetalhe({
                   semEvidencia
                     ? "border-amber-500/60 bg-conf-media-bg/40 hover:border-amber-500"
                     : "border-line bg-surface hover:border-brand-500",
-                  uploadProgresso && "cursor-not-allowed opacity-60",
+                  uploadProgresso && "cursor-not-allowed opacity-60"
                 )}
               >
                 {uploadProgresso ? (
                   <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
                 ) : (
-                  <Upload className={cn("h-4 w-4", semEvidencia ? "text-amber-500" : "text-text-500")} />
+                  <Upload
+                    className={cn(
+                      "h-4 w-4",
+                      semEvidencia ? "text-amber-500" : "text-text-500"
+                    )}
+                  />
                 )}
-                <span className={cn("text-[12px] font-medium", semEvidencia ? "text-conf-media-text" : "text-text-500")}>
+                <span
+                  className={cn(
+                    "text-[12px] font-medium",
+                    semEvidencia ? "text-conf-media-text" : "text-text-500"
+                  )}
+                >
                   {uploadProgresso ? "Enviando…" : "Anexar PDF/imagem"}
                 </span>
               </button>
@@ -459,7 +540,7 @@ export default function RevisaoDetalhe({
           </span>
           <Textarea
             value={notas}
-            onChange={(e) => setNotas(e.target.value)}
+            onChange={e => setNotas(e.target.value)}
             placeholder="Ex.: visita técnica confirmada com o fornecedor…"
             className="min-h-[76px] rounded-[10px] border-line text-sm"
           />
@@ -491,7 +572,9 @@ export default function RevisaoDetalhe({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="text-xs">Reclassificação assistida disponível em breve.</p>
+                  <p className="text-xs">
+                    Reclassificação assistida disponível em breve.
+                  </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -511,25 +594,32 @@ export default function RevisaoDetalhe({
                 </TooltipTrigger>
                 {bloqueioAprovacao && (
                   <TooltipContent>
-                    <p className="text-xs">Anexe uma evidência para liberar a aprovação (RF-04).</p>
+                    <p className="text-xs">
+                      Anexe uma evidência para liberar a aprovação (RF-04).
+                    </p>
                   </TooltipContent>
                 )}
               </Tooltip>
             </TooltipProvider>
           </div>
           <p className="border-t border-line px-6 py-2 font-mono text-[11px] leading-relaxed text-amber-500">
-            Aprovações de média confiança devem ser validadas por um advogado tributarista.
-            Isto não é aconselhamento jurídico.
+            Aprovações de média confiança devem ser validadas por um advogado
+            tributarista. Isto não é aconselhamento jurídico.
           </p>
         </div>
       )}
 
       {/* Dialog de decisão (aprovar / rejeitar) */}
-      <Dialog open={dialog !== null} onOpenChange={(open) => !open && setDialog(null)}>
+      <Dialog
+        open={dialog !== null}
+        onOpenChange={open => !open && setDialog(null)}
+      >
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>
-              {dialog === "aprovar" ? "Aprovar e liberar despesa" : "Rejeitar despesa"}
+              {dialog === "aprovar"
+                ? "Aprovar e liberar despesa"
+                : "Rejeitar despesa"}
             </DialogTitle>
             <DialogDescription>
               {dialog === "aprovar"
@@ -543,12 +633,15 @@ export default function RevisaoDetalhe({
                 <span className="text-[12px] font-medium uppercase tracking-[0.04em] text-text-500">
                   Motivo
                 </span>
-                <Select value={motivoRejeicao} onValueChange={setMotivoRejeicao}>
+                <Select
+                  value={motivoRejeicao}
+                  onValueChange={setMotivoRejeicao}
+                >
                   <SelectTrigger className="h-11 rounded-[10px] border-line">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {MOTIVOS_REJEICAO.map((m) => (
+                    {MOTIVOS_REJEICAO.map(m => (
                       <SelectItem key={m} value={m}>
                         {m}
                       </SelectItem>
@@ -563,7 +656,7 @@ export default function RevisaoDetalhe({
               </span>
               <Textarea
                 value={justificativa}
-                onChange={(e) => setJustificativa(e.target.value)}
+                onChange={e => setJustificativa(e.target.value)}
                 placeholder="Obrigatória — mínimo de 3 caracteres (máx. 2000)."
                 className="min-h-[96px] rounded-[10px] border-line text-sm"
                 maxLength={2000}
@@ -582,7 +675,7 @@ export default function RevisaoDetalhe({
                 </span>
                 <Textarea
                   value={motivoDelegacao}
-                  onChange={(e) => setMotivoDelegacao(e.target.value)}
+                  onChange={e => setMotivoDelegacao(e.target.value)}
                   placeholder="Ex.: aprovador em férias — decisão não pode esperar."
                   className="min-h-[76px] rounded-[10px] border-line text-sm"
                   maxLength={2000}
@@ -608,21 +701,25 @@ export default function RevisaoDetalhe({
               type="button"
               onClick={confirmarDecisao}
               disabled={
-                justificativa.trim().length < 3 ||
-                (exigeMotivoDelegacao && motivoDelegacao.trim().length < 3) ||
-                decidir.isPending
+                !podeConfirmarDecisao({ empresaId, somenteLeitura, pending: decidir.isPending, justificativa, exigeDelegacao: exigeMotivoDelegacao, motivoDelegacao })
               }
               className={cn(
                 "inline-flex h-10 items-center gap-2 rounded-[10px] px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50",
-                dialog === "aprovar" ? "bg-brand-500 hover:bg-brand-500/90" : "bg-red-500 hover:bg-red-500/90",
+                dialog === "aprovar"
+                  ? "bg-brand-500 hover:bg-brand-500/90"
+                  : "bg-red-500 hover:bg-red-500/90"
               )}
             >
-              {decidir.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {dialog === "aprovar" ? "Confirmar aprovação" : "Confirmar rejeição"}
+              {decidir.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
+              {dialog === "aprovar"
+                ? "Confirmar aprovação"
+                : "Confirmar rejeição"}
             </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </motion.div>
-  )
+  );
 }

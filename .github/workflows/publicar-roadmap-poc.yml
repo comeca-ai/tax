@@ -1,0 +1,41 @@
+name: Publicar planejamento da POC
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_publish:
+        description: Confirmo a atualização idempotente do roadmap no GitHub
+        type: boolean
+        required: true
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: publicar-roadmap-poc
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    if: github.repository == 'comeca-ai/projeto_tribureembolsa' && github.ref == 'refs/heads/docs/360dialog-canal-unico' && inputs.confirm_publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+      - name: Validar arquivos e dependências
+        run: node tools/github/publicar-roadmap.mjs --validate
+      - name: Testar publicação sem acesso à API
+        run: node --test tools/github/publicar-roadmap.check.mjs
+      - name: Publicar marcos, épico e entregas sem duplicação
+        run: node tools/github/publicar-roadmap.mjs --publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,41 @@
+{
+  "target": {
+    "name": "Emerick",
+    "email": "emerick@users.noreply.github.com"
+  },
+  "name_patterns": [
+    "^copilot$",
+    "copilot-swe-agent",
+    "github copilot",
+    "^codex$",
+    "openai",
+    "chatgpt",
+    "gpt-",
+    "^claude",
+    "anthropic",
+    "^gemini",
+    "google-labs-jules",
+    "^jules",
+    "^cursor",
+    "cursoragent",
+    "^devin",
+    "^aider",
+    "^windsurf",
+    "^codeium",
+    "^tabnine",
+    "^amazon q",
+    "codewhisperer",
+    "^sweep",
+    "^replit"
+  ],
+  "email_patterns": [
+    "Copilot@users\\.noreply\\.github\\.com",
+    "@openai\\.com",
+    "@anthropic\\.com",
+    "cursoragent@cursor\\.com",
+    "devin-ai",
+    "aider@",
+    "jules@google",
+    "codex@"
+  ]
+}

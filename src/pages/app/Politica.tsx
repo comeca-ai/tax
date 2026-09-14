@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react"
-import { AnimatePresence, motion } from "framer-motion"
+import { useCallback, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Bot,
   Building2,
@@ -12,43 +12,47 @@ import {
   PowerOff,
   ShieldCheck,
   TriangleAlert,
-} from "lucide-react"
-import { Link } from "react-router"
-import { toast } from "sonner"
-import { trpc } from "@/providers/trpc"
-import { useActiveCompany } from "@/hooks/useActiveCompany"
-import { useAuth } from "@/hooks/useAuth"
+} from "lucide-react";
+import { Link } from "react-router";
+import { toast } from "sonner";
+import { trpc } from "@/providers/trpc";
+import { useActiveCompany } from "@/hooks/useActiveCompany";
+import { useAuth } from "@/hooks/useAuth";
 import {
   regrasPoliticaSchema,
   STATUS_POLITICA_LABELS,
   type PolicyExtracao,
   type RegrasPolitica,
   type StatusPolitica,
-} from "@contracts/types"
-import { Skeleton } from "@/components/ui/skeleton"
-import { fileParaBase64 } from "@/components/despesas/arquivo"
-import { formatDataHora } from "@/components/despesas/meta"
+} from "@contracts/types";
+import { Skeleton } from "@/components/ui/skeleton";
+import { fileParaBase64 } from "@/components/despesas/arquivo";
+import { formatDataHora } from "@/components/despesas/meta";
 import PoliticaUploadStep, {
   type PoliticaUploadItem,
-} from "@/components/politica/PoliticaUploadStep"
-import PoliticaRegrasStep from "@/components/politica/PoliticaRegrasStep"
-import PoliticaResumo from "@/components/politica/PoliticaResumo"
+} from "@/components/politica/PoliticaUploadStep";
+import PoliticaRegrasStep from "@/components/politica/PoliticaRegrasStep";
+import PoliticaResumo from "@/components/politica/PoliticaResumo";
 import {
   formFromRegras,
   regrasFromForm,
   type RegrasForm,
-} from "@/components/politica/regrasForm"
+} from "@/components/politica/regrasForm";
 import {
   parametrosPerdidos,
   semAutorizacaoDeAprovacao,
-} from "@/components/politica/regrasExtraidas"
-import { cn } from "@/lib/utils"
+} from "@/components/politica/regrasExtraidas";
+import { cn } from "@/lib/utils";
+import { podeEditarPolitica, erroArquivoPolitica } from "@/components/painel/seguranca";
+import PoliticaSimulador from "@/components/politica/PoliticaSimulador";
+import PoliticaCamposStep from "@/components/politica/PoliticaCamposStep";
 
 const PASSOS = [
   { numero: 1, rotulo: "Enviar documento" },
   { numero: 2, rotulo: "Revisar regras" },
-  { numero: 3, rotulo: "Simular e ativar" },
-] as const
+  { numero: 3, rotulo: "Campos customizados" },
+  { numero: 4, rotulo: "Simular e ativar" },
+] as const;
 
 function StepIndicator({ step }: { step: number }) {
   return (
@@ -62,15 +66,19 @@ function StepIndicator({ step }: { step: number }) {
                 ? "bg-brand-500 text-white"
                 : step === passo.numero
                   ? "bg-brand-500/10 text-brand-500 ring-1 ring-brand-500/40"
-                  : "bg-paper text-text-500 ring-1 ring-line",
+                  : "bg-paper text-text-500 ring-1 ring-line"
             )}
           >
-            {step > passo.numero ? <Check className="h-3.5 w-3.5" /> : passo.numero}
+            {step > passo.numero ? (
+              <Check className="h-3.5 w-3.5" />
+            ) : (
+              passo.numero
+            )}
           </span>
           <span
             className={cn(
               "text-[13px] font-medium",
-              step === passo.numero ? "text-text-900" : "text-text-500",
+              step === passo.numero ? "text-text-900" : "text-text-500"
             )}
           >
             {passo.rotulo}
@@ -79,166 +87,199 @@ function StepIndicator({ step }: { step: number }) {
         </li>
       ))}
     </ol>
-  )
+  );
 }
 
 /** Espelho de `assertAdminDaEmpresa` (P-4): sem isso o não-admin editava 70 regras e levava 403 no fim. */
 const AVISO_SEM_PERMISSAO =
-  "Só o administrador da empresa — quem criou a conta — pode alterar as regras e ativar ou desativar a política. Você pode consultar a política ativa e usar o simulador."
+  "Só o administrador da empresa — quem criou a conta — pode alterar as regras e ativar ou desativar a política. Você pode consultar a política ativa e usar o simulador.";
 
 const STATUS_CHIP: Record<StatusPolitica, string> = {
   ativa: "bg-conf-alta-bg text-conf-alta-text",
   rascunho: "bg-conf-media-bg text-conf-media-text",
   inativa: "bg-paper text-text-500 ring-1 ring-line",
-}
+};
 
-export default function Politica() {
-  const { activeCompany, isLoading: empresaLoading } = useActiveCompany()
-  const { user, isLoading: sessaoLoading } = useAuth()
-  const utils = trpc.useUtils()
-  const empresaId = activeCompany?.id ?? 0
+export default function Politica({ iniciarUpload = false }: { iniciarUpload?: boolean }) {
+  const { activeCompany, isLoading: empresaLoading } = useActiveCompany();
+  const { user, isLoading: sessaoLoading } = useAuth();
+  const utils = trpc.useUtils();
+  const empresaId = activeCompany?.id ?? 0;
   // Mesmo critério do servidor: admin da plataforma (suporte) ou dono da empresa.
-  const podeDecidir =
-    user !== null &&
-    activeCompany !== null &&
-    (user.perfil === "admin" || activeCompany.usuarioId === user.id)
+  const podeDecidir = podeEditarPolitica(user, activeCompany);
 
-  const [modo, setModo] = useState<"status" | "wizard">("status")
-  const [step, setStep] = useState<1 | 2 | 3>(1)
-  const [upload, setUpload] = useState<PoliticaUploadItem | null>(null)
-  const [politicaId, setPoliticaId] = useState<number | null>(null)
-  const [extracao, setExtracao] = useState<PolicyExtracao | null>(null)
-  const [form, setForm] = useState<RegrasForm | null>(null)
-  /** Regras consolidadas pelo servidor no último save — é o que o agente vai usar (passo 3). */
-  const [regrasSalvas, setRegrasSalvas] = useState<RegrasPolitica | null>(null)
+  const [modo, setModo] = useState<"status" | "wizard">(iniciarUpload ? "wizard" : "status");
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [upload, setUpload] = useState<PoliticaUploadItem | null>(null);
+  const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
+  const [politicaId, setPoliticaId] = useState<number | null>(null);
+  const [extracao, setExtracao] = useState<PolicyExtracao | null>(null);
+  const [form, setForm] = useState<RegrasForm | null>(null);
+  /** Regras consolidadas pelo servidor no último save — é o que o agente vai usar (passo 4). */
+  const [regrasSalvas, setRegrasSalvas] = useState<RegrasPolitica | null>(null);
   /** Parâmetros que valiam na versão anterior e que este salvamento deixou de aplicar. */
-  const [perdidos, setPerdidos] = useState<string[]>([])
-  const [editados, setEditados] = useState<Set<string>>(new Set())
+  const [perdidos, setPerdidos] = useState<string[]>([]);
+  const [editados, setEditados] = useState<Set<string>>(new Set());
 
   const ativaQuery = trpc.politica.ativa.useQuery(
     { empresaId },
-    { enabled: empresaId > 0, retry: false },
-  )
+    { enabled: empresaId > 0, retry: false }
+  );
   const listQuery = trpc.politica.list.useQuery(
     { empresaId },
-    { enabled: empresaId > 0, retry: false },
-  )
+    { enabled: empresaId > 0, retry: false }
+  );
 
-  const uploadMut = trpc.politica.upload.useMutation()
-  const duplicar = trpc.politica.duplicar.useMutation()
-  const updateRegras = trpc.politica.updateRegras.useMutation()
-  const ativar = trpc.politica.ativar.useMutation()
-  const desativar = trpc.politica.desativar.useMutation()
+  const uploadMut = trpc.politica.upload.useMutation();
+  const duplicar = trpc.politica.duplicar.useMutation();
+  const updateRegras = trpc.politica.updateRegras.useMutation();
+  const ativar = trpc.politica.ativar.useMutation();
+  const desativar = trpc.politica.desativar.useMutation();
 
   function onEditou(campo: string) {
-    setEditados((prev) => {
-      if (prev.has(campo)) return prev
-      const next = new Set(prev)
-      next.add(campo)
-      return next
-    })
+    setEditados(prev => {
+      if (prev.has(campo)) return prev;
+      const next = new Set(prev);
+      next.add(campo);
+      return next;
+    });
   }
 
   function abrirWizard() {
-    setUpload(null)
-    setPoliticaId(null)
-    setExtracao(null)
-    setForm(null)
-    setRegrasSalvas(null)
-    setPerdidos([])
-    setEditados(new Set())
-    setStep(1)
-    setModo("wizard")
+    setUpload(null);
+    setArquivoSelecionado(null);
+    setPoliticaId(null);
+    setExtracao(null);
+    setForm(null);
+    setRegrasSalvas(null);
+    setPerdidos([]);
+    setEditados(new Set());
+    setStep(1);
+    setModo("wizard");
   }
 
   const processarArquivo = useCallback(
     async (arquivo: File) => {
-      setUpload({ nome: arquivo.name, tamanho: arquivo.size, status: "enviando" })
+      if (!podeDecidir || uploadMut.isPending) return;
+      const erroArquivo = erroArquivoPolitica(arquivo);
+      if (erroArquivo) { toast.error(erroArquivo); return; }
+      setUpload({
+        nome: arquivo.name,
+        tamanho: arquivo.size,
+        status: "enviando",
+      });
       try {
-        const base64 = await fileParaBase64(arquivo)
-        setUpload((prev) => (prev ? { ...prev, status: "extraindo" } : prev))
+        const base64 = await fileParaBase64(arquivo);
+        setUpload(prev => (prev ? { ...prev, status: "extraindo" } : prev));
         const res = await uploadMut.mutateAsync({
           empresaId,
           arquivoNome: arquivo.name,
           arquivoMime: arquivo.type || "application/octet-stream",
           arquivoBase64: base64,
-        })
-        setUpload((prev) => (prev ? { ...prev, status: "concluido" } : prev))
-        setPoliticaId(res.politicaId)
-        setExtracao(res.extracao)
-        setForm(formFromRegras(res.extracao.regras))
-        setPerdidos([])
-        setEditados(new Set())
-        setStep(2)
+        });
+        setUpload(prev => (prev ? { ...prev, status: "concluido" } : prev));
+        setPoliticaId(res.politicaId);
+        setExtracao(res.extracao);
+        setForm(formFromRegras(res.extracao.regras));
+        setPerdidos([]);
+        setEditados(new Set());
+        setStep(2);
       } catch (erro) {
-        const mensagem = erro instanceof Error ? erro.message : "Falha ao ler o documento."
-        setUpload((prev) => (prev ? { ...prev, status: "falha", erro: mensagem } : prev))
-        toast.error("Não foi possível ler a política", { description: mensagem })
+        const mensagem =
+          erro instanceof Error ? erro.message : "Falha ao ler o documento.";
+        setUpload(prev =>
+          prev ? { ...prev, status: "falha", erro: mensagem } : prev
+        );
+        toast.error("Não foi possível ler a política", {
+          description: mensagem,
+        });
       }
     },
-    [empresaId, uploadMut],
-  )
+    [empresaId, uploadMut, podeDecidir]
+  );
+
+  function selecionarArquivo(arquivo: File) {
+    setArquivoSelecionado(arquivo);
+    setUpload({ nome: arquivo.name, tamanho: arquivo.size, status: "pronto" });
+  }
+
+  function analisarArquivoSelecionado() {
+    if (arquivoSelecionado) void processarArquivo(arquivoSelecionado);
+  }
+
+  function removerArquivoSelecionado() {
+    setArquivoSelecionado(null);
+    setUpload(null);
+  }
 
   async function salvarRegras() {
-    if (!politicaId || !form) return
+    if (!podeDecidir || !politicaId || !form || updateRegras.isPending) return;
     try {
-      const res = await updateRegras.mutateAsync({ id: politicaId, regras: regrasFromForm(form) })
-      setRegrasSalvas(res.regras)
+      const res = await updateRegras.mutateAsync({
+        id: politicaId,
+        regras: regrasFromForm(form),
+      });
+      setRegrasSalvas(res.regras);
       // A política demo/heurística traz limites prontos e nenhuma regra extraída: salvar
       // sem mexer zera esses parâmetros (a lista de regras é a declaração do gestor) — e
       // isso precisa ser dito, não descoberto na primeira despesa.
-      setPerdidos(extracao ? parametrosPerdidos(extracao.regras, res.regras) : [])
+      setPerdidos(
+        extracao ? parametrosPerdidos(extracao.regras, res.regras) : []
+      );
       toast.success("Regras salvas no rascunho", {
         description:
           "Elas só passam a valer quando você ativar a política. Simule o agente abaixo antes.",
-      })
-      setStep(3)
+      });
+      setForm(formFromRegras(res.regras));
+      setStep(4);
     } catch (erro) {
       toast.error("Falha ao salvar as regras", {
         description: erro instanceof Error ? erro.message : undefined,
-      })
+      });
     }
   }
 
   async function ativarPolitica(id: number) {
+    if (!podeDecidir || ativar.isPending) return;
     try {
-      const res = await ativar.mutateAsync({ id })
+      const res = await ativar.mutateAsync({ id });
       toast.success("Política ativada", {
         description: `Versão ${res.versao} — o agente já avalia as novas despesas.`,
-      })
+      });
       await Promise.all([
         utils.politica.ativa.invalidate({ empresaId }),
         utils.politica.list.invalidate({ empresaId }),
-      ])
-      setModo("status")
-      setStep(1)
-      setUpload(null)
-      setPoliticaId(null)
-      setExtracao(null)
-      setForm(null)
-      setRegrasSalvas(null)
-      setPerdidos([])
+      ]);
+      setModo("status");
+      setStep(1);
+      setUpload(null);
+      setPoliticaId(null);
+      setExtracao(null);
+      setForm(null);
+      setRegrasSalvas(null);
+      setPerdidos([]);
     } catch (erro) {
       toast.error("Falha ao ativar a política", {
         description: erro instanceof Error ? erro.message : undefined,
-      })
+      });
     }
   }
 
   async function desativarPolitica(id: number) {
+    if (!podeDecidir || desativar.isPending) return;
     try {
-      await desativar.mutateAsync({ id })
+      await desativar.mutateAsync({ id });
       toast.success("Política desativada", {
         description: "Avaliação automática de despesas suspensa.",
-      })
+      });
       await Promise.all([
         utils.politica.ativa.invalidate({ empresaId }),
         utils.politica.list.invalidate({ empresaId }),
-      ])
+      ]);
     } catch (erro) {
       toast.error("Falha ao desativar a política", {
         description: erro instanceof Error ? erro.message : undefined,
-      })
+      });
     }
   }
 
@@ -248,22 +289,22 @@ export default function Politica() {
    */
   async function novaVersaoDaAtiva(id: number) {
     try {
-      const res = await duplicar.mutateAsync({ id })
-      await utils.politica.list.invalidate({ empresaId })
-      await revisarPolitica(res.politicaId)
+      const res = await duplicar.mutateAsync({ id });
+      await utils.politica.list.invalidate({ empresaId });
+      await revisarPolitica(res.politicaId);
     } catch (erro) {
       toast.error("Não foi possível criar a nova versão", {
         description: erro instanceof Error ? erro.message : undefined,
-      })
+      });
     }
   }
 
   /** Rascunho → reabre no passo 2 para revisão/edição das regras. */
   async function revisarPolitica(id: number) {
     try {
-      const politica = await utils.politica.get.fetch({ id })
-      const regras = regrasPoliticaSchema.parse(politica.regras ?? {})
-      setPoliticaId(politica.id)
+      const politica = await utils.politica.get.fetch({ id });
+      const regras = regrasPoliticaSchema.parse(politica.regras ?? {});
+      setPoliticaId(politica.id);
       setExtracao({
         textoExtraido: politica.textoExtraido ?? null,
         regras,
@@ -271,29 +312,34 @@ export default function Politica() {
         camposPendentes: (politica.camposPendentes as string[] | null) ?? [],
         provedor: "salvo",
         avisos: [],
-      })
-      setForm(formFromRegras(regras))
-      setRegrasSalvas(null)
-      setPerdidos([])
-      setEditados(new Set())
+      });
+      setForm(formFromRegras(regras));
+      setRegrasSalvas(null);
+      setPerdidos([]);
+      setEditados(new Set());
       setUpload({
         nome: politica.arquivoNome,
         tamanho: 0,
         status: "concluido",
-      })
-      setStep(2)
-      setModo("wizard")
+      });
+      setStep(2);
+      setModo("wizard");
     } catch (erro) {
       toast.error("Não foi possível abrir o rascunho", {
         description: erro instanceof Error ? erro.message : undefined,
-      })
+      });
     }
   }
 
-  const ativa = ativaQuery.data ?? null
-  const versoes = listQuery.data ?? []
-  const carregandoListas = ativaQuery.isLoading || listQuery.isLoading
-  const regrasAtivas = ativa ? regrasPoliticaSchema.parse(ativa.regras ?? {}) : null
+  const ativa = ativaQuery.data ?? null;
+  const versoes = listQuery.data ?? [];
+  // Rascunhos são artefatos de trabalho: não compõem a norma nem o histórico
+  // apresentado à equipe. Permanecem no banco para auditoria/recuperação.
+  const versoesVisiveis = versoes.filter(versao => versao.status !== "rascunho");
+  const carregandoListas = ativaQuery.isLoading || listQuery.isLoading;
+  const regrasAtivas = ativa
+    ? regrasPoliticaSchema.parse(ativa.regras ?? {})
+    : null;
 
   // ── Estados de carregamento / sem empresa ─────────────────────────────────
   if (empresaLoading) {
@@ -303,7 +349,7 @@ export default function Politica() {
         <Skeleton className="h-[320px] w-full rounded-[14px]" />
         <Skeleton className="h-12 w-2/3 rounded-xl" />
       </div>
-    )
+    );
   }
 
   if (!activeCompany) {
@@ -314,8 +360,8 @@ export default function Politica() {
           Cadastre uma empresa para configurar a política
         </h3>
         <p className="max-w-sm text-sm text-text-500">
-          A política de reembolso é configurada por empresa — o agente avalia cada despesa contra
-          as regras dela.
+          A política de reembolso é configurada por empresa — o agente avalia
+          cada despesa contra as regras dela.
         </p>
         <Link
           to="/app/empresas"
@@ -324,17 +370,25 @@ export default function Politica() {
           Cadastrar empresa
         </Link>
       </div>
-    )
+    );
   }
 
   // ── Wizard (nova versão) ──────────────────────────────────────────────────
+  if (ativaQuery.isError || listQuery.isError) {
+    return <div role="alert" className="rounded-xl border border-line bg-surface p-8"><h1 className="font-semibold">Não foi possível carregar a política</h1><p className="mt-2 text-sm text-text-500">Os dados não estão disponíveis. Tente novamente antes de alterar a política.</p><button className="mt-4 rounded-lg bg-brand-500 px-4 py-2 text-white" onClick={() => { void ativaQuery.refetch(); void listQuery.refetch(); }}>Tentar novamente</button></div>;
+  }
+
+  if (modo === "wizard" && !podeDecidir && !sessaoLoading) {
+    return <div role="alert" className="rounded-xl border border-line bg-surface p-8">{AVISO_SEM_PERMISSAO}<Link to="/app/politica" className="mt-4 block text-brand-500">Consultar norma de reembolso</Link></div>;
+  }
+
   if (modo === "wizard") {
     return (
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: "easeOut" }}
-        className="mx-auto flex w-full max-w-[960px] flex-col gap-6"
+        className="mx-auto flex w-full max-w-[1120px] flex-col gap-6"
       >
         <div className="flex flex-col gap-3">
           <button
@@ -363,15 +417,18 @@ export default function Politica() {
             >
               <PoliticaUploadStep
                 item={upload}
-                onArquivo={(arquivo) => void processarArquivo(arquivo)}
+                onArquivo={selecionarArquivo}
+                onAnalisar={analisarArquivoSelecionado}
+                onRemover={removerArquivoSelecionado}
                 processando={
-                  upload?.status === "enviando" || upload?.status === "extraindo"
+                  upload?.status === "enviando" ||
+                  upload?.status === "extraindo"
                 }
               />
             </motion.div>
           )}
 
-          {step === 2 && form && extracao && (
+          {step === 2 && politicaId !== null && form && extracao && (
             <motion.div
               key="politica-passo-2"
               initial={{ opacity: 0, x: 40 }}
@@ -380,6 +437,7 @@ export default function Politica() {
               transition={{ duration: 0.25, ease: "easeOut" }}
             >
               <PoliticaRegrasStep
+                politicaId={politicaId}
                 form={form}
                 onChange={setForm}
                 camposPendentes={extracao.camposPendentes}
@@ -391,14 +449,27 @@ export default function Politica() {
                 textoExtraido={extracao.textoExtraido}
                 salvando={updateRegras.isPending}
                 onVoltar={() => setStep(1)}
+                onSalvar={() => setStep(3)}
+              />
+            </motion.div>
+          )}
+
+          {step === 3 && politicaId !== null && form && (
+            <motion.div key="politica-campos" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
+              <PoliticaCamposStep
+                campos={form.base.camposCustomizados}
+                onChange={camposCustomizados => setForm({ ...form, base: { ...form.base, camposCustomizados } })}
+                pendencias={extracao?.camposPendentes.filter(p => /campos customizados/i.test(p))}
+                salvando={updateRegras.isPending}
+                onVoltar={() => setStep(2)}
                 onSalvar={() => void salvarRegras()}
               />
             </motion.div>
           )}
 
-          {step === 3 && politicaId !== null && (
+          {step === 4 && politicaId !== null && (
             <motion.div
-              key="politica-passo-3"
+              key="politica-passo-4"
               initial={{ opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -40 }}
@@ -418,9 +489,10 @@ export default function Politica() {
                       Esta versão deixa de aplicar o que a anterior aplicava
                     </p>
                     <p className="text-[12px] leading-relaxed text-conf-media-text">
-                      Tudo que o agente aplica nasce das regras desta política, e nenhuma regra
-                      sustenta estes parâmetros: {perdidos.join(" · ")}. Para mantê-los, volte às
-                      regras e cadastre a regra correspondente antes de ativar.
+                      Tudo que o agente aplica nasce das regras desta política,
+                      e nenhuma regra sustenta estes parâmetros:{" "}
+                      {perdidos.join(" · ")}. Para mantê-los, volte às regras e
+                      cadastre a regra correspondente antes de ativar.
                     </p>
                   </div>
                 </div>
@@ -429,15 +501,20 @@ export default function Politica() {
                 <h3 className="font-display text-[15px] font-semibold text-text-900">
                   Regras que serão ativadas
                 </h3>
-                {form && <PoliticaResumo regras={regrasSalvas ?? regrasFromForm(form)} />}
+                {form && (
+                  <PoliticaResumo
+                    regras={regrasSalvas ?? regrasFromForm(form)}
+                  />
+                )}
               </div>
+              <PoliticaSimulador key={politicaId} empresaId={empresaId} politicaId={politicaId} />
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <button
                   type="button"
-                  onClick={() => setStep(2)}
+                  onClick={() => setStep(3)}
                   className="inline-flex h-11 items-center gap-2 rounded-[10px] px-4 text-[13px] font-semibold text-text-500 transition hover:bg-paper hover:text-text-900"
                 >
-                  ← Voltar às regras
+                  ← Voltar aos campos customizados
                 </button>
                 <button
                   type="button"
@@ -445,7 +522,8 @@ export default function Politica() {
                   disabled={ativar.isPending}
                   className={cn(
                     "inline-flex h-11 items-center gap-2 rounded-[10px] bg-brand-500 px-5 text-[13px] font-semibold text-white transition hover:-translate-y-px hover:bg-brand-500/90",
-                    ativar.isPending && "cursor-not-allowed opacity-50 hover:translate-y-0",
+                    ativar.isPending &&
+                      "cursor-not-allowed opacity-50 hover:translate-y-0"
                   )}
                 >
                   <ShieldCheck className="h-4 w-4" />
@@ -453,14 +531,14 @@ export default function Politica() {
                 </button>
               </div>
               <p className="text-center font-mono text-[11px] leading-relaxed tracking-[0.02em] text-text-500">
-                O agente aplica a política como auxílio à decisão — casos de exceção sempre podem
-                ir à revisão humana.
+                O agente aplica a política como auxílio à decisão — casos de
+                exceção sempre podem ir à revisão humana.
               </p>
             </motion.div>
           )}
         </AnimatePresence>
       </motion.div>
-    )
+    );
   }
 
   // ── Modo status (política ativa / histórico / empty) ──────────────────────
@@ -469,18 +547,22 @@ export default function Politica() {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
-      className="mx-auto flex w-full max-w-[960px] flex-col gap-6"
+        className="mx-auto flex w-full max-w-[1120px] flex-col gap-6"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-line bg-surface p-5 shadow-card">
         <div className="flex flex-col gap-1">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.09em] text-[#0B7A75]">
+            Norma vigente
+          </p>
           <h1 className="font-display text-2xl font-semibold tracking-[-0.01em] text-text-900">
-            Política de reembolso
+            Política de reembolso · {activeCompany.razaoSocial}
           </h1>
           <p className="text-[13px] text-text-500">
-            O agente avalia cada nova despesa contra as regras da política ativa.
+            O agente avalia cada nova despesa contra as regras da política
+            ativa.
           </p>
         </div>
-        {versoes.length > 0 && podeDecidir && (
+        {versoesVisiveis.length > 0 && podeDecidir && (
           <button
             type="button"
             onClick={abrirWizard}
@@ -504,7 +586,7 @@ export default function Politica() {
           <Skeleton className="h-28 w-full rounded-xl" />
           <Skeleton className="h-[280px] w-full rounded-xl" />
         </div>
-      ) : versoes.length === 0 ? (
+      ) : versoesVisiveis.length === 0 ? (
         /* Empty state — nunca houve política */
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-line bg-surface px-8 py-16 text-center shadow-card">
           <img src="/empty-revisao.svg" alt="" className="h-auto w-56" />
@@ -513,8 +595,9 @@ export default function Politica() {
               Nenhuma política de reembolso ainda
             </h3>
             <p className="text-sm leading-relaxed text-text-500">
-              Envie o documento da política da empresa (PDF, imagem ou texto) e o agente extrai
-              as regras do documento — você confere e ajusta antes de ativar.
+              Envie o documento da política da empresa (PDF, imagem ou texto) e
+              o agente extrai as regras do documento — você confere e ajusta
+              antes de ativar.
             </p>
           </div>
           {/* O motivo já aparece na faixa acima quando o usuário não é admin da empresa. */}
@@ -559,7 +642,7 @@ export default function Politica() {
                   disabled={duplicar.isPending}
                   className={cn(
                     "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg bg-conf-media-text px-3 text-[12px] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-conf-media-dot/40 sm:h-9",
-                    duplicar.isPending && "cursor-not-allowed opacity-50",
+                    duplicar.isPending && "cursor-not-allowed opacity-50"
                   )}
                 >
                   <PencilLine className="h-3.5 w-3.5" />
@@ -571,63 +654,71 @@ export default function Politica() {
 
           {/* Card de status */}
           {ativa && regrasAtivas ? (
-            <div className="flex flex-col gap-5 rounded-xl border border-line bg-surface p-5 shadow-card">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-ink-900 text-brand-400">
-                  <Bot className="h-5 w-5" />
-                </span>
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-display text-[17px] font-semibold tracking-[-0.01em] text-text-900">
-                      Política ativa · v{ativa.versao}
-                    </span>
-                    <span className="inline-flex h-5 items-center rounded-full bg-conf-alta-bg px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.04em] text-conf-alta-text">
-                      {STATUS_POLITICA_LABELS.ativa}
-                    </span>
+            <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+              <div className="border-b border-[#0B7A75]/15 bg-[#0B7A75]/[0.035] p-5 pb-4">
+                <p className="mb-3 font-mono text-[10px] font-medium uppercase tracking-[0.09em] text-[#0B7A75]">
+                  Modo de operação
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-[#0B7A75] text-white">
+                    <Bot className="h-5 w-5" />
                   </span>
-                  <span className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.02em] text-text-500">
-                    <FileText className="h-3 w-3" />
-                    {ativa.arquivoNome} · importada em {formatDataHora(ativa.createdAt)}
-                  </span>
-                </div>
-                {/* Caminho permanente para editar a política em vigor: antes só existia
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-display text-[17px] font-semibold tracking-[-0.01em] text-text-900">
+                        Política ativa · v{ativa.versao}
+                      </span>
+                      <span className="inline-flex h-5 items-center rounded-full bg-conf-alta-bg px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.04em] text-conf-alta-text">
+                        {STATUS_POLITICA_LABELS.ativa}
+                      </span>
+                    </span>
+                    <span className="flex items-center gap-1.5 font-mono text-[11px] tracking-[0.02em] text-text-500">
+                      <FileText className="h-3 w-3" />
+                      {ativa.arquivoNome} · importada em{" "}
+                      {formatDataHora(ativa.createdAt)}
+                    </span>
+                  </div>
+                  {/* Caminho permanente para editar a política em vigor: antes só existia
                     dentro da faixa de aviso, que some assim que a política autoriza algo —
                     e aí o único jeito de corrigir uma marcação era reenviar o PDF. */}
-                <button
-                  type="button"
-                  onClick={() => void novaVersaoDaAtiva(ativa.id)}
-                  disabled={duplicar.isPending || !podeDecidir}
-                  className={cn(
-                    "inline-flex h-11 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-3 text-[12px] font-semibold text-text-900 transition hover:bg-paper sm:h-9",
-                    (duplicar.isPending || !podeDecidir) && "cursor-not-allowed opacity-50",
-                  )}
-                >
-                  <PencilLine className="h-3.5 w-3.5" />
-                  {duplicar.isPending ? "Criando…" : "Criar nova versão"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void desativarPolitica(ativa.id)}
-                  disabled={desativar.isPending || !podeDecidir}
-                  className={cn(
-                    "inline-flex h-11 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-3 text-[12px] font-semibold text-text-500 transition hover:border-conf-vedado-dot/30 hover:text-conf-vedado-text sm:h-9",
-                    (desativar.isPending || !podeDecidir) && "cursor-not-allowed opacity-50",
-                  )}
-                >
-                  <PowerOff className="h-3.5 w-3.5" />
-                  Desativar
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => void novaVersaoDaAtiva(ativa.id)}
+                    disabled={duplicar.isPending || !podeDecidir}
+                    className={cn(
+                      "inline-flex h-11 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-3 text-[12px] font-semibold text-text-900 transition hover:bg-paper sm:h-9",
+                      (duplicar.isPending || !podeDecidir) &&
+                        "cursor-not-allowed opacity-50"
+                    )}
+                  >
+                    <PencilLine className="h-3.5 w-3.5" />
+                    {duplicar.isPending ? "Criando…" : "Criar nova versão"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void desativarPolitica(ativa.id)}
+                    disabled={desativar.isPending || !podeDecidir}
+                    className={cn(
+                      "inline-flex h-11 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-3 text-[12px] font-semibold text-text-500 transition hover:border-conf-vedado-dot/30 hover:text-conf-vedado-text sm:h-9",
+                      (desativar.isPending || !podeDecidir) &&
+                        "cursor-not-allowed opacity-50"
+                    )}
+                  >
+                    <PowerOff className="h-3.5 w-3.5" />
+                    Desativar
+                  </button>
+                </div>
               </div>
-
-              <div className="border-t border-dashed border-line" />
-              <PoliticaResumo regras={regrasAtivas} />
+              <div className="p-5">
+                <PoliticaResumo regras={regrasAtivas} />
+              </div>
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-3 rounded-xl border border-conf-media-dot/25 bg-conf-media-bg px-4 py-3.5">
               <Power className="h-4 w-4 shrink-0 text-conf-media-text" />
               <p className="flex-1 text-[13px] font-medium text-conf-media-text">
-                Nenhuma política ativa — o agente está pausado e as despesas seguem apenas o motor
-                tributário.
+                Nenhuma política ativa — o agente está pausado e as despesas
+                seguem apenas o motor tributário.
               </p>
               {podeDecidir && (
                 <button
@@ -650,21 +741,18 @@ export default function Politica() {
               </h3>
             </div>
             <ul className="flex flex-col">
-              {versoes.map((versao) => (
+              {versoesVisiveis.map(versao => (
                 <li
                   key={versao.id}
                   className="flex flex-wrap items-center gap-3 border-b border-line/60 py-3 last:border-b-0"
                 >
-                  {/* Rascunho não tem versão: ela é atribuída na ativação (max+1). Gravar
-                      "v1" em toda duplicação fazia dez rascunhos diferentes parecerem a
-                      mesma versão, cada um com botão "Ativar". */}
                   <span className="inline-flex h-7 min-w-14 items-center justify-center rounded-md border border-line bg-paper px-2 font-mono text-[11px] font-semibold tabular text-text-900">
-                    {versao.status === "rascunho" ? "—" : `v${versao.versao}`}
+                    {`v${versao.versao}`}
                   </span>
                   <span
                     className={cn(
                       "inline-flex h-5 items-center rounded-full px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.04em]",
-                      STATUS_CHIP[versao.status as StatusPolitica],
+                      STATUS_CHIP[versao.status as StatusPolitica]
                     )}
                   >
                     {STATUS_POLITICA_LABELS[versao.status as StatusPolitica]}
@@ -674,20 +762,10 @@ export default function Politica() {
                       {versao.arquivoNome}
                     </span>
                     <span className="font-mono text-[11px] tracking-[0.02em] text-text-500">
-                      {versao.status === "rascunho" ? "rascunho criado em " : "importada em "}
+                      importada em {" "}
                       {formatDataHora(versao.createdAt)}
                     </span>
                   </div>
-                  {versao.status === "rascunho" && podeDecidir && (
-                    <button
-                      type="button"
-                      onClick={() => void revisarPolitica(versao.id)}
-                      className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[12px] font-semibold text-text-900 transition hover:bg-paper sm:h-8"
-                    >
-                      <PencilLine className="h-3.5 w-3.5" />
-                      Revisar regras
-                    </button>
-                  )}
                   {versao.status !== "ativa" && podeDecidir && (
                     <button
                       type="button"
@@ -695,7 +773,7 @@ export default function Politica() {
                       disabled={ativar.isPending}
                       className={cn(
                         "inline-flex h-11 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[12px] font-semibold text-brand-500 transition hover:bg-paper sm:h-8",
-                        ativar.isPending && "cursor-not-allowed opacity-50",
+                        ativar.isPending && "cursor-not-allowed opacity-50"
                       )}
                     >
                       <Power className="h-3.5 w-3.5" />
@@ -710,9 +788,9 @@ export default function Politica() {
       )}
 
       <p className="border-t border-line pt-3 font-mono text-[11px] leading-relaxed tracking-[0.02em] text-text-500">
-        O agente aplica a política como auxílio à decisão — casos de exceção sempre podem ir à
-        revisão humana.
+        O agente aplica a política como auxílio à decisão — casos de exceção
+        sempre podem ir à revisão humana.
       </p>
     </motion.div>
-  )
+  );
 }

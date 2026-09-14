@@ -8,9 +8,20 @@ function required(name: string): string {
   return value ?? "";
 }
 
+/** A assinatura da sessão nunca pode usar uma chave vazia, em nenhum ambiente. */
+export function segredoSessaoObrigatorio(
+  source: Record<string, string | undefined>
+): string {
+  const value = source.APP_SECRET;
+  if (!value || !value.trim()) {
+    throw new Error("APP_SECRET must be explicitly configured and non-empty.");
+  }
+  return value;
+}
+
 export const env = {
   appId: required("APP_ID"),
-  appSecret: required("APP_SECRET"),
+  appSecret: segredoSessaoObrigatorio(process.env),
   isProduction: process.env.NODE_ENV === "production",
   databaseUrl: required("DATABASE_URL"),
   appUrl: process.env.APP_URL || "http://localhost:3000",
@@ -18,4 +29,7 @@ export const env = {
   // rota /api/webhooks/360dialog fica sempre 403 (fail-closed).
   dialog360WebhookSecret: process.env.DIALOG_360_WEBHOOK_SECRET,
   dialog360ApiKey: process.env.DIALOG_360_API_KEY,
+  // API interna da POC WhatsApp. Valores separados por vírgula permitem
+  // sobreposição curta durante rotação; ausente = toda /api/v1 bloqueada.
+  whatsappServiceApiTokens: process.env.WHATSAPP_SERVICE_API_TOKENS,
 };

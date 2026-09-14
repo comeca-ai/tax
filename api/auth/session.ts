@@ -1,16 +1,16 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { env } from "../lib/env";
 
 /**
  * Sessão stateless: token HMAC-SHA256 (APP_SECRET) em cookie HttpOnly.
  * Formato: base64url(payload).base64url(assinatura)
- * payload = { uid: number, exp: epoch_ms }
+ * payload contém marcador HMAC opaco da credencial; nunca contém o hash da senha.
  */
 
 export const SESSION_COOKIE = "tax_session";
 export const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 dias
 
-type SessionPayload = { uid: number; exp: number };
+type SessionPayload = { uid: number; exp: number; rev: string; nonce: string };
 
 function b64url(input: string | Buffer): string {
   return Buffer.from(input).toString("base64url");
@@ -20,14 +20,27 @@ function sign(data: string): string {
   return createHmac("sha256", env.appSecret).update(data).digest("base64url");
 }
 
-export function criarTokenSessao(usuarioId: number): string {
+function revisaoCredencial(usuarioId: number, senhaHash: string): string {
+  if (!senhaHash) throw new Error("Credencial necessária para emitir sessão.");
+  return sign(`session-credential-v1:${usuarioId}:${senhaHash}`);
+}
+
+export function sessaoCorrespondeCredencial(payload: SessionPayload, senhaHash: string): boolean {
+  if (!senhaHash) return false;
+  const atual = Buffer.from(revisaoCredencial(payload.uid, senhaHash));
+  const recebida = Buffer.from(payload.rev);
+  return atual.length === recebida.length && timingSafeEqual(atual, recebida);
+}
+
+export function criarTokenSessao(usuarioId: number, senhaHash: string): string {
   const payload = b64url(
-    JSON.stringify({ uid: usuarioId, exp: Date.now() + SESSION_TTL_MS }),
+    JSON.stringify({ uid: usuarioId, exp: Date.now() + SESSION_TTL_MS, rev: revisaoCredencial(usuarioId, senhaHash), nonce: randomBytes(16).toString("base64url") }),
   );
   return `${payload}.${sign(payload)}`;
 }
 
 export function verificarTokenSessao(token: string): SessionPayload | null {
+  if (token.length > 2048) return null;
   const dot = token.lastIndexOf(".");
   if (dot <= 0) return null;
   const payload = token.slice(0, dot);
@@ -40,10 +53,10 @@ export function verificarTokenSessao(token: string): SessionPayload | null {
     const parsed = JSON.parse(
       Buffer.from(payload, "base64url").toString("utf8"),
     ) as SessionPayload;
-    if (typeof parsed.uid !== "number" || typeof parsed.exp !== "number") {
+    if (!Number.isSafeInteger(parsed.uid) || parsed.uid <= 0 || !Number.isSafeInteger(parsed.exp) || typeof parsed.rev !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(parsed.rev) || typeof parsed.nonce !== "string" || !/^[A-Za-z0-9_-]{22}$/.test(parsed.nonce)) {
       return null;
     }
-    if (parsed.exp < Date.now()) return null;
+    if (parsed.exp <= Date.now()) return null;
     return parsed;
   } catch {
     return null;
@@ -57,7 +70,7 @@ export function lerCookie(req: Request, nome: string): string | null {
     const eq = part.indexOf("=");
     if (eq <= 0) continue;
     if (part.slice(0, eq).trim() === nome) {
-      return decodeURIComponent(part.slice(eq + 1).trim());
+      try { return decodeURIComponent(part.slice(eq + 1).trim()); } catch { return null; }
     }
   }
   return null;

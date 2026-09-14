@@ -1,0 +1,38 @@
+[Unit]
+Description=JhonemeJampeiro evidence assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jhonemejampeiro
+Group=jhonemejampeiro
+WorkingDirectory=/opt/jhonemejampeiro/current
+ExecStart=/usr/bin/python3 /opt/jhonemejampeiro/current/server.py
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=JAMPEIRO_HOST=127.0.0.1
+Environment=JAMPEIRO_PORT=4180
+Environment=JAMPEIRO_BASE_PATH=/jampeiro
+Environment=JAMPEIRO_DATA_DIR=/var/lib/jhonemejampeiro
+EnvironmentFile=/etc/jhonemejampeiro/runtime.env
+StateDirectory=jhonemejampeiro
+StateDirectoryMode=0700
+UMask=0077
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+MemoryMax=256M
+TasksMax=48
+
+[Install]
+WantedBy=multi-user.target

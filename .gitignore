@@ -22,7 +22,7 @@ coverage/
 # Logs
 *.log
 
-# Infra local de cada máquina — NÃO vai para o repo (público):
+# Infra local de cada máquina — NÃO vai para o repositório:
 # override do compose é por servidor (portas, redes, variáveis locais);
 # proxy/ e afins guardam topologia de infra (Caddy, rotas, IPs).
 # Runbook de deploy: docs/DEPLOY.md
@@ -30,7 +30,7 @@ docker-compose.override.yml
 proxy/
 uploads/
 
-# Time Claude Code (contém caminhos/domínio do servidor — repo público)
+# Time Claude Code (contém caminhos/domínio do servidor — configuração local)
 .claude/
 pipeline/runs/*
 !pipeline/runs/index.jsonl

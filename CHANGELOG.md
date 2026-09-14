@@ -4,6 +4,108 @@ Todas as mudanças relevantes deste projeto são documentadas aqui.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
+## [Unreleased]
+
+### Correção do diagnóstico 360dialog
+
+- Documentado o cadastro atual verificado no GitHub: `API_KEY` e
+  `URL_API_MENSAGENS`. Workflows aceitam `API_KEY` como alternativa ao nome
+  legado `DIALOG_360_API_KEY`. O segredo de webhook é uma configuração própria do
+  receptor, não uma segunda credencial emitida pela 360dialog.
+- Consultas somente leitura exigem apenas a API key; sem segredo de referência,
+  a comparação de `Authorization` fica não verificada (`null`). O receptor
+  mantém sua autenticação e continua recusando eventos sem segredo válido.
+- Registradas as URLs distintas de canal e WABA. O diagnóstico reconhece a URL
+  exata do canal informado (`oreembolsobot.app`) sem classificá-la como ambiente.
+- Acrescentada prestação de contas com fontes, limites da medição de tempo e
+  correções do inventário de credenciais. Nenhum deploy ou mudança no provedor.
+
+### Segurança e CI
+
+- Workflows que acessam credenciais da 360dialog agora são exclusivamente
+  manuais, partem da `main`, usam o environment `homologacao` e recebem apenas
+  as permissões mínimas por job.
+- Actions de terceiros foram fixadas por SHA completo e passam a receber
+  atualizações semanais por PR do Dependabot.
+- O diagnóstico somente leitura gera artifact sanitizado, sem escrever commits
+  automaticamente; um teste de regressão impede gatilhos inseguros e referências
+  móveis de actions.
+
+### Planejamento da POC
+
+- Consolidado o roadmap de canal 360dialog, jornadas, Google Maps, notas no
+  CNPJ do empregador, conciliação, cobrança e aceite em `docs/poc/`.
+- Acrescentados desenho de topologia e revisão de hierarquia: a política é a
+  fonte de cargos, responsabilidades e condições de aprovação automática.
+- Registrada D-025 em POC-12: avaliar Focus NFe primeiro e NFE.io como
+  alternativa, com critérios técnicos/comerciais, sem contratação ou ativação.
+- Planejamento não altera decisões, permissões, banco ou ativação do canal.
+
+### Adicionado
+
+- Fluxo manual, restrito à homologação, para aplicar a API key e o segredo do receptor
+  via SSH com comando fixo, backup, teste de autenticação local e tentativa de
+  reversão. Preparado para revisão; bootstrap e execução continuam pendentes.
+  Não altera produção, código implantado, banco ou webhook no provedor.
+- POC de WhatsApp: recebimento multipart de comprovantes com validação de
+  tipo, tamanho, assinatura binária e nome de arquivo, armazenamento privado
+  abstraído e criação idempotente de despesa em revisão.
+- Migração aditiva `0014` para associar o comprovante recebido à inbox e à
+  despesa, preservando a reentrega segura da mesma mensagem.
+
+### Alterado
+
+- Renovada a apresentação das telas Visão geral, Fila de revisão, Detalhe de
+  despesa e Política, preservando os contratos, permissões e regras existentes.
+
+### Qualidade
+
+- A `main` integrada passou em lint, checagem de tipos, 435 testes e build de
+  produção. A evidência e o aceite pendente estão em
+  `docs/VALIDACAO-RELEASES.md`.
+
+## [1.13.2] — 2026-09-12
+
+**Banco local e convite multicanal prontos para produção.**
+
+### Corrigido
+
+- Migrations e snapshots compatíveis com MariaDB: IDs usam `BIGINT UNSIGNED
+  AUTO_INCREMENT`, evitando a sintaxe inválida `serial AUTO_INCREMENT`.
+
+### Adicionado
+
+- Convite de colaborador por WhatsApp: link manual `wa.me` como fallback e
+  mensagem automática pelo template 360dialog `boas_vindas_reembolsa` após a
+  confirmação explícita do gestor.
+- Documentação para o MariaDB local e Cloudflare Email Sending, sem segredos
+  versionados.
+
+### Alterado
+
+- Cadastro de colaborador identifica o campo de telefone como WhatsApp e
+  deixa claro os canais de convite disponíveis.
+
+## [1.13.1] — 2026-09-12
+
+**Primeira release governada no repositório oficial.** Consolida a importação
+do projeto para `comeca-ai/projeto_tribureembolsa` e estabelece a linha de
+qualidade usada antes de qualquer deploy de produção.
+
+### Adicionado
+
+- GitHub Actions para executar lint, type-check, testes e build em pull requests.
+- Guia de contribuição, governança do repositório, política de release/deploy,
+  linha de base de qualidade e templates de issue/PR.
+
+### Alterado
+
+- Domínio de empresas reorganizado em módulos de API e interface, preservando
+  os contratos e testes existentes.
+- Linha de base de lint corrigida; a release passa em lint, TypeScript, 431
+  testes e build de produção.
+- Nome canônico de apresentação definido como **reembolsa.ia.br**.
+
 ## [1.12.0] — 2026-08-31
 
 **Fila de revisão por empresa — fecha o furo multi-tenant.** `revisao.fila`

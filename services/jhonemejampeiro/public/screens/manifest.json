@@ -1,0 +1,56 @@
+[
+  {
+    "id": "painel",
+    "title": "Painel fiscal",
+    "path": "/app/dashboard",
+    "image": "painel.png",
+    "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+    "kind": "Tela do código com dados fictícios",
+    "productionVerified": false
+  },
+  {
+    "id": "despesas",
+    "title": "Despesas",
+    "path": "/app/despesas",
+    "image": "despesas.png",
+    "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+    "kind": "Tela do código com dados fictícios",
+    "productionVerified": false
+  },
+  {
+    "id": "revisao",
+    "title": "Revisão",
+    "path": "/app/revisao",
+    "image": "revisao.png",
+    "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+    "kind": "Tela do código com dados fictícios",
+    "productionVerified": false
+  },
+  {
+    "id": "politica",
+    "title": "Política",
+    "path": "/app/politica",
+    "image": "politica.png",
+    "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+    "kind": "Tela do código com dados fictícios",
+    "productionVerified": false
+  },
+  {
+    "id": "equipe",
+    "title": "Equipe",
+    "path": "/app/equipe",
+    "image": "equipe.png",
+    "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+    "kind": "Tela do código com dados fictícios",
+    "productionVerified": false
+  },
+  {
+    "id": "envio",
+    "title": "Envio de comprovante",
+    "path": "/app/rapido",
+    "image": "envio.png",
+    "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+    "kind": "Tela do código com dados fictícios",
+    "productionVerified": false
+  }
+]

@@ -1,0 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+const raw = readFileSync('/root/.config/codex-secrets/poc-test-db.env', 'utf8');
+const value = raw.split('\n').find(line => line.startsWith('POC_TEST_DATABASE_URL='))?.slice('POC_TEST_DATABASE_URL='.length);
+if (!value) throw new Error('Configuração do banco isolado ausente');
+const target = new URL(value);
+if (target.protocol !== 'mysql:' || !['127.0.0.1','localhost','[::1]'].includes(target.hostname) || !/^\/reembolsa_poc_test_[a-zA-Z0-9_]+$/.test(target.pathname) || target.search || target.hash) throw new Error('Banco isolado inválido');
+const result = spawnSync('./node_modules/.bin/vitest', ['run','db/poc.integracao.test.ts','db/auth.integracao.test.ts','db/equipe.integracao.test.ts','--reporter=json','--outputFile=/tmp/reembolsa-sql-20260914.json'], { cwd: '/root/tax', env: { ...process.env, POC_TEST_DATABASE_URL: value }, stdio: 'pipe' });
+if (result.stdout) process.stdout.write(result.stdout);
+if (result.stderr) process.stderr.write(result.stderr);
+process.exitCode = result.status ?? 1;

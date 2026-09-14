@@ -1,0 +1,9 @@
+node_modules/
+.cache/
+private/
+__pycache__/
+.env
+.env.*
+!.env.example
+validation/
+release/

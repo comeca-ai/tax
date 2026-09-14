@@ -1,374 +1,150 @@
 import { useEffect, useState } from "react"
-import { NavLink, Outlet, Link, useLocation } from "react-router"
+import { Link, NavLink, Outlet } from "react-router"
 import {
-  LayoutDashboard,
-  Receipt,
-  CirclePlus,
-  Zap,
-  ScrollText,
-  ClipboardCheck,
-  Building2,
-  Users,
-  FileChartColumn,
-  Scale,
-  LogOut,
-  ChevronsUpDown,
-  Check,
-  TriangleAlert,
-  Menu,
-  X,
+  Building2, Check, ChevronDown, CirclePlus, ClipboardCheck, FileChartColumn,
+  LayoutDashboard, LogOut, MapPin, Menu, Receipt, Scale, ScrollText, SlidersHorizontal, Users, X, Zap,
   type LucideIcon,
 } from "lucide-react"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useAuth } from "@/hooks/useAuth"
 import { useActiveCompany } from "@/hooks/useActiveCompany"
+import { useAuth } from "@/hooks/useAuth"
 import type { RegimeTributario } from "@contracts/types"
 import { cn } from "@/lib/utils"
+import { podeEditarPolitica } from "@/components/painel/seguranca"
 
 const REGIME_ROTULO: Record<RegimeTributario, string> = {
-  lucro_real: "Lucro Real",
-  lucro_presumido: "Lucro Presumido",
-  simples_nacional: "Simples Nacional",
+  lucro_real: "Lucro Real", lucro_presumido: "Lucro Presumido", simples_nacional: "Simples Nacional",
 }
 
 function iniciais(nome: string): string {
   const partes = nome.trim().split(/\s+/)
-  return (
-    (partes[0]?.[0] ?? "") + (partes.length > 1 ? (partes[partes.length - 1]?.[0] ?? "") : "")
-  ).toUpperCase()
+  return ((partes[0]?.[0] ?? "") + (partes.length > 1 ? (partes.at(-1)?.[0] ?? "") : "")).toUpperCase()
 }
 
-/** Navegação agrupada (v1.6.0): o admin pensa em 3 momentos, não em 11 telas. */
 interface NavItem {
   to: string
   label: string
   icon: LucideIcon
-  end: boolean
-  badge?: number
   adminOnly?: boolean
-  /** Área Equipe: admin da plataforma OU admin da própria empresa (v1.9.1). */
   equipeOnly?: boolean
-  /** Fila de Revisão: aprovador/analista designado ou admin (v1.12.0). */
   revisaoOnly?: boolean
+  politicaOnly?: boolean
 }
-const NAV_GROUPS: { rotulo: string; itens: NavItem[] }[] = [
-  {
-    rotulo: "Dia a dia",
-    itens: [
-      { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard, end: false },
-      { to: "/app/rapido", label: "Envio Rápido", icon: Zap, end: false },
-      { to: "/app/despesas", label: "Despesas", icon: Receipt, end: true },
-      { to: "/app/revisao", label: "Fila de Revisão", icon: ClipboardCheck, end: false, badge: 3, revisaoOnly: true },
-    ],
-  },
-  {
-    rotulo: "Configurar",
-    itens: [
-      { to: "/app/politica", label: "Política", icon: ScrollText, end: false },
-      { to: "/app/equipe", label: "Equipe", icon: Users, end: false, equipeOnly: true },
-      { to: "/app/empresas", label: "Empresas", icon: Building2, end: false },
-      { to: "/app/regras", label: "Regras & Matriz", icon: Scale, end: false, adminOnly: true },
-    ],
-  },
-  {
-    rotulo: "Fechar o mês",
-    itens: [
-      { to: "/app/relatorios", label: "Relatórios", icon: FileChartColumn, end: false },
-    ],
-  },
+
+const NAVEGACAO_PRINCIPAL: NavItem[] = [
+  { to: "/app/dashboard", label: "Visão geral", icon: LayoutDashboard },
+  { to: "/app/revisao", label: "Fila de revisão", icon: ClipboardCheck, revisaoOnly: true },
+  { to: "/app/despesas", label: "Despesas", icon: Receipt },
+  { to: "/app/politica", label: "Norma de reembolso", icon: ScrollText },
+  { to: "/app/politica/nova", label: "Subir política", icon: CirclePlus, politicaOnly: true },
+]
+const NAVEGACAO_SECUNDARIA: NavItem[] = [
+  { to: "/app/campo", label: "Campo e conciliação", icon: MapPin, equipeOnly: true },
+  { to: "/app/rapido", label: "Envio rápido", icon: Zap },
+  { to: "/app/empresas", label: "Empresas", icon: Building2 },
+  { to: "/app/equipe", label: "Equipe", icon: Users, equipeOnly: true },
+  { to: "/app/relatorios", label: "Relatórios", icon: FileChartColumn },
+  { to: "/app/regras", label: "Regras & matriz", icon: Scale, adminOnly: true },
+  { to: "/app/ajustes", label: "Ajustes", icon: SlidersHorizontal, adminOnly: true },
 ]
 
-const PAGE_TITLES: Record<string, string> = {
-  "/app/dashboard": "Dashboard",
-  "/app/despesas": "Despesas",
-  "/app/despesas/nova": "Nova Despesa",
-  "/app/rapido": "Envio Rápido",
-  "/app/equipe": "Equipe",
-  "/app/politica": "Política",
-  "/app/revisao": "Fila de Revisão",
-  "/app/empresas": "Empresas",
-  "/app/relatorios": "Relatórios",
-  "/app/regras": "Regras & Matriz",
+function itemPermitido(item: NavItem, perfil: string | undefined, podeGerenciarEquipe: boolean, podeRevisar: boolean, podePolitica = false) {
+  return (!item.adminOnly || perfil === "admin") && (!item.equipeOnly || podeGerenciarEquipe) && (!item.revisaoOnly || podeRevisar) && (!item.politicaOnly || podePolitica)
 }
 
-/** Conteúdo da navegação — compartilhado entre sidebar desktop e drawer mobile. */
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const { user, logout, podeGerenciarEquipe, podeRevisarDespesas } = useAuth()
-  const grupos = NAV_GROUPS.map((g) => ({
-    ...g,
-    itens: g.itens.filter(
-      (item) =>
-        (!item.adminOnly || user?.perfil === "admin") &&
-        (!item.equipeOnly || podeGerenciarEquipe) &&
-        (!item.revisaoOnly || podeRevisarDespesas),
-    ),
-  }))
-
-  return (
-    <>
-      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
-        {grupos.map((grupo) => (
-          <div key={grupo.rotulo} className="flex flex-col gap-1 pb-3">
-            <span className="px-3 pb-1 pt-2 font-mono text-[10px] uppercase tracking-[0.08em] text-text-dark-400/70">
-              {grupo.rotulo}
-            </span>
-            {grupo.itens.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              cn(
-                "group relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-ink-800 text-text-dark-100"
-                  : "text-text-dark-400 hover:bg-ink-800/60 hover:text-text-dark-100",
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                {isActive && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-brand-400" />}
-                <item.icon className={cn("h-[18px] w-[18px]", isActive ? "text-brand-400" : "text-text-dark-400 group-hover:text-text-dark-100")} />
-                <span className="flex-1">{item.label}</span>
-                {item.badge !== undefined && (
-                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-conf-media-bg px-1.5 font-mono text-[11px] font-semibold tabular text-conf-media-text">
-                    {item.badge}
-                  </span>
-                )}
-              </>
-            )}
-          </NavLink>
-            ))}
-          </div>
-        ))}
-      </nav>
-      <div className="border-t border-line-dark p-3">
-        <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-900 font-display text-[13px] font-semibold text-brand-400">
-            {user ? iniciais(user.nome) : "…"}
-          </span>
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="truncate text-[13px] font-medium text-text-dark-100">
-              {user?.nome ?? "Carregando…"}
-            </span>
-            {user && (
-              <span className="w-fit rounded-full border border-line-dark px-1.5 font-mono text-[10px] uppercase tracking-[0.04em] text-text-dark-400">
-                {user.perfil}
-              </span>
-            )}
-          </div>
-          <button
-            type="button"
-            aria-label="Sair"
-            onClick={() => void logout()}
-            className="text-text-dark-400 transition-colors hover:text-text-dark-100"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    </>
-  )
-}
-
-function SidebarLogo({ onClose }: { onClose?: () => void }) {
-  return (
-    <div className="flex h-16 items-center gap-2.5 border-b border-line-dark px-5">
-      <img src="/logo-mark.svg" alt="reembolsa.ia" className="h-8 w-8" />
-      <span className="font-display text-[15px] font-semibold tracking-[-0.01em] text-text-dark-100">
-        reembolsa<span className="text-brand-400">.ia</span>
-      </span>
-      {onClose && (
-        <button
-          type="button"
-          aria-label="Fechar menu"
-          onClick={onClose}
-          className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg text-text-dark-400 transition-colors hover:bg-ink-800 hover:text-text-dark-100"
-        >
-          <X className="h-5 w-5" />
-        </button>
-      )}
-    </div>
-  )
-}
-
-/** Sidebar fixa — apenas desktop (lg+). */
-function Sidebar() {
-  return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[264px] flex-col border-r border-line-dark bg-ink-900 lg:flex">
-      <SidebarLogo />
-      <SidebarContent />
-    </aside>
-  )
-}
-
-/** Drawer de navegação — apenas mobile/tablet (< lg). */
-function MobileNav({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null
-  return (
-    <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu de navegação">
-      <button
-        type="button"
-        aria-label="Fechar menu"
-        onClick={onClose}
-        className="absolute inset-0 bg-ink-950/70 backdrop-blur-[2px]"
-      />
-      <aside className="absolute inset-y-0 left-0 flex w-[280px] max-w-[85vw] flex-col border-r border-line-dark bg-ink-900 shadow-2xl">
-        <SidebarLogo onClose={onClose} />
-        <SidebarContent onNavigate={onClose} />
-      </aside>
-    </div>
-  )
-}
-
-function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
-  const location = useLocation()
-  const { user } = useAuth()
+function CompanySwitcher() {
   const { activeCompany, companies, setActiveCompanyId, isLoading } = useActiveCompany()
-  const pageTitle = PAGE_TITLES[location.pathname] ?? "Dashboard"
-
-  return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-2.5 border-b border-line bg-surface px-4 sm:gap-4 sm:px-6">
-      <button
-        type="button"
-        aria-label="Abrir menu"
-        onClick={onOpenMenu}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-text-700 transition-colors hover:bg-paper lg:hidden"
-      >
-        <Menu className="h-5 w-5" />
-      </button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="flex h-11 min-w-0 items-center gap-2.5 rounded-[10px] border border-line bg-surface px-3 text-left transition-colors hover:bg-paper sm:gap-3"
-          >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-500/10 font-display text-[12px] font-semibold text-brand-500">
-              {activeCompany ? iniciais(activeCompany.razaoSocial) : <Building2 className="h-3.5 w-3.5" />}
-            </span>
-            <span className="flex min-w-0 flex-col">
-              <span className="max-w-[120px] truncate text-[13px] font-semibold text-text-900 sm:max-w-[190px]">
-                {isLoading ? "Carregando…" : (activeCompany?.razaoSocial ?? "Nenhuma empresa")}
-              </span>
-              {activeCompany && (
-                <span className="hidden items-center gap-1.5 sm:flex">
-                  <span className="font-mono text-[11px] tabular text-text-500">{activeCompany.cnpj}</span>
-                  <span className="rounded-full bg-paper px-1.5 font-mono text-[10px] uppercase tracking-[0.03em] text-text-500 ring-1 ring-line">
-                    {REGIME_ROTULO[activeCompany.regimeTributario as RegimeTributario] ?? activeCompany.regimeTributario}
-                  </span>
-                </span>
-              )}
-            </span>
-            <ChevronsUpDown className="h-4 w-4 shrink-0 text-text-500" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[300px]">
-          <DropdownMenuLabel className="text-[11px] uppercase tracking-[0.06em] text-text-500">
-            Suas empresas
-          </DropdownMenuLabel>
-          {companies.map((company) => (
-            <DropdownMenuItem
-              key={company.id}
-              onSelect={() => setActiveCompanyId(company.id)}
-              className="flex items-center gap-2 py-2"
-            >
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[13px] font-medium">{company.razaoSocial}</span>
-                <span className="font-mono text-[11px] tabular text-text-500">
-                  {company.cnpj} · {REGIME_ROTULO[company.regimeTributario as RegimeTributario] ?? company.regimeTributario}
-                </span>
-              </span>
-              {company.id === activeCompany?.id && <Check className="h-4 w-4 text-brand-500" />}
-            </DropdownMenuItem>
-          ))}
-          {!isLoading && companies.length === 0 && (
-            <DropdownMenuItem disabled className="text-[13px] text-text-500">
-              Nenhuma empresa cadastrada
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link to="/app/empresas?nova=1" className="gap-2 text-brand-500">
-              <CirclePlus className="h-4 w-4" /> Nova empresa
-            </Link>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <nav aria-label="breadcrumb" className="hidden items-center gap-1.5 text-[13px] text-text-500 md:flex">
-        <span>reembolsa.ia</span>
-        <span className="text-line">/</span>
-        <span className="font-medium text-text-900">{pageTitle}</span>
-      </nav>
-
-      <div className="ml-auto flex shrink-0 items-center gap-1.5">
-        <span className="ml-1 flex h-9 w-9 items-center justify-center rounded-full bg-brand-900 font-display text-[12px] font-semibold text-brand-400">
-          {user ? iniciais(user.nome) : "…"}
+  return <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <button type="button" className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[#F4F6F5]">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#E6F2F0] font-mono text-[11px] font-semibold text-[#0B7A75]">
+          {activeCompany ? iniciais(activeCompany.razaoSocial) : <Building2 className="h-3.5 w-3.5" />}
         </span>
-      </div>
-    </header>
-  )
+        <span className="hidden min-w-0 flex-col md:flex">
+          <span className="max-w-[155px] truncate text-[12px] font-medium text-text-900">{isLoading ? "Carregando…" : (activeCompany?.razaoSocial ?? "Nenhuma empresa")}</span>
+          {activeCompany && <span className="max-w-[155px] truncate font-mono text-[10px] text-text-500">{activeCompany.cnpj}</span>}
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-text-500" />
+      </button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" className="w-[310px]">
+      <DropdownMenuLabel className="text-[11px] uppercase tracking-[0.06em] text-text-500">Suas empresas</DropdownMenuLabel>
+      {companies.map((company) => <DropdownMenuItem key={company.id} onSelect={() => setActiveCompanyId(company.id)} className="flex items-center gap-2 py-2">
+        <span className="flex min-w-0 flex-1 flex-col"><span className="truncate text-[13px] font-medium">{company.razaoSocial}</span><span className="font-mono text-[11px] text-text-500">{company.cnpj} · {REGIME_ROTULO[company.regimeTributario as RegimeTributario] ?? company.regimeTributario}</span></span>
+        {company.id === activeCompany?.id && <Check className="h-4 w-4 text-[#0B7A75]" />}
+      </DropdownMenuItem>)}
+      {!isLoading && companies.length === 0 && <DropdownMenuItem disabled>Nenhuma empresa cadastrada</DropdownMenuItem>}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem asChild><Link to="/app/empresas?nova=1" className="gap-2 text-[#0B7A75]"><CirclePlus className="h-4 w-4" /> Nova empresa</Link></DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
 }
 
-/** App shell for all /app/* routes: dark sidebar, light topbar, RF-00 banner, disclaimer strip. */
+function LinkNavegacao({ item, mobile = false, onNavigate }: { item: NavItem; mobile?: boolean; onNavigate?: () => void }) {
+  const Icon = item.icon
+  return <NavLink to={item.to} end={item.to === "/app/despesas" || item.to === "/app/dashboard" || item.to === "/app/politica"} onClick={onNavigate} className={({ isActive }) => cn(
+    mobile ? "flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium" : "flex h-[60px] items-center gap-1 border-b-2 px-3 text-[13px] font-medium transition-colors",
+    isActive ? (mobile ? "bg-[#E6F2F0] text-[#075E5A]" : "border-[#0B7A75] text-text-900") : (mobile ? "text-text-500 hover:bg-[#F4F6F5] hover:text-text-900" : "border-transparent text-text-500 hover:text-text-900"),
+  )}>{mobile && <Icon className="h-4 w-4" />}{item.label}</NavLink>
+}
+
+function MoreNavigation() {
+  const { user, podeGerenciarEquipe, podeRevisarDespesas } = useAuth()
+  const itens = NAVEGACAO_SECUNDARIA.filter((item) => itemPermitido(item, user?.perfil, podeGerenciarEquipe, podeRevisarDespesas))
+  if (itens.length === 0) return null
+  return <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="flex h-[60px] items-center gap-1 border-b-2 border-transparent px-3 text-[13px] font-medium text-text-500 transition-colors hover:text-text-900">Mais <ChevronDown className="h-3.5 w-3.5" /></button></DropdownMenuTrigger>
+    <DropdownMenuContent align="start" className="w-52">{itens.map((item) => { const Icon = item.icon; return <DropdownMenuItem key={item.to} asChild><Link to={item.to} className="gap-2"><Icon className="h-4 w-4" />{item.label}</Link></DropdownMenuItem> })}</DropdownMenuContent>
+  </DropdownMenu>
+}
+
+function DesktopNavigation() {
+  const { user, podeGerenciarEquipe, podeRevisarDespesas } = useAuth()
+  const { activeCompany } = useActiveCompany()
+  const itens = NAVEGACAO_PRINCIPAL.filter((item) => itemPermitido(item, user?.perfil, podeGerenciarEquipe, podeRevisarDespesas, podeEditarPolitica(user, activeCompany)))
+  return <nav aria-label="Navegação principal" className="hidden h-[60px] items-stretch lg:flex">{itens.map((item) => <LinkNavegacao key={item.to} item={item} />)}<MoreNavigation /></nav>
+}
+
+function UserControl() {
+  const { user, logout } = useAuth()
+  return <div className="hidden items-center gap-2 border-l border-line pl-3 sm:flex">
+    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#DCEFEB] text-[11px] font-semibold text-[#0B7A75]">{user ? iniciais(user.nome) : "…"}</span>
+    <span className="hidden max-w-[110px] flex-col lg:flex"><span className="truncate text-[12px] font-semibold text-text-900">{user?.nome ?? "Carregando…"}</span>{user && <span className="text-[10px] text-text-500">{user.perfil}</span>}</span>
+    <button type="button" aria-label="Sair" onClick={() => void logout()} className="rounded-md p-1.5 text-text-500 transition-colors hover:bg-[#F4F6F5] hover:text-text-900"><LogOut className="h-4 w-4" /></button>
+  </div>
+}
+
+function MobileNavigation({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { user, podeGerenciarEquipe, podeRevisarDespesas, logout } = useAuth()
+  const { activeCompany } = useActiveCompany()
+  const itens = [...NAVEGACAO_PRINCIPAL, ...NAVEGACAO_SECUNDARIA].filter((item) => itemPermitido(item, user?.perfil, podeGerenciarEquipe, podeRevisarDespesas, podeEditarPolitica(user, activeCompany)))
+  if (!open) return null
+  return <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu de navegação">
+    <button type="button" aria-label="Fechar menu" onClick={onClose} className="absolute inset-0 bg-[#14211F]/25 backdrop-blur-[1px]" />
+    <aside className="absolute inset-y-0 left-0 flex w-[300px] max-w-[88vw] flex-col bg-surface shadow-2xl">
+      <div className="flex h-16 items-center justify-between border-b border-line px-5"><Link to="/app/dashboard" onClick={onClose} className="flex items-center gap-2 font-display text-[16px] font-semibold text-text-900 no-underline"><span className="flex h-7 w-7 items-center justify-center rounded-md bg-[#0B7A75] font-mono text-[12px] text-white">R</span>reembolsa<span className="text-[#0B7A75]">.ai</span></Link><button type="button" aria-label="Fechar menu" onClick={onClose} className="rounded-md p-2 text-text-500 hover:bg-paper"><X className="h-5 w-5" /></button></div>
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">{itens.map((item) => <LinkNavegacao key={item.to} item={item} mobile onNavigate={onClose} />)}</nav>
+      <div className="border-t border-line p-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#DCEFEB] text-[12px] font-semibold text-[#0B7A75]">{user ? iniciais(user.nome) : "…"}</span><span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-semibold">{user?.nome}</span><span className="text-[11px] text-text-500">{user?.perfil}</span></span><button type="button" aria-label="Sair" onClick={() => void logout()} className="rounded-md p-2 text-text-500 hover:bg-paper"><LogOut className="h-4 w-4" /></button></div></div>
+    </aside>
+  </div>
+}
+
+/** Casca v2: navegação horizontal clara, conectada às rotas e permissões reais. */
 export default function AppShell() {
-  const { activeCompany, isLoading } = useActiveCompany()
+  const { activeCompany, isLoading, error } = useActiveCompany()
   const cadastroIncompleto = !isLoading && activeCompany !== null && activeCompany.cadastroCompleto === false
   const [menuOpen, setMenuOpen] = useState(false)
-  const location = useLocation()
-
-  // Fecha o drawer ao trocar de rota
-  useEffect(() => {
-    setMenuOpen(false)
-  }, [location.pathname])
-
-  // Trava o scroll do body com o drawer aberto
-  useEffect(() => {
-    document.body.style.overflow = menuOpen ? "hidden" : ""
-    return () => {
-      document.body.style.overflow = ""
-    }
-  }, [menuOpen])
-
-  return (
-    <div className="min-h-[100dvh] bg-paper">
-      <Sidebar />
-      <MobileNav open={menuOpen} onClose={() => setMenuOpen(false)} />
-      <div className="pl-0 lg:pl-[264px]">
-        <Topbar onOpenMenu={() => setMenuOpen(true)} />
-        {cadastroIncompleto && (
-          <div className="flex items-center gap-3 border-b border-conf-media-dot/20 bg-conf-media-bg px-4 py-2.5 sm:px-6">
-            <TriangleAlert className="h-4 w-4 shrink-0 text-conf-media-text" />
-            <p className="flex-1 text-[13px] font-medium text-conf-media-text">
-              Complete o cadastro da empresa (CNAE, regime tributário, UF) para processar créditos.
-            </p>
-            <Link
-              to="/app/empresas"
-              className="inline-flex h-8 items-center rounded-lg bg-conf-media-text px-3 text-[12px] font-semibold text-white transition hover:opacity-90"
-            >
-              Completar cadastro
-            </Link>
-          </div>
-        )}
-        <main className="mx-auto w-full max-w-[1280px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
-          <Outlet />
-        </main>
-        <footer className="border-t border-line px-4 py-3 sm:px-6 lg:px-8">
-          <p className="mx-auto max-w-[1280px] font-mono text-[11px] tracking-[0.02em] text-text-500">
-            Classificações de média confiança devem ser validadas por um advogado tributarista. reembolsa.ia não presta
-            aconselhamento jurídico.
-          </p>
-        </footer>
-      </div>
-    </div>
-  )
+  useEffect(() => { document.body.style.overflow = menuOpen ? "hidden" : ""; return () => { document.body.style.overflow = "" } }, [menuOpen])
+  return <div className="painel-v2 min-h-[100dvh] bg-[#F4F6F5] text-[#14211F]">
+    <header className="sticky top-0 z-30 border-b border-[#E1E6E3] bg-surface/95 backdrop-blur"><div className="mx-auto flex h-[60px] max-w-[1320px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+      <Link to="/app/dashboard" className="flex shrink-0 items-center gap-2.5 font-display text-[16px] font-semibold tracking-[-0.01em] text-[#14211F] no-underline"><span className="flex h-[26px] w-[26px] items-center justify-center rounded-[7px] bg-[#0B7A75] font-mono text-[12px] font-semibold text-white">R</span><span className="hidden sm:inline">reembolsa<span className="text-[#0B7A75]">.ai</span></span></Link>
+      <DesktopNavigation /><div className="ml-auto flex min-w-0 items-center gap-1.5"><CompanySwitcher /><UserControl /></div><button type="button" aria-label="Abrir menu" onClick={() => setMenuOpen(true)} className="rounded-md p-2 text-text-500 hover:bg-paper lg:hidden"><Menu className="h-5 w-5" /></button>
+    </div></header>
+    <MobileNavigation open={menuOpen} onClose={() => setMenuOpen(false)} />
+    {cadastroIncompleto && <div className="border-b border-[#EBD2A2] bg-[#FBF3E4] px-4 py-2.5 sm:px-6 lg:px-8"><div className="mx-auto flex max-w-[1320px] items-center gap-3 text-[13px] text-[#8A5A0E]"><span className="flex-1">Complete os dados fiscais da empresa para processar os reembolsos com segurança.</span><Link to="/app/empresas" className="font-semibold text-[#8A5A0E]">Completar cadastro</Link></div></div>}
+    <main className="mx-auto w-full max-w-[1320px] px-4 py-7 sm:px-6 sm:py-8 lg:px-8">{error ? <section role="alert" className="rounded-xl border border-line bg-surface p-8"><h1 className="font-semibold">Não foi possível consultar suas empresas</h1><p className="mt-2 text-sm text-text-500">Recarregue a página para restabelecer o contexto antes de continuar.</p><button className="mt-4 rounded-lg bg-brand-500 px-4 py-2 text-white" onClick={() => window.location.reload()}>Recarregar</button></section> : <Outlet key={activeCompany?.id ?? "sem-empresa"} />}</main>
+    <footer className="border-t border-[#E1E6E3] px-4 py-3 sm:px-6 lg:px-8"><p className="mx-auto max-w-[1320px] font-mono text-[11px] tracking-[0.02em] text-text-500">Classificações de média confiança devem ser validadas por um responsável. reembolsa.ia não presta aconselhamento jurídico.</p></footer>
+  </div>
 }

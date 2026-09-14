@@ -33,18 +33,18 @@ const DECISAO_STYLE: Record<
 > = {
   aprovado: {
     icon: CheckCircle2,
-    badge: "border-brand-400/30 bg-brand-400/10 text-brand-400",
-    border: "border-brand-400/25",
+    badge: "border-[#B9DEC5] bg-[#EAF5EE] text-[#166B31]",
+    border: "border-[#B9DEC5]",
   },
   negado: {
     icon: XCircle,
-    badge: "border-red-500/30 bg-red-500/10 text-red-400",
-    border: "border-red-500/25",
+    badge: "border-[#EDB9B3] bg-[#FBEAE8] text-[#9A2B22]",
+    border: "border-[#EDB9B3]",
   },
   revisao_humana: {
     icon: UserSearch,
-    badge: "border-amber-500/30 bg-amber-500/10 text-amber-400",
-    border: "border-amber-500/25",
+    badge: "border-[#EBD2A2] bg-[#FBF3E4] text-[#8A5A0E]",
+    border: "border-[#EBD2A2]",
   },
 }
 
@@ -52,14 +52,14 @@ const RESULTADO_STYLE: Record<
   RegraAplicada["resultado"],
   { icon: typeof CircleCheck; tone: string; label: string }
 > = {
-  passou: { icon: CircleCheck, tone: "text-brand-400", label: "passou" },
-  falhou: { icon: CircleX, tone: "text-red-400", label: "falhou" },
-  revisar: { icon: ScanSearch, tone: "text-amber-400", label: "revisar" },
+  passou: { icon: CircleCheck, tone: "text-[#166B31]", label: "passou" },
+  falhou: { icon: CircleX, tone: "text-[#9A2B22]", label: "falhou" },
+  revisar: { icon: ScanSearch, tone: "text-[#8A5A0E]", label: "revisar" },
 }
 
 /**
- * Veredito do agente de política de reembolso (v1.1.0): card escuro estilo
- * recibo, mono, separadores tracejados — na linguagem visual do MemorialCard.
+ * Veredito do agente de política de reembolso: superfície clara e semáforo
+ * reservados aos resultados, conforme os tokens do painel fornecido.
  * Mostra a decisão (aprovado / negado / revisão humana), os motivos em PT-BR
  * e, quando disponível, a trilha de regras avaliadas (colapsável).
  */
@@ -77,20 +77,20 @@ export default function VereditoPolitica({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 rounded-xl border bg-ink-900 p-5 shadow-card",
+        "flex flex-col gap-4 rounded-xl border bg-surface p-5 shadow-card",
         estilo.border,
         className,
       )}
     >
       {/* Cabeçalho: agente + decisão */}
       <div className="flex flex-wrap items-center gap-2.5">
-        <Bot className="h-4 w-4 text-text-dark-400" />
-        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-dark-400">
+        <Bot className="h-4 w-4 text-text-500" />
+        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-500">
           Agente de política
         </span>
         <span className="flex-1" />
         {versao != null && (
-          <span className="inline-flex h-5 items-center rounded-md border border-line-dark bg-ink-800 px-1.5 font-mono text-[10px] font-semibold tabular text-text-dark-400">
+          <span className="inline-flex h-5 items-center rounded-md border border-line bg-paper px-1.5 font-mono text-[10px] font-semibold tabular text-text-500">
             política v{versao}
           </span>
         )}
@@ -108,7 +108,7 @@ export default function VereditoPolitica({
       {/* Motivos */}
       {motivos.length > 0 && (
         <>
-          <div className="border-t border-dashed border-line-dark" />
+          <div className="border-t border-dashed border-line" />
           <ul className="flex flex-col gap-1.5">
             {motivos.map((motivo, i) => (
               <motion.li
@@ -116,9 +116,9 @@ export default function VereditoPolitica({
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: 0.05 + i * 0.05, ease: "easeOut" }}
-                className="flex items-start gap-2 font-mono text-[12px] leading-relaxed text-text-dark-100"
+                className="flex items-start gap-2 font-mono text-[12px] leading-relaxed text-text-900"
               >
-                <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-text-dark-400" />
+                <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-text-500" />
                 {motivo}
               </motion.li>
             ))}
@@ -129,7 +129,7 @@ export default function VereditoPolitica({
       {/* Trilha de regras avaliadas (colapsável) */}
       {regrasAplicadas && regrasAplicadas.length > 0 && (
         <>
-          <div className="border-t border-dashed border-line-dark" />
+          <div className="border-t border-dashed border-line" />
           <button
             type="button"
             onClick={() => setRegrasAbertas((aberto) => !aberto)}
@@ -137,11 +137,11 @@ export default function VereditoPolitica({
           >
             <ChevronDown
               className={cn(
-                "h-3.5 w-3.5 text-text-dark-400 transition-transform duration-200",
+                "h-3.5 w-3.5 text-text-500 transition-transform duration-200",
                 regrasAbertas && "rotate-180",
               )}
             />
-            <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-text-dark-400">
+            <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-text-500">
               Regras avaliadas · {regrasAplicadas.length}
             </span>
           </button>
@@ -154,7 +154,7 @@ export default function VereditoPolitica({
                 transition={{ duration: 0.2, ease: "easeOut" }}
                 className="overflow-hidden"
               >
-                <ul className="flex flex-col gap-2 rounded-lg border border-line-dark bg-ink-800 p-3">
+                <ul className="flex flex-col gap-2 rounded-lg border border-line bg-paper p-3">
                   {regrasAplicadas.map((regra, i) => {
                     const estiloRegra = RESULTADO_STYLE[regra.resultado]
                     const IconeRegra = estiloRegra.icon
@@ -164,7 +164,7 @@ export default function VereditoPolitica({
                           className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", estiloRegra.tone)}
                         />
                         <div className="flex flex-col gap-0.5">
-                          <span className="font-mono text-[12px] font-semibold leading-snug text-text-dark-100">
+                          <span className="font-mono text-[12px] font-semibold leading-snug text-text-900">
                             {rotuloRegraAplicada(regra.regra)}
                             <span
                               className={cn(
@@ -175,7 +175,7 @@ export default function VereditoPolitica({
                               {estiloRegra.label}
                             </span>
                           </span>
-                          <span className="font-mono text-[11px] leading-relaxed text-text-dark-400">
+                          <span className="font-mono text-[11px] leading-relaxed text-text-500">
                             {detalheLegivel(regra.detalhe)}
                           </span>
                         </div>

@@ -1,0 +1,239 @@
+{
+  "version": "1.0.0",
+  "analyzedAt": "2026-09-13",
+  "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+  "reportUrl": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e",
+  "downloads": [
+    {
+      "label": "Relatório em PDF",
+      "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/Relatorio_detalhado_K2.pdf?v=2-github-5f3484e"
+    },
+    {
+      "label": "Planejamento em planilha",
+      "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/Plano_horas_cronograma_K2.xlsx?v=2-github-5f3484e"
+    }
+  ],
+  "cards": [
+    {
+      "id": "E1",
+      "title": "Políticas e modos de operação",
+      "status": "Parcial",
+      "keywords": "politica sombra assistido automatico decisao",
+      "body": "Há uma base de decisão de política e testes automatizados. Ainda falta comprovar os três modos por empresa: sombra, assistido e automático, com confirmação e promoção auditada.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "E2",
+      "title": "Revisão e permissões por empresa",
+      "status": "Parcial",
+      "keywords": "revisao aprovacao isolamento empresas seguranca permissoes",
+      "body": "A revisão por empresa e a delegação com justificativa possuem evidências no código. O isolamento completo entre empresas ainda precisa de validação integrada em todas as rotas.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "E3",
+      "title": "Configuração da empresa",
+      "status": "Parcial",
+      "keywords": "configuracao tarifa km analista aprovador uf historico",
+      "body": "Existem parâmetros de tarifa por quilômetro e responsáveis. Configuração integrada, histórico e definição da tarifa por empresa ou por UF ainda precisam ser concluídos.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "E4",
+      "title": "Veículos e consumo",
+      "status": "Parcial",
+      "keywords": "veiculo carro frota consumo combustivel cadastro",
+      "body": "Há cadastros de veículos, mas a integração desses dados à avaliação de consumo ainda não foi comprovada. Falta unificar o cadastro, manter o histórico e validar o uso no cálculo.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "E5",
+      "title": "Equipe e colaboradores",
+      "status": "Parcial",
+      "keywords": "equipe colaborador onboarding convite importacao lote hierarquia",
+      "body": "Cadastro e convites individuais têm evidências de implementação. Importação em lote com prévia, hierarquia e configuração de responsabilidades continuam pendentes.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "E6",
+      "title": "Painel, métricas e pagamento",
+      "status": "Parcial",
+      "keywords": "painel dashboard pagamento paga metricas indicadores",
+      "body": "O painel apresenta créditos e pendências por empresa. O registro de pagamento com autoria e a medição completa do piloto ainda não foram comprovados. Aprovação de despesa não comprova pagamento.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "E7",
+      "title": "Chave fiscal e destinatário",
+      "status": "Pendente",
+      "keywords": "nota fiscal chave 44 digitos destinatario cnpj ocr",
+      "body": "A extração e validação da chave fiscal de 44 dígitos e o vínculo da nota ao empregador ainda precisam de comprovação no fluxo integrado.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "E8",
+      "title": "Consulta fiscal externa",
+      "status": "Planejado",
+      "keywords": "integridade consulta externa focus nfe nfeio integrador fiscal",
+      "body": "O roteiro registra uma prova técnica de consulta fiscal externa. A análise da main não comprovou uma integração ativa; faltam homologação do integrador e definição do recorte de aceite.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "E9",
+      "title": "Duplicidade de comprovantes",
+      "status": "Parcial",
+      "keywords": "duplicidade duplicado fraude antifraude hash idempotencia nota",
+      "body": "Há evidências de identificação de arquivos e tratamento de mensagens repetidas. Isso ainda não comprova o bloqueio da mesma nota enviada em outra mensagem nem a detecção de adulteração.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "E10",
+      "title": "WhatsApp e 360dialog",
+      "status": "Parcial",
+      "keywords": "whatsapp 360dialog canal comprovante mensagem bot transporte",
+      "body": "360dialog é o transporte definido. Há fundações de autenticação, identificação e recebimento de comprovantes. O fluxo completo de mídia, leitura, decisão e resposta ainda precisa de homologação ponta a ponta; não há comprovação de canal completo em produção.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "E11",
+      "title": "Jornadas e quilometragem",
+      "status": "Parcial",
+      "keywords": "jornada campo quilometragem km maps gps checkin rota localizacao",
+      "body": "Há registro de posições. Jornada completa, cálculo de quilômetros comerciais e conciliação por período permanecem pendentes de comprovação integrada.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "E12",
+      "title": "Aceite e produção",
+      "status": "Pendente",
+      "keywords": "aceite pronto entrega producao piloto ci teste build homologacao",
+      "body": "O CI da main analisada passou em lint, tipos, testes e build. O aceite integral continua pendente na base de evidências. CI verde não comprova implantação, homologação com provedores reais ou aceite comercial.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "API",
+      "title": "Integração com parceiros",
+      "status": "Parcial",
+      "keywords": "api contrato integracao parceiro identificacao telefone autenticacao",
+      "body": "Existem fundações de autenticação de serviço e identificação por telefone, com testes. Isso não comprova que todas as interfaces previstas no contrato estejam liberadas. Faltam homologar os contratos restantes.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "FIS",
+      "title": "Motor fiscal e conciliação",
+      "status": "Parcial",
+      "keywords": "motor fiscal combustivel conciliacao calculo credito reembolso",
+      "body": "Há motor fiscal e testes no código analisado. A ligação entre jornada, veículo, combustível e conciliação por período ainda não foi comprovada como fluxo completo.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s16"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "PLANO",
+      "title": "Horas e cronograma",
+      "status": "Referência documental",
+      "keywords": "horas prazo cronograma custo orcamento 2096 16 semanas saldo",
+      "body": "As 2.096 horas e 16 semanas são a referência documental anterior. Não representam saldo atualizado, novo orçamento ou prazo confirmado. O planejamento precisa considerar o que já tem evidência e os critérios de aceite pendentes.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s1"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "ESCOPO",
+      "title": "Visão geral da PoC",
+      "status": "Análise de 13/09/2026",
+      "keywords": "status geral resumo poc escopo entregas k2 reembolsa andamento",
+      "body": "A análise reúne 12 entregas, integração de APIs e motor fiscal. Há implementação parcial e testes, mas a aceitação completa da PoC ainda não foi comprovada. O relatório separa declaração documental, código, CI, homologação e produção.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s1"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    },
+    {
+      "id": "PRIVACIDADE",
+      "title": "Como o Jampeiro usa as evidências",
+      "status": "Política do assistente",
+      "keywords": "jampeiro jhoneme privacidade historico memoria fontes evidencia segredo codigo propriedade intelectual",
+      "body": "O Jampeiro consulta apenas resumos públicos curados e referências aprovadas. Não acessa código privado, credenciais ou anexos internos. O histórico fica neste navegador por uma sessão privada no servidor, expira após 30 dias sem atividade e pode ser apagado. Capturas de demonstração usam dados fictícios e não comprovam produção.",
+      "source": {
+        "label": "Relatório K2 · análise de 13/09/2026",
+        "url": "https://oreembolsobot.app/relatorios/k2-20260913-b7ccdb990f/index.html?v=2-github-5f3484e#s1"
+      },
+      "sourceCommit": "5f3484e9ca7c4a5bf0e16141c26822e1ffa386e1",
+      "productionVerified": false
+    }
+  ]
+}

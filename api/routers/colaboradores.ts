@@ -1,3 +1,4 @@
+import { dominioAdministrador, exigirDominioConvite } from "../lib/dominioConvite";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { createRouter, perfilProcedure, protectedProcedure } from "../middleware";
@@ -5,8 +6,7 @@ import { getDb } from "../queries/connection";
 import { colaboradores } from "@db/schema";
 import { assertAdminDaEmpresa, assertEmpresaAcesso, registrarLog } from "./_shared";
 import { normalizarTelefone } from "../modules/reembolso/agente";
-import { emitirConviteAcesso } from "../lib/conviteAcesso";
-import { enviarConviteColaboradorEmail } from "../mail/mailer";
+import { enviarConviteColaboradorIdempotente } from "../modules/reembolso/convites/servico";
 import { TRPCError } from "@trpc/server";
 
 /** Mesma trava de `assertAdminDaEmpresa`, dita na linguagem desta tela. */
@@ -43,7 +43,8 @@ export const colaboradoresRouter = createRouter({
     .input(colaboradorInput)
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
-      await assertAdminDaEmpresa(ctx, input.empresaId, MSG_SO_ADMIN);
+      const empresa = await assertAdminDaEmpresa(ctx, input.empresaId, MSG_SO_ADMIN);
+      exigirDominioConvite(input.email, await dominioAdministrador(db, empresa.usuarioId));
 
       const result = await db.insert(colaboradores).values({
         empresaId: input.empresaId,
@@ -111,9 +112,9 @@ export const colaboradoresRouter = createRouter({
 
   /**
    * Convite do colaborador (v1.6.0 como isqueiro do WhatsApp; reescrito na
-   * v1.9.1). O WhatsApp está fora — o canal é o E-MAIL: emite um convite de
-   * acesso ao painel e manda o link de aceite. Sem SMTP, devolve o link para
-   * o admin copiar e mandar por onde quiser.
+   * v1.9.1). Emite o convite por e-mail e, depois da ação explícita do gestor,
+   * envia as boas-vindas via 360dialog se o template estiver configurado. Sem
+   * a integração, o gestor recebe um link wa.me manual com o mesmo aceite.
    */
   enviarConvite: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
@@ -128,43 +129,7 @@ export const colaboradoresRouter = createRouter({
       if (!colaborador) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Colaborador não encontrado." });
       }
-      const empresa = await assertAdminDaEmpresa(ctx, colaborador.empresaId, MSG_SO_ADMIN);
-      if (!colaborador.email) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Cadastre o e-mail do colaborador antes de enviar o convite.",
-        });
-      }
-      if (colaborador.usuarioId) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Este colaborador já ativou o acesso dele.",
-        });
-      }
-
-      const { link } = await emitirConviteAcesso(db, {
-        email: colaborador.email,
-        perfil: "cliente",
-        createdById: ctx.usuario.id,
-      });
-      const { enviado } = await enviarConviteColaboradorEmail({
-        para: colaborador.email,
-        nome: colaborador.nome,
-        empresa: empresa.razaoSocial,
-        link,
-      });
-
-      await registrarLog(db, {
-        usuarioId: ctx.usuario.id,
-        empresaId: colaborador.empresaId,
-        acao: "colaborador.convite",
-        entidade: "colaboradores",
-        entidadeId: colaborador.id,
-        detalhes: enviado
-          ? `Convite enviado por e-mail para ${colaborador.email}`
-          : "Link de convite gerado para envio manual (SMTP indisponível)",
-      });
-
-      return { linkAceite: link, enviadoPorEmail: enviado, email: colaborador.email };
+      await assertAdminDaEmpresa(ctx, colaborador.empresaId, MSG_SO_ADMIN);
+      return enviarConviteColaboradorIdempotente({ empresaId: colaborador.empresaId, colaboradorId: colaborador.id, usuarioId: ctx.usuario.id });
     }),
 });

@@ -1,0 +1,23 @@
+{
+  "run": "b21d3e25-9368-4df8-bebe-57ba560ee3d5",
+  "startedAt": "2026-09-13T17:43:18.451Z",
+  "sourceCommit": null,
+  "origin": "http://127.0.0.1:3199",
+  "database": "reembolsa_poc_test_20260913",
+  "syntheticOnly": true,
+  "sessionInjected": true,
+  "externalRequestsAllowed": false,
+  "checks": [],
+  "screenshots": [],
+  "browserErrors": 0,
+  "blockedExternalRequests": 0,
+  "cleanup": false,
+  "success": false,
+  "failure": {
+    "phase": "prerequisites",
+    "kind": "Error",
+    "code": "EPERM"
+  },
+  "serverOutputBytesSuppressed": 0,
+  "finishedAt": "2026-09-13T17:43:18.460Z"
+}

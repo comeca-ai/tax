@@ -1,0 +1,59 @@
+name: Configurar WhatsApp somente em homologação
+
+# Preparado, sem execução no push. Precisa de revisão/merge e bootstrap de infra.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_homolog:
+        description: Confirmo canal autorizado para homologação e janela de reinício
+        type: boolean
+        required: true
+        default: false
+      change_reference:
+        description: Referência da aprovação técnica e da configuração (sem dados pessoais)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: configurar-whatsapp-homolog
+  cancel-in-progress: false
+
+jobs:
+  configurar:
+    if: github.repository == 'comeca-ai/projeto_tribureembolsa' && github.ref == 'refs/heads/main' && inputs.confirm_homolog
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: homologacao
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+      - name: Verificar autorização e isolamento cadastrados pela operação
+        env:
+          ENABLED: ${{ vars.WHATSAPP_HOMOLOG_ENABLED }}
+          CHANGE_REFERENCE: ${{ inputs.change_reference }}
+        run: |
+          node --input-type=module <<'NODE'
+          if (process.env.ENABLED !== 'true' || !process.env.CHANGE_REFERENCE?.trim()) {
+            console.error('Ativação de homologação ou referência de aprovação ausente.');
+            process.exit(1);
+          }
+          NODE
+      - name: Testar protocolo sem rede nem secrets
+        run: node --test tools/deploy/whatsapp-homolog.check.mjs
+      - name: Aplicar somente os dois secrets e testar autenticação local
+        env:
+          CONFIRM_HOMOLOG: ${{ inputs.confirm_homolog }}
+          DIALOG_360_API_KEY: ${{ secrets.API_KEY }}
+          DIALOG_360_WEBHOOK_SECRET: ${{ secrets.DIALOG_360_WEBHOOK_SECRET }}
+          HOMOLOG_SSH_PRIVATE_KEY: ${{ secrets.HOMOLOG_SSH_PRIVATE_KEY }}
+          HOMOLOG_SSH_KNOWN_HOSTS: ${{ secrets.HOMOLOG_SSH_KNOWN_HOSTS }}
+          HOMOLOG_SSH_HOST: ${{ vars.HOMOLOG_SSH_HOST }}
+          HOMOLOG_SSH_PORT: ${{ vars.HOMOLOG_SSH_PORT }}
+        run: node tools/deploy/whatsapp-homolog-send.mjs

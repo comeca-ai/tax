@@ -1,0 +1,33 @@
+/* reembolsa.ai — tokens do painel web */
+.painel-v2 {
+  /* marca */
+  --rb-teal: #0B7A75;
+  --rb-teal-dark: #075E5A;
+  --rb-teal-tint: #E6F2F0;
+  --rb-teal-soft: #DCEFEB;
+  --rb-teal-muted: #BFD9D5;
+  /* superfícies e texto */
+  --rb-bg: #F4F6F5;
+  --rb-surface: #FFFFFF;
+  --rb-surface-2: #FAFBFA;
+  --rb-fill: #EEF2F0;
+  --rb-border: #E1E6E3;
+  --rb-border-strong: #CBD3D0;
+  --rb-divider: #EEF1F0;
+  --rb-ink: #14211F;
+  --rb-ink-2: #3D4C48;
+  --rb-ink-3: #5B6864;
+  --rb-ink-4: #7A8783;
+  /* semáforo — EXCLUSIVO do veredito da IA e dos gates */
+  --rb-green: #1B8A3E;  --rb-green-text: #166B31; --rb-green-bg: #EAF5EE; --rb-green-border: #B9DEC5;
+  --rb-amber: #C9861A;  --rb-amber-text: #8A5A0E; --rb-amber-bg: #FBF3E4; --rb-amber-border: #EBD2A2;
+  --rb-red:   #C93A2E;  --rb-red-text:   #9A2B22; --rb-red-bg:   #FBEAE8; --rb-red-border:   #EDB9B3;
+  /* tipografia */
+  --rb-font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --rb-font-mono: 'IBM Plex Mono', monospace;
+  /* raios */
+  --rb-radius-card: 12px;
+  --rb-radius-control: 8px;
+  --rb-radius-pill: 999px;
+}
+.rb-num { font-family: var(--rb-font-mono); font-variant-numeric: tabular-nums; }

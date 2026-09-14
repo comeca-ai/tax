@@ -10,7 +10,7 @@ Dois motores independentes. Decisões e trilhas não se misturam.
 |---|---|
 | `agente/` | Máquina de estados da conversa, processamento de mensagens, convite-isqueiro (wa.me) |
 | `policy/` | Parser da política de reembolso (PDF → regras) + avaliador de despesa contra as regras |
-| `whatsapp/` | Transporte: adapter `WHATSAPP_PROVIDER=evolution|meta`, payload Evolution, envio de texto |
+| `whatsapp/` | Transporte da POC: somente 360dialog (D-022); integração produtiva em andamento, Evolution ainda é código legado |
 
 Contrato do decisor: `APROVADA(regra citada)` / `REPROVADA(regra citada)` /
 `REVISAO_MANUAL(motivo material)` — só aprova com regra explícita da política

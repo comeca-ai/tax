@@ -2,6 +2,7 @@ import "dotenv/config";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import mysql from "mysql2/promise";
+import { foreignKeyAlreadyApplied } from "./foreign-key-replay";
 
 /**
  * Aplica migrações SQL geradas por `drizzle-kit generate` de forma NÃO
@@ -40,6 +41,10 @@ async function main() {
   try {
     for (const [i, stmt] of statements.entries()) {
       try {
+        if (await foreignKeyAlreadyApplied(conn, stmt)) {
+          console.log(`  ✓ [${i + 1}/${statements.length}] chave estrangeira já aplicada e verificada`);
+          continue;
+        }
         await conn.query(stmt);
         console.log(`  ✓ [${i + 1}/${statements.length}] ${stmt.slice(0, 72).replace(/\n/g, " ")}...`);
       } catch (err) {

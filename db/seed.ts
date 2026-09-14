@@ -1,3 +1,4 @@
+import { senhaDemoAutorizada } from "./seed-policy";
 import { eq } from "drizzle-orm";
 import { getDb } from "../api/queries/connection";
 import {
@@ -15,6 +16,7 @@ import { regrasPoliticaSchema, type RegrasPolitica } from "@contracts/types";
 /**
  * Seed — Tax Engine (reembolsa.ia.br):
  * 1. Matriz de elegibilidade CNAE × categoria (MVP, §7.2 da spec) + dedutibilidade IRPJ/CSLL
+ * 2–4. Dados demo apenas com autorização explícita fora de produção.
  * 2. Usuários iniciais: admin, revisor e cliente demo
  * 3. Empresa demo (transporte de cargas)
  * 4. Política de reembolso demo
@@ -138,6 +140,7 @@ const CATEGORIAS = [
 const VIGENCIA_INICIO = "2024-01-01";
 
 async function seed() {
+  const senhaDemo = senhaDemoAutorizada(process.env);
   const db = getDb();
   console.log("Seeding database...");
 
@@ -198,118 +201,123 @@ async function seed() {
     console.log("  regras_elegibilidade: já populada, pulando");
   }
 
-  // ── 2. Usuários ───────────────────────────────────────────────────────────
-  async function upsertUsuario(
-    email: string,
-    nome: string,
-    senha: string,
-    perfil: "admin" | "cliente" | "revisor",
-  ): Promise<number> {
-    const rows = await db
-      .select({ id: usuarios.id })
-      .from(usuarios)
-      .where(eq(usuarios.email, email))
+  if (senhaDemo !== null) {
+    // ── 2. Usuários ───────────────────────────────────────────────────────────
+    async function upsertUsuario(
+      email: string,
+      nome: string,
+      senha: string,
+      perfil: "admin" | "cliente" | "revisor",
+    ): Promise<number> {
+      const rows = await db
+        .select({ id: usuarios.id })
+        .from(usuarios)
+        .where(eq(usuarios.email, email))
+        .limit(1);
+      if (rows[0]) return rows[0].id;
+      const result = await db.insert(usuarios).values({
+        email,
+        nome,
+        senhaHash: await hashSenha(senha),
+        perfil,
+      });
+      console.log(`  usuario: ${email} (${perfil})`);
+      return Number(result[0].insertId);
+    }
+
+    await upsertUsuario("admin@reembolsa.ia.br", "Administrador", senhaDemo, "admin");
+    await upsertUsuario("revisor@reembolsa.ia.br", "Revisor Tributário", senhaDemo, "revisor");
+    const clienteId = await upsertUsuario("cliente@demo.com.br", "Cliente Demo", senhaDemo, "cliente");
+
+    // ── 3. Empresa demo ───────────────────────────────────────────────────────
+    const empresaExistente = await db
+      .select({ id: empresas.id })
+      .from(empresas)
+      .where(eq(empresas.cnpj, "12.345.678/0001-90"))
       .limit(1);
-    if (rows[0]) return rows[0].id;
-    const result = await db.insert(usuarios).values({
-      email,
-      nome,
-      senhaHash: await hashSenha(senha),
-      perfil,
-    });
-    console.log(`  usuario: ${email} (${perfil})`);
-    return Number(result[0].insertId);
-  }
+    let empresaId: number;
+    if (empresaExistente[0]) {
+      empresaId = empresaExistente[0].id;
+    } else {
+      const result = await db.insert(empresas).values({
+        usuarioId: clienteId,
+        razaoSocial: "Transportes Demo Ltda",
+        cnpj: "12.345.678/0001-90",
+        cnaePrincipal: "49.30-2",
+        regimeTributario: "lucro_real",
+        uf: "SP",
+      });
+      empresaId = Number(result[0].insertId);
+      await db.insert(cnaesSecundarios).values([
+        { empresaId, cnae: "52.31-0" },
+      ]);
+      console.log("  empresa demo: Transportes Demo Ltda (49.30-2, lucro_real, SP)");
+    }
 
-  await upsertUsuario("admin@reembolsa.ia.br", "Administrador", "Admin@12345", "admin");
-  await upsertUsuario("revisor@reembolsa.ia.br", "Revisor Tributário", "Revisor@12345", "revisor");
-  const clienteId = await upsertUsuario("cliente@demo.com.br", "Cliente Demo", "Cliente@12345", "cliente");
+    // ── 4. Política de reembolso demo ATIVA (v1.1.0) ──────────────────────────
+    const politicaExistente = await db
+      .select({ id: politicasReembolso.id })
+      .from(politicasReembolso)
+      .where(eq(politicasReembolso.empresaId, empresaId))
+      .limit(1);
+    if (!politicaExistente[0]) {
+      const textoPolitica = [
+        "POLÍTICA DE REEMBOLSO DE DESPESAS — TRANSPORTES DEMO LTDA",
+        "Vigência: 01/01/2025",
+        "",
+        "1. ALIMENTAÇÃO: reembolso de até R$ 120,00 por dia, mediante nota fiscal ou recibo.",
+        "   Evidência obrigatória para alimentação acima de R$ 120,00.",
+        "2. HOSPEDAGEM: reembolso de até R$ 450,00 por diária. Nota fiscal/recibo obrigatório.",
+        "3. TRANSPORTE POR APLICATIVO (Uber/99): até R$ 80,00 por corrida.",
+        "4. TÁXI: até R$ 80,00 por corrida, com recibo.",
+        "5. COMBUSTÍVEL: reembolso de até R$ 600,00 por abastecimento.",
+        "   Tarifa de R$ 0,85 por km rodado para veículo próprio.",
+        "6. PEDÁGIO: reembolso integral mediante comprovante.",
+        "7. APROVAÇÃO AUTOMÁTICA: despesas até R$ 200,00 são aprovadas automaticamente.",
+        "8. REVISÃO HUMANA: despesas acima de R$ 2.000,00 exigem revisão humana do financeiro.",
+        "9. NEGAÇÃO: despesas acima de R$ 5.000,00 não são reembolsadas.",
+      ].join("\n");
+      // Parse (em vez de literal tipado): os defaults do schema preenchem os campos
+      // derivados novos — o seed não quebra a cada campo acrescentado ao contrato.
+      const regrasDemo: RegrasPolitica = regrasPoliticaSchema.parse({
+        limitesPorCategoria: {
+          alimentacao: 120,
+          hospedagem: 450,
+          uber: 80,
+          taxi: 80,
+          combustivel: 600,
+          pedagio: null,
+        },
+        exigeEvidencia: ["hospedagem", "alimentacao"],
+        aprovacaoAutomaticaAte: 200,
+        revisaoHumanaAcimaDe: 2000,
+        negacaoAcimaDe: 5000,
+        observacoes: [
+          "Tarifa de R$ 0,85 por km rodado para veículo próprio.",
+          "Evidência obrigatória para alimentação acima de R$ 120,00.",
+        ],
+        // Política demo no formato antigo (sem regras estruturadas): parâmetros acima valem como estão
+        regrasExtraidas: [],
+      });
+      await db.insert(politicasReembolso).values({
+        empresaId,
+        arquivoNome: "politica-reembolso-demo.txt",
+        arquivoPath: null,
+        textoExtraido: textoPolitica,
+        regras: regrasDemo,
+        status: "ativa",
+        versao: 1,
+        confiancaExtracao: "alta",
+        camposPendentes: [],
+        createdById: clienteId,
+      });
+      console.log("  politica demo: ATIVA (v1) para Transportes Demo Ltda");
+    } else {
+      console.log("  politica demo: já existe, pulando");
+    }
 
-  // ── 3. Empresa demo ───────────────────────────────────────────────────────
-  const empresaExistente = await db
-    .select({ id: empresas.id })
-    .from(empresas)
-    .where(eq(empresas.cnpj, "12.345.678/0001-90"))
-    .limit(1);
-  let empresaId: number;
-  if (empresaExistente[0]) {
-    empresaId = empresaExistente[0].id;
   } else {
-    const result = await db.insert(empresas).values({
-      usuarioId: clienteId,
-      razaoSocial: "Transportes Demo Ltda",
-      cnpj: "12.345.678/0001-90",
-      cnaePrincipal: "49.30-2",
-      regimeTributario: "lucro_real",
-      uf: "SP",
-    });
-    empresaId = Number(result[0].insertId);
-    await db.insert(cnaesSecundarios).values([
-      { empresaId, cnae: "52.31-0" },
-    ]);
-    console.log("  empresa demo: Transportes Demo Ltda (49.30-2, lucro_real, SP)");
-  }
-
-  // ── 4. Política de reembolso demo ATIVA (v1.1.0) ──────────────────────────
-  const politicaExistente = await db
-    .select({ id: politicasReembolso.id })
-    .from(politicasReembolso)
-    .where(eq(politicasReembolso.empresaId, empresaId))
-    .limit(1);
-  if (!politicaExistente[0]) {
-    const textoPolitica = [
-      "POLÍTICA DE REEMBOLSO DE DESPESAS — TRANSPORTES DEMO LTDA",
-      "Vigência: 01/01/2025",
-      "",
-      "1. ALIMENTAÇÃO: reembolso de até R$ 120,00 por dia, mediante nota fiscal ou recibo.",
-      "   Evidência obrigatória para alimentação acima de R$ 120,00.",
-      "2. HOSPEDAGEM: reembolso de até R$ 450,00 por diária. Nota fiscal/recibo obrigatório.",
-      "3. TRANSPORTE POR APLICATIVO (Uber/99): até R$ 80,00 por corrida.",
-      "4. TÁXI: até R$ 80,00 por corrida, com recibo.",
-      "5. COMBUSTÍVEL: reembolso de até R$ 600,00 por abastecimento.",
-      "   Tarifa de R$ 0,85 por km rodado para veículo próprio.",
-      "6. PEDÁGIO: reembolso integral mediante comprovante.",
-      "7. APROVAÇÃO AUTOMÁTICA: despesas até R$ 200,00 são aprovadas automaticamente.",
-      "8. REVISÃO HUMANA: despesas acima de R$ 2.000,00 exigem revisão humana do financeiro.",
-      "9. NEGAÇÃO: despesas acima de R$ 5.000,00 não são reembolsadas.",
-    ].join("\n");
-    // Parse (em vez de literal tipado): os defaults do schema preenchem os campos
-    // derivados novos — o seed não quebra a cada campo acrescentado ao contrato.
-    const regrasDemo: RegrasPolitica = regrasPoliticaSchema.parse({
-      limitesPorCategoria: {
-        alimentacao: 120,
-        hospedagem: 450,
-        uber: 80,
-        taxi: 80,
-        combustivel: 600,
-        pedagio: null,
-      },
-      exigeEvidencia: ["hospedagem", "alimentacao"],
-      aprovacaoAutomaticaAte: 200,
-      revisaoHumanaAcimaDe: 2000,
-      negacaoAcimaDe: 5000,
-      observacoes: [
-        "Tarifa de R$ 0,85 por km rodado para veículo próprio.",
-        "Evidência obrigatória para alimentação acima de R$ 120,00.",
-      ],
-      // Política demo no formato antigo (sem regras estruturadas): parâmetros acima valem como estão
-      regrasExtraidas: [],
-    });
-    await db.insert(politicasReembolso).values({
-      empresaId,
-      arquivoNome: "politica-reembolso-demo.txt",
-      arquivoPath: null,
-      textoExtraido: textoPolitica,
-      regras: regrasDemo,
-      status: "ativa",
-      versao: 1,
-      confiancaExtracao: "alta",
-      camposPendentes: [],
-      createdById: clienteId,
-    });
-    console.log("  politica demo: ATIVA (v1) para Transportes Demo Ltda");
-  } else {
-    console.log("  politica demo: já existe, pulando");
+    console.log("  Dados demo desabilitados; somente dados estruturais serão preparados.");
   }
 
   // ── 5. Config da Norma PoC (0008) — uma linha por empresa ────────────────

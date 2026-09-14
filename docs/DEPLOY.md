@@ -5,9 +5,27 @@ atrás de reverse proxy). Este arquivo é público: **nunca** colocar aqui IPs,
 domínios de admin, topologia de rede ou segredos — isso vive no repositório
 **privado** de infra.
 
+## Estado da instalação atual
+
+A instância atualmente em operação usa Node.js gerenciado por **systemd**, não
+o fluxo Docker/PM2 descrito pelo script `scripts/deploy.sh`. Portanto, esse
+script é legado e **não deve ser executado** na instalação atual.
+
+Antes da próxima publicação, o procedimento systemd precisa ser automatizado
+e revisado para promover uma tag em diretório de release, preservar a versão
+anterior para rollback e só então trocar a versão servida. Até isso existir,
+qualquer publicação é uma operação manual excepcional, registrada na release
+e autorizada pelo responsável técnico.
+
+> A regra completa de promoção, aprovação e rollback está em
+> [POLITICA-DE-RELEASE-E-DEPLOY.md](POLITICA-DE-RELEASE-E-DEPLOY.md). Este
+> runbook executa uma release aprovada; ele não autoriza publicar uma branch
+> de desenvolvimento diretamente em produção.
+
 ## Modelo mental
 
-- Código: GitHub `comeca-ai/tax` (público), branch `master` + tags SemVer.
+- Código: tag SemVer aprovada no repositório oficial. Produção recebe a tag,
+  nunca uma branch de trabalho.
 - Banco: migrações SQL versionadas em `db/migrations/`, aplicadas
   **automaticamente no boot do container** (`docker-entrypoint.sh` →
   `db/migrations/apply.ts`, idempotente). Nunca rodar `db:push --force`,

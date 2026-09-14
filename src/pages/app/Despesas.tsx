@@ -1,3 +1,4 @@
+import EnvioWhatsapp, { type DadosEnvioWhatsapp } from "@/components/despesas/EnvioWhatsapp"
 import { useMemo, useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router"
 import { motion } from "framer-motion"
@@ -35,7 +36,8 @@ import {
 
 type DespesaRow = {
   id: number
-  categoria: CategoriaDespesa
+  categoria: CategoriaDespesa | null
+  envioWhatsapp?: DadosEnvioWhatsapp | null
   colaborador: string | null
   centroCusto: string | null
   motivoDeslocamento: string | null
@@ -97,7 +99,7 @@ export default function Despesas() {
     const termo = busca.trim().toLowerCase()
     const porBusca = termo
       ? rows.filter((r) =>
-          [r.colaborador, r.centroCusto, r.motivoDeslocamento, CATEGORIA_META[r.categoria]?.label]
+          [r.colaborador, r.centroCusto, r.motivoDeslocamento, CATEGORIA_META[r.categoria as CategoriaDespesa]?.label]
             .filter(Boolean)
             .some((campo) => String(campo).toLowerCase().includes(termo)),
         )
@@ -167,7 +169,7 @@ export default function Despesas() {
     const linhas = filtradas.map((r) =>
       [
         formatData(r.dataFatoGerador),
-        CATEGORIA_META[r.categoria]?.label ?? r.categoria,
+        CATEGORIA_META[r.categoria as CategoriaDespesa]?.label ?? r.categoria,
         r.colaborador ?? "",
         r.centroCusto ?? "",
         num(r.kmComercial),
@@ -222,7 +224,7 @@ export default function Despesas() {
       key: "categoria",
       header: "Categoria",
       render: (r) => {
-        const meta = CATEGORIA_META[r.categoria]
+        const meta = CATEGORIA_META[r.categoria as CategoriaDespesa]
         const Icone = meta?.icon
         return (
           <span className="flex items-center gap-2 text-[13px] font-medium">
@@ -231,7 +233,7 @@ export default function Despesas() {
                 <Icone className="h-3.5 w-3.5" />
               </span>
             )}
-            {meta?.label ?? r.categoria}
+            {meta?.label ?? "A classificar"}
           </span>
         )
       },
@@ -241,10 +243,15 @@ export default function Despesas() {
       header: "Colaborador / CC",
       render: (r) => (
         <span className="flex flex-col">
-          <span className="text-[13px] font-medium">{r.colaborador ?? "—"}</span>
-          {r.centroCusto && <span className="font-mono text-[11px] text-text-500">{r.centroCusto}</span>}
+          <span className="text-[13px] font-medium">{r.colaborador?.trim() || "Colaborador não identificado"}</span>
+          <span className="font-mono text-[11px] text-text-500">{r.centroCusto?.trim() || "CC não informado"}</span>
         </span>
       ),
+    },
+    {
+      key: "envioWhatsapp",
+      header: "Envio pelo WhatsApp",
+      render: r => r.envioWhatsapp ? <EnvioWhatsapp envio={r.envioWhatsapp} categoria={r.categoria} /> : <span className="text-xs text-text-500">Painel</span>,
     },
     {
       key: "valorNota",
@@ -442,6 +449,8 @@ export default function Despesas() {
       )}
 
       <DespesaDrawer
+        key={`${empresaId}:${despesaAberta}`}
+        empresaId={empresaId}
         despesaId={despesaAberta}
         open={despesaAberta !== null}
         onOpenChange={(aberto) => {
@@ -451,4 +460,3 @@ export default function Despesas() {
     </motion.div>
   )
 }
-

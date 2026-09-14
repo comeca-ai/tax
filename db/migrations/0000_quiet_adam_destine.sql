@@ -1,12 +1,12 @@
 CREATE TABLE `cnaes_secundarios` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`empresa_id` bigint unsigned NOT NULL,
 	`cnae` varchar(10) NOT NULL,
 	CONSTRAINT `cnaes_secundarios_id` PRIMARY KEY(`id`)
 );
 --> statement-breakpoint
 CREATE TABLE `creditos_apurados` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`despesa_id` bigint unsigned NOT NULL,
 	`tributo` enum('pis_cofins','icms','cbs','ibs','irpj_csll') NOT NULL,
 	`tipo_beneficio` enum('credito','dedutibilidade') NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE `creditos_apurados` (
 );
 --> statement-breakpoint
 CREATE TABLE `despesas` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`empresa_id` bigint unsigned NOT NULL,
 	`nota_fiscal_id` bigint unsigned NOT NULL,
 	`veiculo_id` bigint unsigned,
@@ -41,7 +41,7 @@ CREATE TABLE `despesas` (
 );
 --> statement-breakpoint
 CREATE TABLE `empresas` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`usuario_id` bigint unsigned NOT NULL,
 	`razao_social` varchar(255) NOT NULL,
 	`cnpj` varchar(18) NOT NULL,
@@ -53,7 +53,7 @@ CREATE TABLE `empresas` (
 );
 --> statement-breakpoint
 CREATE TABLE `evidencias_documentais` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`despesa_id` bigint unsigned NOT NULL,
 	`tipo` varchar(100) NOT NULL,
 	`arquivo_nome` varchar(255) NOT NULL,
@@ -65,7 +65,7 @@ CREATE TABLE `evidencias_documentais` (
 );
 --> statement-breakpoint
 CREATE TABLE `log_auditoria` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`usuario_id` bigint unsigned,
 	`empresa_id` bigint unsigned,
 	`acao` varchar(100) NOT NULL,
@@ -78,7 +78,7 @@ CREATE TABLE `log_auditoria` (
 );
 --> statement-breakpoint
 CREATE TABLE `notas_fiscais` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`empresa_id` bigint unsigned NOT NULL,
 	`cnpj_emitente` varchar(18),
 	`cfop` varchar(10),
@@ -95,7 +95,7 @@ CREATE TABLE `notas_fiscais` (
 );
 --> statement-breakpoint
 CREATE TABLE `regras_elegibilidade` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`cnae_padrao` varchar(12) NOT NULL,
 	`categoria` enum('combustivel','alimentacao','hospedagem','pedagio','uber','taxi') NOT NULL,
 	`tributo` enum('pis_cofins','icms','cbs','ibs','irpj_csll') NOT NULL,
@@ -111,7 +111,7 @@ CREATE TABLE `regras_elegibilidade` (
 );
 --> statement-breakpoint
 CREATE TABLE `usuarios` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`email` varchar(255) NOT NULL,
 	`nome` varchar(255) NOT NULL,
 	`senha_hash` varchar(255) NOT NULL,
@@ -122,7 +122,7 @@ CREATE TABLE `usuarios` (
 );
 --> statement-breakpoint
 CREATE TABLE `veiculos` (
-	`id` serial AUTO_INCREMENT NOT NULL,
+	`id` bigint unsigned NOT NULL AUTO_INCREMENT,
 	`empresa_id` bigint unsigned NOT NULL,
 	`placa` varchar(10) NOT NULL,
 	`renavam` varchar(20),

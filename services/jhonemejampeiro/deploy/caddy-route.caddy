@@ -1,0 +1,9 @@
+# Insert within the approved HTTPS site block after release/homologation.
+# Keep this handle before the site's existing catch-all reverse_proxy.
+@jampeiro path /jampeiro /jampeiro/*
+handle @jampeiro {
+    request_body {
+        max_size 10KB
+    }
+    reverse_proxy 127.0.0.1:4180
+}

@@ -1,0 +1,35 @@
+name: JhonemeJampeiro
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jampeiro-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validar:
+    name: Jampeiro - persistência, segurança e pacote
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Testar backend e HTTP sem secrets e sem API externa
+        run: python3 -m unittest discover -s services/jhonemejampeiro -p 'test_*.py' -v
+      - name: Verificar sintaxe
+        run: |
+          python3 -m py_compile services/jhonemejampeiro/server.py
+          node --check services/jhonemejampeiro/public/app.js
+      - name: Gerar pacote restrito e verificar conteúdo
+        run: |
+          python3 services/jhonemejampeiro/package_release.py
+          cd services/jhonemejampeiro/release
+          sha256sum -c SHA256SUMS
+          tar -tf jhonemejampeiro-1.0.0.tar

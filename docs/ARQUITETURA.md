@@ -125,31 +125,21 @@ Regras da máquina:
 - **Correção de rota**: chegou combustível de quem não declarou → entra em
   COLETANDO_CADASTRO na hora, sem bloquear a despesa.
 
-### Transporte WhatsApp (decisão de largada, 12/08/2026)
+### Transporte WhatsApp da POC (D-022)
 
-**Provider da largada: Evolution API** (self-hosted, container na VPS, protocolo
-WhatsApp Web). Motivos: zero burocracia Meta, custo zero por mensagem, validação
-imediata da v1.5.0/v1.6.0. Riscos aceitos: API não-oficial (banimento de número,
-instabilidade quando o WhatsApp muda o protocolo) — mitigados com número dedicado,
-volume de piloto e conversas iniciadas pelo funcionário.
+**Provider único: 360dialog.** A POC não mantém piloto ou fallback operacional
+pela Evolution. O adapter 360dialog normaliza eventos, baixa mídias e envia
+mensagens; o agente continua alheio ao provedor.
 
-**Interface isolada** — o agente nunca fala com o Evolution diretamente fora de um
-adapter, mesmo padrão de `OCR_PROVIDER`/`POLICY_PROVIDER`:
+**Interface isolada** — o transporte é um adapter, no mesmo padrão de
+`OCR_PROVIDER`/`POLICY_PROVIDER`. Ambientes novos usam somente credenciais
+`DIALOG_360_*`; a seleção atual de Evolution no código é legado a substituir após
+o adapter 360dialog estar completo e coberto por testes.
 
-```
-WHATSAPP_PROVIDER=evolution  # piloto (Evolution API, self-hosted)
-WHATSAPP_PROVIDER=meta       # futuro (Cloud API oficial, quando escalar)
-```
-
-Troca futura para a API oficial da Meta = **trocar o adapter, não o produto**:
-sessões, máquina de estados, decisor e dossiê permanecem idênticos.
-
-### Custo Meta (quando migrar para a API oficial)
-- Convite sempre por e-mail-isqueiro → funcionário inicia (janela de atendimento).
-- Respostas do agente dentro da janela de 24h = custo zero de template.
-- Lembretes fora da janela: preferir e-mail; template só como último recurso.
-- No piloto com Evolution, essas restrições não se aplicam (sem cobrança por mensagem),
-  mas o desenho "funcionário inicia" permanece — é melhor UX e já prepara a migração.
+### Janela de atendimento e templates
+- Convite por e-mail-isqueiro → funcionário inicia a conversa.
+- Mensagens e lembretes obedecem à janela e aos templates homologados na 360dialog.
+- Fora da janela, e-mail é o fallback preferido; template só quando necessário.
 
 ---
 
@@ -190,8 +180,7 @@ o dossiê defensável meses depois ("essa despesa foi aprovada pela regra X da v
 
 | Integração | Uso | Status |
 |---|---|---|
-| **Evolution API** (provider da largada) | convite (wa.me), conversa, mídia — self-hosted na VPS | 🟡 usuário instala o container; adapter a construir na v1.5.0 |
-| Meta WhatsApp Business API | provider futuro (escala) — mesmo adapter | ❌ webhook esqueleto ✅ (v1.2.0), sem credenciais |
+| **360dialog** (provider único da POC) | conversa, mídia, webhooks e templates pelo canal oficial | 🟡 entrada persistida; adapter completo de mídia/envio em construção |
 | SMTP | e-mail-isqueiro de convite, lembretes, push de exceção | ❌ (hoje log) |
 | OCR/visão (provider) | ler cupom/nota da foto | ❌ hook `OCR_PROVIDER` pronto, sem provider |
 | ReceitaWS | CNPJ → dados da empresa | ✅ |
@@ -204,17 +193,15 @@ o dossiê defensável meses depois ("essa despesa foi aprovada pela regra X da v
 services:
   app:        # ✅ existe — web + tRPC + migrações no boot; agente roda como módulo do app
 ```
-- **Evolution (D-011): stack separado**, fora do compose do app (padrão n8n/Chatwoot/
-  Coolify na VPS), instalado pelo usuário. Integração 100% HTTP:
-  `EVOLUTION_API_URL` + `EVOLUTION_API_KEY` + `EVOLUTION_INSTANCE` no `.env`, e o
-  webhook do Evolution apontando para `/api/whatsapp/webhook`. Se o Evolution cair,
-  site e back office seguem operando; na migração para a Meta oficial, apaga-se o
-  stack e trocam-se as variáveis.
+- **360dialog (D-022):** integração HTTP externa, com `DIALOG_360_*` somente no
+  ambiente. O webhook canônico é `/api/webhooks/360dialog`. Se o provedor falhar,
+  site e back office seguem operando; a inbox/outbox persistente torna a falha
+  observável e recuperável.
 - **Sem Railway/serviço externo**: tudo na VPS — banco, app e agente no mesmo host
   elimina latência, ponto de falha e custo extra; mantém o padrão de deploy atual
   (git tag → docker compose up).
 - Migrações continuam idempotentes no boot (✅ padrão atual).
-- Credenciais Meta/SMTP em `.env` local (nunca no repo — público).
+- Credenciais 360dialog/SMTP em `.env` local (nunca no repositório).
 
 ---
 
@@ -222,7 +209,7 @@ services:
 
 | Release | Escopo | Depende de |
 |---|---|---|
-| **v1.5.0** — fundação ⬅ próxima | Extração do `brain/` (parser vira pacote), tabelas novas (funcionários+hierarquia, sessões, política_versoes), SMTP, adapter `WHATSAPP_PROVIDER=evolution`, agente com onboarding conversacional (convite wa.me → confirmação → declaração → veículo) | Evolution instalado na VPS (usuário) + SMTP |
+| **v1.5.0** — fundação (histórico) | Extração do `brain/` (parser vira pacote), tabelas novas (funcionários+hierarquia, sessões, política_versoes), SMTP, adapter e agente com onboarding conversacional | decisão de transporte vigente em D-022 |
 | **v1.6.0** — admin limpo + convites ✅ (D-012) | Navegação agrupada, Equipe com colaboradores + convite-isqueiro (wa.me/SMTP) | v1.5.0 |
 | **v1.7.0** — motor ⬅ próxima | OCR provider, fluxo de despesa pelo WhatsApp, decisor (aprova/reprova citando regra — **só com regra explícita**, D-013), fila de revisão manual no web, push de aviso | v1.6.0 |
 | **v1.8.0** — dossiê | kit zip 1-botão com regra citada + versão da política por despesa | v1.7.0 |
@@ -231,6 +218,8 @@ services:
 
 Ordem pensada por valor-desbloqueio: sem onboarding conversacional não há despesa pelo
 WhatsApp; sem motor não há revisões; sem revisões resolvidas o dossiê sai incompleto.
+Referências históricas a Evolution nesta tabela não são instrução para novos ambientes:
+a POC vigente usa somente 360dialog (D-022).
 
 ---
 
@@ -239,12 +228,11 @@ WhatsApp; sem motor não há revisões; sem revisões resolvidas o dossiê sai i
 1. **Qualidade do OCR de cupom** — fotos ruins caem hoje em preenchimento assistido
    (motor fiscal, web). No reembolso (D-014), **ninguém preenche nada**: o que não deu
    para ler vira `REVISAO_MANUAL` do gestor sobre a evidência. Medir taxa de fallback.
-2. **Janela de 24h da Meta** — só se aplica na migração futura para a API oficial;
-   no piloto (Evolution) não há essa restrição. Mesmo assim, manter lembrete por
-   e-mail como hábito do desenho.
-2b. **Risco do Evolution (não-oficial)** — banimento do número ou quebra de protocolo.
-   Mitigação: número dedicado ao produto, volume de piloto, adapter isolado que permite
-   trocar de provider sem tocar no produto.
+2. **Janela e templates da 360dialog** — mensagens fora da janela aplicável exigem
+   template homologado. Lembretes por e-mail reduzem dependência de template.
+2b. **Disponibilidade do provedor** — falhas na 360dialog não podem perder ou
+   duplicar mensagens; inbox/outbox persistentes, retentativas e status observável
+   são o mecanismo de degradação.
 3. **Decisor conservador por construção (D-013)** — só aprova com regra explícita;
    qualquer dúvida material vira revisão manual. Uma devolução a mais custa um clique
    do gestor; uma falsa aprovação custa uma glosa.

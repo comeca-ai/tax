@@ -9,7 +9,7 @@ import RequireRevisao from "@/components/app/RequireRevisao"
 import Home from "@/pages/Home"
 import Tese from "@/pages/Tese"
 import Login from "@/pages/Login"
-import Cadastro from "@/pages/Cadastro"
+import { Cadastro, Empresas } from "@/modules/empresas"
 import Convite from "@/pages/Convite"
 import RedefinirSenha from "@/pages/RedefinirSenha"
 import Dashboard from "@/pages/app/Dashboard"
@@ -19,9 +19,10 @@ import EnvioRapido from "@/pages/app/EnvioRapido"
 import Equipe from "@/pages/app/Equipe"
 import Politica from "@/pages/app/Politica"
 import Revisao from "@/pages/app/Revisao"
-import Empresas from "@/pages/app/Empresas"
 import Relatorios from "@/pages/app/Relatorios"
 import Regras from "@/pages/app/Regras"
+import Ajustes from "@/pages/app/Ajustes"
+import Campo from "@/pages/app/Campo"
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="despesas/nova" element={<NovaDespesa />} />
             <Route path="rapido" element={<EnvioRapido />} />
             <Route path="politica" element={<Politica />} />
+            <Route path="politica/nova" element={<Politica key="nova" iniciarUpload />} />
             <Route element={<RequireRevisao />}>
               <Route path="revisao" element={<Revisao />} />
             </Route>
@@ -50,9 +52,11 @@ export default function App() {
             <Route path="relatorios" element={<Relatorios />} />
             <Route element={<RequireEquipe />}>
               <Route path="equipe" element={<Equipe />} />
+              <Route path="campo" element={<Campo />} />
             </Route>
             <Route element={<RequireAdmin />}>
               <Route path="regras" element={<Regras />} />
+              <Route path="ajustes" element={<Ajustes />} />
             </Route>
           </Route>
         </Route>

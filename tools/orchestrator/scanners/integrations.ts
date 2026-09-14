@@ -21,7 +21,7 @@ export const HOT_PATHS = [
   "api/lib/conviteAcesso.ts",
   "api/mail",
   "src/lib/whatsapp.ts",
-  "src/lib/cnpj.ts",
+  "src/modules/empresas/lib/cnpj.ts",
   "db/schema.ts",
 ];
 
