@@ -118,9 +118,10 @@ describe("mapearRuleset", () => {
     expect(regras.exigeEvidencia).toEqual([...CATEGORIAS_DESPESA]);
   });
 
-  it("camposPendentes contém só ambiguidades (sem tetos)", () => {
-    expect(mapearRuleset({ regras: [] }).camposPendentes).toEqual([]);
+  it("camposPendentes contém ambiguidades quando a extração de campos está disponível (sem tetos)", () => {
+    expect(mapearRuleset({ regras: [], campos_customizados: [] }).camposPendentes).toEqual([]);
     const { camposPendentes } = mapearRuleset({
+      campos_customizados: [],
       regras: [],
       ambiguidades: [{ local: "§3", descricao: "Limite de hospedagem ausente" }],
     });

@@ -237,7 +237,7 @@ export const politicaRouter = createRouter({
         acao: "politica.update_regras",
         entidade: "politica_reembolso",
         entidadeId: politica.id,
-        detalhes: `Regras editadas manualmente (${regras.regrasExtraidas.length} regras extraídas).`,
+        detalhes: `Regras editadas manualmente (${regras.regrasExtraidas.length} regras extraídas, ${regras.camposCustomizados.length} campos customizados).`,
       });
 
       return { ok: true, regras };

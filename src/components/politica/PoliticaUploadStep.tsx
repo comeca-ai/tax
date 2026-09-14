@@ -107,8 +107,8 @@ export default function PoliticaUploadStep({ item, onArquivo, onAnalisar, onRemo
               PDF · JPG · PNG · TXT · MD · até 10 MB
             </span>
             <span className="max-w-md text-[12px] leading-relaxed text-text-500">
-              O agente lê o documento e extrai limites por categoria, exigências e tetos de
-              aprovação — você confere tudo antes de ativar.
+              O agente lê o documento e extrai regras, cargos, funções e particularidades.
+              Você revisa as regras e os campos customizados antes de simular e ativar.
             </span>
           </>
         )}

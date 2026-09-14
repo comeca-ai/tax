@@ -44,6 +44,7 @@ const NAVEGACAO_PRINCIPAL: NavItem[] = [
 const NAVEGACAO_SECUNDARIA: NavItem[] = [
   { to: "/app/campo", label: "Campo e conciliação", icon: MapPin, equipeOnly: true },
   { to: "/app/rapido", label: "Envio rápido", icon: Zap },
+  { to: "/app/dashboard#checkpoints", label: "Checkpoints acumulados", icon: ClipboardCheck },
   { to: "/app/empresas", label: "Empresas", icon: Building2 },
   { to: "/app/equipe", label: "Equipe", icon: Users, equipeOnly: true },
   { to: "/app/relatorios", label: "Relatórios", icon: FileChartColumn },

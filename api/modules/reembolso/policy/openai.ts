@@ -24,8 +24,25 @@ import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
 const SCHEMA_RULESET = {
   type: "object",
   additionalProperties: false,
-  required: ["politica", "qualidade_extracao", "regras", "ambiguidades"],
+  required: ["politica", "qualidade_extracao", "regras", "ambiguidades", "campos_customizados"],
   properties: {
+    campos_customizados: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["grupo", "nome", "tipo", "obrigatorio", "opcoes", "descricao", "fonte"],
+        properties: {
+          grupo: { type: "string", enum: ["cargo", "funcao", "particularidade"] },
+          nome: { type: "string" },
+          tipo: { type: "string", enum: ["texto", "numero", "data", "selecao", "booleano"] },
+          obrigatorio: { type: "boolean" },
+          opcoes: { type: "array", items: { type: "string" } },
+          descricao: { type: "string" },
+          fonte: { type: "string" },
+        },
+      },
+    },
     politica: {
       type: "object",
       additionalProperties: false,

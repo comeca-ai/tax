@@ -9,6 +9,7 @@ import { REGRAS_POLITICA_13 } from "../policy/politica13.fixture";
 import { confiancaDaNota, decidirReembolso, type ExtracaoNota } from "./index";
 
 const regras: RegrasPolitica = {
+  camposCustomizados: [],
   limitesPorCategoria: { alimentacao: 55 },
   tetosTemporaisPorCategoria: {},
   limitesCitados: [],

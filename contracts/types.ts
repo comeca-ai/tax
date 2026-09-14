@@ -460,7 +460,30 @@ export type LacunaPolitica = z.infer<typeof lacunaPoliticaSchema>;
  * JSON de regras da política — contrato estável, versionado junto à política
  * (campo `regras` de politicas_reembolso). Valores monetários em R$.
  */
+export const campoCustomizadoPoliticaSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  grupo: z.enum(["cargo", "funcao", "particularidade"]),
+  nome: z.string().trim().min(1).max(120),
+  tipo: z.enum(["texto", "numero", "data", "selecao", "booleano"]),
+  obrigatorio: z.boolean().default(false),
+  opcoes: z.array(z.string().trim().min(1).max(120)).max(80).default([]),
+  descricao: z.string().trim().max(1000).default(""),
+  fonte: z.string().trim().max(1000).default(""),
+}).superRefine((campo, ctx) => {
+  if (campo.tipo === "selecao" && campo.opcoes.length === 0) {
+    ctx.addIssue({ code: "custom", path: ["opcoes"], message: "Informe as opções do campo de seleção." });
+  }
+});
+export type CampoCustomizadoPolitica = z.infer<typeof campoCustomizadoPoliticaSchema>;
+export const camposCustomizadosPoliticaSchema = z.array(campoCustomizadoPoliticaSchema).max(100).superRefine((campos, ctx) => {
+  if (new Set(campos.map(campo => campo.id)).size !== campos.length) {
+    ctx.addIssue({ code: "custom", message: "Os campos devem ter identificadores únicos." });
+  }
+});
+
 export const regrasPoliticaSchema = z.object({
+  /** Definições revisáveis, vinculadas à versão; não concedem permissões nem aprovação automática. */
+  camposCustomizados: camposCustomizadosPoliticaSchema.default([]),
   /** Teto por categoria (R$); null/ausente = sem limite específico */
   limitesPorCategoria: z
     .partialRecord(z.enum(CATEGORIAS_DESPESA), z.number().min(0).nullable())

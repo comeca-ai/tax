@@ -148,6 +148,13 @@
       "when": 1789390200000,
       "tag": "0021_verificacao_fiscal",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1789392000000,
+      "tag": "0022_poc_campo_empresa_idx",
+      "breakpoints": true
     }
   ]
 }

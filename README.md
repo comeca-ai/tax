@@ -126,12 +126,13 @@ Para manter no ar: `pm2 start dist/boot.js --name tax-engine && pm2 save` (insta
 │   ├── auth/             # Sessão própria (login/senha) — cookie httpOnly
 │   ├── engine/           # Motor de regras tributárias (RF-02, RF-03, RF-07, RF-09, §7.4)
 │   ├── ocr/              # OCR plugável (heuristicProvider default; visionProvider stub)
-│   ├── routers/          # auth, companies, vehicles, expenses, review, evidences,
-│   │                     # dashboard, reports, rules
+│   ├── routers/          # auth, empresas, colaboradores, campo, despesas, revisão,
+│   │                     # dashboard, relatórios, regras e convites
 │   └── router.ts         # Registro dos routers
 ├── contracts/            # Tipos/enums compartilhados front↔back (@contracts/)
 ├── db/
-│   ├── schema.ts         # 10 tabelas (ver §4)
+│   ├── schema.ts         # tabelas operacionais e de auditoria (ver §4)
+│   └── pocSchema.ts      # agregados operacionais da POC de campo e pagamentos
 │   └── seed.ts           # Matriz de elegibilidade + alíquotas ICMS + dados demo
 ├── src/
 │   ├── pages/            # Landing, Login, Cadastro, app/* (Dashboard, Despesas,
@@ -146,17 +147,13 @@ Para manter no ar: `pm2 start dist/boot.js --name tax-engine && pm2 save` (insta
 
 | Tabela | Conteúdo |
 |---|---|
-| `users` | name, email, passwordHash, role (admin/cliente/revisor) |
-| `sessions` | Sessões opacas (token + expiração) |
-| `companies` | CNAE principal/secundários, regime tributário, UF (RF-00) |
-| `companyMembers` | Equipe multi-empresa por perfil |
-| `vehicles` | placa, RENAVAM, km/L declarado, tarifa de reembolso/km |
-| `expenses` | categoria, valor_total, **valor_fiscal** ≠ **valor_reembolsavel**, km comercial/não comercial, litros, confiança, status, divergência RF-09 |
-| `fiscalNotes` | CNPJ emitente, CFOP, NCM, CST/CSOSN, campos IBS/CBS, flag monofásico |
-| `eligibilityRules` | (CNAE, categoria, tributo, tipo_beneficio, confiança, base legal, vigência) — versionadas |
-| `assessedCredits` | tributo, tipo (crédito\|dedutibilidade), valor, status, **memorial de cálculo** |
-| `evidences` | contrato / ordem de serviço / roteiro / teste de consumo (RF-04) |
-| `auditLogs` | Log imutável: regra aplicada, versão, data, ator (RF-04/RF-10) |
+| `usuarios` / `sessoes` | Contas e sessões revogáveis (cookie httpOnly, expiração e versão de senha) |
+| `empresas` / `colaboradores` | Empresas, vínculos e equipe multiempresa por perfil |
+| `veiculos` / `veiculos_colaborador` | Placa, RENAVAM, km/L declarado e vínculo por empresa |
+| `despesas` / `notas_fiscais` | Despesas, documentos fiscais, confiança, status e divergências |
+| `regras_elegibilidade` / `creditos_apurados` | Regras versionadas e créditos com memorial de cálculo |
+| `evidencias_documentais` / `log_auditoria` | Evidências e trilha append-only de auditoria |
+| `poc_campo` / `poc_documentos` / `poc_pagamentos` | Agregados operacionais da POC; checkpoints são lidos por empresa a partir de `poc_campo` |
 
 ## 5. Motor de regras (resumo funcional)
 
@@ -222,6 +219,7 @@ Nenhuma outra parte do sistema muda — o wizard já exibe confiança por campo 
 - Toda rota `/app/*` protegida por `RequireAuth`; procedures sensíveis exigem sessão; a fila de revisão (`revisao.*`) é restrita aos perfis `revisor`/`admin`.
 - Dados fiscais e de veículos (placa/RENAVAM) restritos por perfil e por empresa (cliente só enxerga as próprias empresas).
 - `log_auditoria` é append-only: nenhuma rota atualiza ou apaga registros.
+- Convites de uma empresa exigem o mesmo domínio de e-mail do administrador da empresa; a regra é aplicada no cadastro, na importação em lote e novamente antes do envio.
 - `whatsapp_webhook_events` também é append-only e guarda dado pessoal bruto
   (telefone, texto de mensagem) sem política de retenção — mesmo padrão já
   aceito para `log_auditoria`/`delegacoes_decisao`. Retenção/expurgo é decisão
@@ -263,7 +261,7 @@ Contrato completo dos tipos em `contracts/types.ts`. Detalhes de implementação
 
 - Alíquota ICMS ad rem é um valor de referência único (R$ 1,0061/L diesel) — parametrizável por UF via seed futuro.
 - CBS/IBS gera alerta informativo (extração de valor destacado entra com a obrigatoriedade plena em 2027).
-- Sessão stateless: trocar a senha não revoga tokens antigos.
+- Sessões são persistidas e revogáveis; logout, troca de senha e revogação invalidam sessões existentes.
 - Upload de imagem/PDF sem IA de visão → preenchimento assistido (configure `OCR_PROVIDER=vision`).
 
 ## 10. Roadmap (da especificação v1.1)

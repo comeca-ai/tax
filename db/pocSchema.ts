@@ -1,4 +1,4 @@
-import { bigint, foreignKey, json, mysqlTable, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { bigint, foreignKey, index, json, mysqlTable, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 import { colaboradores, despesas, empresas, usuarios } from "./schema";
 import type { EstadoCampo } from "../api/modules/reembolso/campo/dominio";
 import type { ConfiguracaoCampo } from "../api/modules/reembolso/campo/politica";
@@ -15,7 +15,7 @@ export const pocCampo = mysqlTable("poc_campo", {
   empresaId: bigint("empresa_id", { mode: "number", unsigned: true }).notNull().references(() => empresas.id),
   estado: json("estado").$type<EstadoCampo>().notNull(),
   atualizadoEm: timestamp("atualizado_em").notNull().defaultNow().onUpdateNow(),
-}, t => [foreignKey({ name: "poc_campo_colaborador_tenant_fk", columns: [t.empresaId, t.colaboradorId], foreignColumns: [colaboradores.empresaId, colaboradores.id] })]);
+}, t => [index("poc_campo_empresa_idx").on(t.empresaId), foreignKey({ name: "poc_campo_colaborador_tenant_fk", columns: [t.empresaId, t.colaboradorId], foreignColumns: [colaboradores.empresaId, colaboradores.id] })]);
 
 /** Unicidade por empresa, inclusive quando outro colaborador reenvia a nota. */
 export const pocDocumentos = mysqlTable("poc_documentos", {
