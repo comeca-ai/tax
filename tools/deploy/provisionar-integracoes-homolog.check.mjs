@@ -5,7 +5,7 @@ import { Readable } from 'node:stream';
 import { spawnSync } from 'node:child_process';
 import { validatePayload, prepareEnvironment, applyConfiguration, readPayload, TARGET } from './provisionar-integracoes-homolog-receiver.mjs';
 
-const payload = { version: 1, DIALOG_360_API_KEY: 'synthetic-dialog-credential', GOOGLE_MAPS_API_KEY: 'synthetic-maps-credential', API_NFE_IO: 'synthetic-fiscal-credential', OPENAI_API_KEY: 'synthetic-openai-credential' };
+const payload = { version: 1, DIALOG_360_API_KEY: 'synthetic-dialog-credential', GOOGLE_MAPS_API_KEY: 'synthetic-maps-credential', API_NFE_IO: 'synthetic-fiscal-credential' };
 const environment = "DATABASE_URL='mysql://reembolsa_homolog_app:synthetic@127.0.0.1:3306/reembolsa_homolog'\nAPP_HOST=127.0.0.1\nSMTP_PASS='preserve-me'\nWHATSAPP_POC_ENABLED=false\n";
 
 test('schema recusa campos de comando, campos ausentes e injeção', () => {
@@ -81,6 +81,7 @@ test('alvos, lock compartilhado e nomes GitHub são fixos', () => {
   const wrapper = fs.readFileSync('tools/deploy/provisionar-integracoes-homolog-command.sh', 'utf8');
   assert(wrapper.includes('/etc/reembolsa/.homolog-isolation.lock')); assert(wrapper.includes('test "$#" -eq 0'));
   const workflow = fs.readFileSync('.github/workflows/provisionar-integracoes-homolog.yml', 'utf8');
-  for (const key of ['API_KEY', 'API_GOOGLE_MAPS', 'API_NFE_IO', 'OPEN_AI_KEY']) assert(workflow.includes(`secrets.${key} }}`));
+  for (const key of ['API_KEY', 'API_GOOGLE_MAPS', 'API_NFE_IO']) assert(workflow.includes(`secrets.${key} }}`));
+  assert(!workflow.includes('OPEN_AI_KEY'));
   assert(!workflow.includes('upload-artifact'));
 });

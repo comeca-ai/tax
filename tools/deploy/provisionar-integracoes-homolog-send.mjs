@@ -14,8 +14,7 @@ try {
   const payload = validatePayload({ version: 1,
     DIALOG_360_API_KEY: process.env.DIALOG_360_API_KEY,
     GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
-    API_NFE_IO: process.env.API_NFE_IO,
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY });
+    API_NFE_IO: process.env.API_NFE_IO });
   const host = process.env.HOMOLOG_SSH_HOST;
   const port = process.env.HOMOLOG_SSH_PORT || '22';
   if (!host || !/^[A-Za-z0-9][A-Za-z0-9.-]*$/.test(host)

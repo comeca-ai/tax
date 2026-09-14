@@ -13,7 +13,7 @@ export const TARGET = Object.freeze({
   user: 'reembolsa-homolog',
   origin: 'http://127.0.0.1:3101',
 });
-const KEYS = ['DIALOG_360_API_KEY', 'GOOGLE_MAPS_API_KEY', 'API_NFE_IO', 'OPENAI_API_KEY'];
+const KEYS = ['DIALOG_360_API_KEY', 'GOOGLE_MAPS_API_KEY', 'API_NFE_IO'];
 export class SafeError extends Error {}
 function ensure(ok, code) { if (!ok) throw new SafeError(code); }
 
