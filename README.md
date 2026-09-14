@@ -210,6 +210,7 @@ Nenhuma outra parte do sistema muda — o wizard já exibe confiança por campo 
 | `npm start` | Servidor de produção |
 | `npx tsx db/migrations/apply.ts <arquivo.sql>` | Aplica uma migração SQL (não interativo, idempotente) |
 | `npm run db:generate` | Gera nova migração a partir de `db/schema.ts` (desenvolvimento) |
+| `db/migrations/*.sql` | Migrações versionadas; as migrações da POC (0016+) são aplicadas pelo procedimento de deploy e não devem ser reescritas |
 | `npm run test` | Testes (Vitest) |
 | `npm run check` | Type-check |
 
@@ -264,7 +265,7 @@ Contrato completo dos tipos em `contracts/types.ts`. Detalhes de implementação
 - Sessões são persistidas e revogáveis; logout, troca de senha e revogação invalidam sessões existentes.
 - Upload de imagem/PDF sem IA de visão → preenchimento assistido (configure `OCR_PROVIDER=vision`).
 
-## 10. Roadmap (da especificação v1.1)
+## 12. Roadmap (da especificação v1.1)
 
 1. ~~Fase 1 (MVP)~~ → entregue ampliado: todas as categorias + revisão + IRPJ/CSLL
 2. Captura de campos CBS/IBS conforme destaque obrigatório nas notas (2027+)
