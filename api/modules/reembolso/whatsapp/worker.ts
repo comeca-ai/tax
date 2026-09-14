@@ -38,7 +38,7 @@ export type MensagemCampo = {
   id: string;
   type: string;
   text?: { body?: string };
-  location?: { latitude: number; longitude: number };
+  location?: { latitude: number; longitude: number; name?: string; address?: string; accuracy?: number };
   timestamp?: string;
 };
 export type TratarCampo = (

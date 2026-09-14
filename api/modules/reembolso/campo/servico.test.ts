@@ -35,9 +35,10 @@ describe("serviço campo com persistência transacional simulada", () => {
     const ts = Math.floor(Date.now() / 1000);
     const comando = await interpretarMensagemCampo(identidade, { id: "c1", type: "text", text: "check-in", timestamp: ts });
     expect(comando?.textoResposta).toContain("localização");
-    const local = { id: "l1", type: "location", location: { latitude: -22, longitude: -43 }, timestamp: ts };
+    const local = { id: "l1", type: "location", location: { latitude: -22, longitude: -43, name: "Cliente Centro", address: "Rua A, 100", accuracy: 8 }, timestamp: ts };
     const resposta = await interpretarMensagemCampo(identidade, local);
     expect(estado?.presencas?.[0].pontos).toHaveLength(1);
+    expect(estado?.presencas?.[0].pontos[0]).toMatchObject({ nomeLocal: "Cliente Centro", endereco: "Rua A, 100", precisaoMetros: 8 });
     expect(await interpretarMensagemCampo(identidade, local)).toEqual(resposta);
     expect(estado?.presencas?.[0].pontos).toHaveLength(1);
     await interpretarMensagemCampo(identidade, { id: "c2", type: "text", text: "check-out", timestamp: ts });

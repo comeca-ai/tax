@@ -5,6 +5,9 @@ export const pontoSchema = z.object({
   tipo: z.enum(["check_in", "checkpoint", "check_out"]),
   latitude: z.number().finite().min(-90).max(90),
   longitude: z.number().finite().min(-180).max(180),
+  /** Metadados fornecidos pelo WhatsApp quando a localização referencia um endereço. */
+  nomeLocal: z.string().trim().min(1).max(200).optional(),
+  endereco: z.string().trim().min(1).max(500).optional(),
   ocorridoEm: z.string().datetime({ offset: true }),
   precisaoMetros: z.number().finite().nonnegative().optional(),
 });

@@ -79,14 +79,14 @@ export async function vincularPresencaCampo(identidade: IdentidadeCampo, presenc
   });
 }
 
-export async function interpretarMensagemCampo(identidade: IdentidadeCampo, mensagem: { id: string; type: string; text?: string; location?: { latitude: number; longitude: number }; timestamp: string | number }): Promise<{ textoResposta: string } | null> {
+export async function interpretarMensagemCampo(identidade: IdentidadeCampo, mensagem: { id: string; type: string; text?: string; location?: { latitude: number; longitude: number; name?: string; address?: string; accuracy?: number }; timestamp: string | number }): Promise<{ textoResposta: string } | null> {
   const comando = /^(check-?in|checkpoint|check-?out)(?:\s+([a-z0-9-]{7,8}))?$/i.exec(mensagem.text?.trim() ?? "");
   if (!comando && mensagem.type !== "location") return null;
   return alterarCampo(identidade, null, `conversa:${mensagem.id}`, estado => {
     estado.conversa ??= { pendente: null, respostas: [] };
     const timestampRecebido = typeof mensagem.timestamp === "number" || /^\d+$/.test(mensagem.timestamp) ? new Date(Number(mensagem.timestamp) * 1000) : new Date(mensagem.timestamp);
     if (Number.isFinite(timestampRecebido.getTime()) && timestampRecebido.getTime() <= Date.now() && timestampRecebido.getTime() > Date.parse(estado.conversa.ultimaMensagemEm ?? "1970-01-01")) estado.conversa.ultimaMensagemEm = timestampRecebido.toISOString();
-    const hash = createHash("sha256").update(JSON.stringify({ type: mensagem.type, text: mensagem.text ?? null, latitude: mensagem.location?.latitude ?? null, longitude: mensagem.location?.longitude ?? null, timestamp: String(mensagem.timestamp) })).digest("hex");
+    const hash = createHash("sha256").update(JSON.stringify({ type: mensagem.type, text: mensagem.text ?? null, location: mensagem.location ?? null, timestamp: String(mensagem.timestamp) })).digest("hex");
     const replay = estado.conversa.respostas.find(r => r.id === mensagem.id);
     if (replay) {
       if (replay.hash !== hash) throw new Error("Identificador de mensagem já usado com outro conteúdo.");
@@ -113,23 +113,24 @@ export async function interpretarMensagemCampo(identidade: IdentidadeCampo, mens
         const aberta = estado.presencas?.find(p => p.pontos.at(-1)?.tipo !== "check_out");
         const tipo = aberta ? "check_out" : "check_in";
         const presencaId = aberta?.id ?? randomUUID();
-        const ponto = pontoSchema.parse({ id: mensagem.id, tipo, ...mensagem.location, ocorridoEm: timestampRecebido.toISOString() });
+        const ponto = pontoSchema.parse({ id: mensagem.id, tipo, latitude: mensagem.location?.latitude, longitude: mensagem.location?.longitude, nomeLocal: mensagem.location?.name, endereco: mensagem.location?.address, precisaoMetros: mensagem.location?.accuracy, ocorridoEm: timestampRecebido.toISOString() });
         estado.presencas ??= [];
         const presenca = aberta ?? { id: presencaId, pontos: [] };
         if (!aberta) estado.presencas.push(presenca);
         const pontos = acrescentarPonto(presenca.pontos, ponto, new Date().toISOString());
         const novo = pontos.at(-1)!;
         presenca.pontos.push({ ...novo, comandoId: mensagem.id, comandoEm: timestampRecebido.toISOString() });
+        const referencia = mensagem.location?.address || mensagem.location?.name ? " Endereço da localização guardado para a quilometragem." : "";
         textoResposta = tipo === "check_in"
-          ? "Check-in registrado. Envie outra localização quando encerrar."
-          : "Check-out registrado!";
+          ? `Check-in registrado. Envie outra localização quando encerrar.${referencia}`
+          : `Check-out registrado!${referencia}`;
       } else if (pendente.fluxo !== "presenca") {
         // Comandos antigos não são reinterpretados após a separação dos fluxos.
         estado.conversa.pendente = null;
         textoResposta = "Envie novamente check-in ou check-out e depois sua localização.";
       } else {
         if (timestampRecebido.getTime() < Date.parse(pendente.comandoEm)) throw new Error("Localização anterior ao comando; envie sua localização atual.");
-        const ponto = pontoSchema.parse({ id: mensagem.id, tipo: pendente.tipo, ...mensagem.location, ocorridoEm: timestampRecebido.toISOString() });
+        const ponto = pontoSchema.parse({ id: mensagem.id, tipo: pendente.tipo, latitude: mensagem.location?.latitude, longitude: mensagem.location?.longitude, nomeLocal: mensagem.location?.name, endereco: mensagem.location?.address, precisaoMetros: mensagem.location?.accuracy, ocorridoEm: timestampRecebido.toISOString() });
         estado.presencas ??= [];
         let presenca = estado.presencas.find(p => p.id === pendente.presencaId);
         if (!presenca) {
@@ -141,7 +142,8 @@ export async function interpretarMensagemCampo(identidade: IdentidadeCampo, mens
         const novo = pontos.at(-1)!;
         presenca.pontos.push({ ...novo, comandoId: pendente.comandoId, comandoEm: pendente.comandoEm });
         estado.conversa.pendente = null;
-        textoResposta = pendente.tipo === "check_out" ? "Check-out registrado!" : pendente.tipo === "check_in" ? "Check-in registrado!" : "Checkpoint registrado!";
+        const referencia = mensagem.location?.address || mensagem.location?.name ? " Endereço da localização guardado para a quilometragem." : "";
+        textoResposta = pendente.tipo === "check_out" ? `Check-out registrado!${referencia}` : pendente.tipo === "check_in" ? `Check-in registrado!${referencia}` : `Checkpoint registrado!${referencia}`;
       }
     }
     estado.conversa.respostas.push({ id: mensagem.id, texto: textoResposta, hash });

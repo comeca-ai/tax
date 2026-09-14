@@ -162,9 +162,10 @@ function OperacaoCampo({
         {dados.presencas?.map(p => <article key={p.id} className="rounded-lg border border-line p-4" data-testid="presenca-campo">
           <p className="font-semibold">{p.pontos.at(-1)?.tipo === "check_out" ? "Presença encerrada" : "Presença aberta"}</p>
           <p className="text-xs text-text-500">ID: {p.id}</p>
-          {p.pontos.map(evento => <p key={evento.id} className="mt-2 text-sm">
+            {p.pontos.map(evento => <p key={evento.id} className="mt-2 text-sm">
             {rotulo(evento.tipo)} · <time dateTime={evento.comandoEm}>{new Date(evento.comandoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} (Brasília)</time>
             {" · Localização: "}{evento.latitude}, {evento.longitude}
+            {evento.nomeLocal ? ` · ${evento.nomeLocal}` : ""}{evento.endereco ? ` · ${evento.endereco}` : ""}
           </p>)}
           {p.jornadaId ? <p className="mt-2 text-sm">Vinculada à quilometragem.</p> : p.pontos.at(-1)?.tipo === "check_out" && <button type="button" className={campoButtonClass} disabled={busy || !veiculoPresenca} onClick={() => void operar(() => vincular.mutateAsync({ colaboradorId, presencaId: p.id, veiculo: veiculoPresenca }), () => toast.success("Presença vinculada à quilometragem."))}>Vincular à quilometragem</button>}
         </article>)}
