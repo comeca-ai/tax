@@ -17,6 +17,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { formatBRL } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { agruparObservacoes } from "./observacoes"
+import { ResumoCamposCustomizados } from "./PoliticaCamposStep"
 import {
   REEMBOLSAVEL_LABELS_CURTO,
   TEXTO_SEM_APROVACAO_AUTOMATICA,
@@ -101,7 +102,7 @@ function ChipValor({ rotulo, valor, tone }: { rotulo: string; valor: number; ton
  * (v1.7), mostra cabeçalho de números, o que o agente vai aplicar (derivado)
  * em cards e as regras em accordion por tema.
  */
-export default function PoliticaResumo({ regras, className }: PoliticaResumoProps) {
+function ResumoRegras({ regras, className }: PoliticaResumoProps) {
   const limites = (Object.entries(regras.limitesPorCategoria ?? {}) as [CategoriaDespesa, number | null][])
     .filter(([, valor]) => valor != null)
   const aprovaPorCategoria = (
@@ -399,4 +400,8 @@ export default function PoliticaResumo({ regras, className }: PoliticaResumoProp
       )}
     </div>
   )
+}
+
+export default function PoliticaResumo(props: PoliticaResumoProps) {
+  return <div className="flex flex-col gap-4"><ResumoRegras {...props} /><ResumoCamposCustomizados campos={props.regras.camposCustomizados ?? []} /></div>
 }

@@ -14,6 +14,7 @@ import {
   type UnidadeLimite,
 } from "@contracts/types";
 import { consolidarRegras } from "./derivar";
+import { mapearCamposCustomizados } from "./camposCustomizados";
 import type { ArquivoPolitica, PolicyParser } from "./parser";
 import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
 
@@ -61,11 +62,14 @@ Regras de preenchimento:
 - Nao invente valores. Se a politica nao definir limite, use null e registre o caso em "ambiguidades".
 - Liste em "ambiguidades" todo ponto que impeca decisao automatica: limite ausente, recomendacao que nao e vedacao, prazo com contagem indefinida, conflito entre secoes.
 - Use apenas o que esta escrito no documento. Nao aplique conhecimento externo.
+- Extraia tambem "campos_customizados": definicoes dos dados que a politica exige distinguir ou coletar, agrupados em "cargo", "funcao" e "particularidade". Cargos sao posicoes organizacionais; funcoes sao responsabilidades (solicitante, aprovador etc.). Particularidades incluem centro de custo, projeto, destino, motivo, veiculo e outras especificidades SOMENTE quando constarem no documento.
+- Para cargos/funcoes enumerados, crie um campo de selecao com as opcoes literais do documento. Para cada outra particularidade, proponha nome, tipo (texto, numero, data, selecao, booleano), descricao, opcoes (somente para selecao) e obrigatorio (true SOMENTE se a exigencia for explicita). Inclua em "fonte" um trecho literal curto e a referencia da secao/pagina quando disponivel. Nao invente cargos, opcoes, obrigatoriedade ou referencias. Nao confunda esses campos com permissoes do sistema. Maximo 100 campos; nomes/opcoes ate 120 caracteres, descricao/fonte ate 1000 caracteres. Sem dados identificados, use [].
 - Seja conciso: "descricao" e "condicao" com no maximo 200 caracteres cada, sem copiar paragrafos do documento; no maximo 15 ambiguidades, as mais relevantes.
 
 Responda APENAS com um JSON valido, COMPACTO (sem markdown, sem comentarios, sem quebras de linha ou espacos decorativos), exatamente nesta estrutura:
 {
   "politica": { "titulo": string, "vigencia": string ou null, "moeda_padrao": string },
+  "campos_customizados": [ { "grupo": "cargo"|"funcao"|"particularidade", "nome": string, "tipo": "texto"|"numero"|"data"|"selecao"|"booleano", "obrigatorio": boolean, "opcoes": [strings], "descricao": string, "fonte": string } ],
   "qualidade_extracao": { "legivel": boolean, "confianca": numero entre 0 e 1, "paginas_com_problema": [numeros], "observacoes": string },
   "regras": [ { "id": string kebab-case, "tema": string, "categoria": string, "alcance": "categoria"|"item", "descricao": string, "condicao": string ou null, "reembolsavel": "sim"|"excecao"|"vedado", "valor_limite": numero ou null, "moeda": string ou null, "unidade_limite": "dia"|"mes"|"viagem"|"evento"|"percentual"|"dias_antecedencia"|"dias_para_pagamento" ou null, "exige_comprovante": boolean } ],
   "ambiguidades": [ { "id": string kebab-case, "severidade": "alta"|"media"|"baixa", "local": string, "descricao": string } ]
@@ -94,6 +98,7 @@ export type RegraLLM = {
 };
 
 export type RulesetLLM = {
+  campos_customizados?: unknown;
   politica?: { titulo?: string; vigencia?: string | null; moeda_padrao?: string };
   qualidade_extracao?: {
     legivel?: boolean;
@@ -235,6 +240,7 @@ export function mapearRuleset(ruleset: RulesetLLM): {
   const ambiguidades = Array.isArray(ruleset.ambiguidades) ? ruleset.ambiguidades : [];
 
   const regrasExtraidas = regrasExtraidasDe(regras);
+  const customizados = mapearCamposCustomizados(ruleset.campos_customizados);
 
   const camposPendentes = ambiguidades
     .slice(0, 15)
@@ -249,8 +255,8 @@ export function mapearRuleset(ruleset: RulesetLLM): {
   ].join("\n");
 
   return {
-    regras: consolidarRegras(regrasPoliticaSchema.parse({ regrasExtraidas })),
-    camposPendentes,
+    regras: consolidarRegras(regrasPoliticaSchema.parse({ regrasExtraidas, camposCustomizados: customizados.campos })),
+    camposPendentes: [...camposPendentes, ...customizados.pendentes],
     resumo,
   };
 }

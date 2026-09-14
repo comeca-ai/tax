@@ -5,6 +5,7 @@ import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { MistralPolicyParser } from "./mistral";
 import { OpenAiPolicyParser } from "./openai";
 import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
+import { extrairCamposCustomizadosLocais } from "./camposCustomizados";
 import {
   regrasPoliticaSchema,
   type CategoriaDespesa,
@@ -202,7 +203,7 @@ export class HeuristicPolicyParser implements PolicyParser {
       };
     }
 
-    const regrasInput: Record<string, unknown> = {};
+    const regrasInput: Record<string, unknown> = { camposCustomizados: extrairCamposCustomizadosLocais(texto) };
     const camposPendentes: string[] = [];
     const observacoes: string[] = [];
     let regrasExtraidas = 0;
@@ -322,6 +323,7 @@ export class HeuristicPolicyParser implements PolicyParser {
           : ("baixa" as const);
 
     camposPendentes.push("regrasExtraidas");
+    camposPendentes.push("Campos customizados: a leitura local identifica somente listas explícitas; confira cargos, funções e particularidades no documento.");
     if (camposPendentes.length > 0) {
       avisos.push(
         `Regras não extraídas automaticamente: ${camposPendentes.join(", ")} — confirmar via preenchimento assistido.`,
