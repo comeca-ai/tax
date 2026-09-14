@@ -8,9 +8,20 @@ function required(name: string): string {
   return value ?? "";
 }
 
+/** A assinatura da sessão nunca pode usar uma chave vazia, em nenhum ambiente. */
+export function segredoSessaoObrigatorio(
+  source: Record<string, string | undefined>
+): string {
+  const value = source.APP_SECRET;
+  if (!value || !value.trim()) {
+    throw new Error("APP_SECRET must be explicitly configured and non-empty.");
+  }
+  return value;
+}
+
 export const env = {
   appId: required("APP_ID"),
-  appSecret: required("APP_SECRET"),
+  appSecret: segredoSessaoObrigatorio(process.env),
   isProduction: process.env.NODE_ENV === "production",
   databaseUrl: required("DATABASE_URL"),
   appUrl: process.env.APP_URL || "http://localhost:3000",

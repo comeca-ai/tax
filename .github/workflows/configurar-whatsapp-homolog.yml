@@ -50,7 +50,7 @@ jobs:
       - name: Aplicar somente os dois secrets e testar autenticação local
         env:
           CONFIRM_HOMOLOG: ${{ inputs.confirm_homolog }}
-          DIALOG_360_API_KEY: ${{ secrets.DIALOG_360_API_KEY || secrets.API_KEY }}
+          DIALOG_360_API_KEY: ${{ secrets.API_KEY }}
           DIALOG_360_WEBHOOK_SECRET: ${{ secrets.DIALOG_360_WEBHOOK_SECRET }}
           HOMOLOG_SSH_PRIVATE_KEY: ${{ secrets.HOMOLOG_SSH_PRIVATE_KEY }}
           HOMOLOG_SSH_KNOWN_HOSTS: ${{ secrets.HOMOLOG_SSH_KNOWN_HOSTS }}

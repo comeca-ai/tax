@@ -34,6 +34,8 @@ const PROMPT = `Você é um extrator de dados de cupons fiscais e notas fiscais 
 Analise a imagem e devolva SOMENTE um JSON com estas chaves (null quando não legível):
 {
   "cnpjEmitente": string no formato "00.000.000/0000-00" ou null,
+  "cnpjDestinatario": string com 14 dígitos do CNPJ EXPLÍCITO do destinatário/consumidor ou null,
+  "chaveAcesso": string com os 44 dígitos da chave de acesso inteiramente legível ou null,
   "valor": número decimal com ponto (ex.: 90.14) — o VALOR TOTAL do documento — ou null,
   "dataFatoGerador": string ISO "yyyy-mm-dd" ou null,
   "litros": número (apenas para combustível; quantidade de litros) ou null,
@@ -46,10 +48,14 @@ Analise a imagem e devolva SOMENTE um JSON com estas chaves (null quando não le
 }
 Regras de categoria: posto/combustível → combustivel; restaurante/lanche/refeição → alimentacao; hotel/pousada → hospedagem; pedágio → pedagio; Uber/99 → uber; táxi → taxi. Compra de mercado/mercearia NÃO é alimentacao — nesses casos use null.
 Regras de tipoDocumento: cupom fiscal, NFC-e, NF-e, DANFE ou nota de serviço → nota_fiscal; recibo emitido pelo prestador → recibo; extrato bancário ou "extrato de conta" → extrato_conta; comprovante de Pix/TED/DOC/cartão/maquininha → comprovante_pagamento; qualquer outra coisa → outro. Use confiancaTipo "alta" SOMENTE quando o tipo é inequívoco; na dúvida, "media" ou "baixa". Não invente.
+O CNPJ do emitente é o fornecedor; cnpjDestinatario é exclusivamente o CNPJ do comprador/destinatário identificado no documento. Não copie o emitente para o destinatário, não use CPF como CNPJ e não infira destinatário pelo cadastro da empresa. Consumidor identificado por CPF não fornece cnpjDestinatario.
+Para chaveAcesso, transcreva todos os 44 dígitos legíveis; não complete por cálculo, não reconstrua dígitos, não confunda número da nota/protocolo/QR com chave. Dígito ausente ou duvidoso exige null para a chave inteira.
 Não invente valores: se não estiver legível, use null.`;
 
 type ExtracaoIA = {
   cnpjEmitente: string | null;
+  cnpjDestinatario: string | null;
+  chaveAcesso: string | null;
   valor: number | null;
   dataFatoGerador: string | null;
   litros: number | null;
@@ -69,6 +75,10 @@ export function normalizarExtracaoIA(raw: unknown): ExtracaoIA {
     typeof o.cnpjEmitente === "string"
       ? (o.cnpjEmitente.match(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/)?.[0] ?? null)
       : null;
+  const destinatario = typeof o.cnpjDestinatario === "string" && /^\s*(?:\d{14}|\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})\s*$/.test(o.cnpjDestinatario)
+    ? o.cnpjDestinatario.replace(/\D/g, "") : null;
+  const chave = typeof o.chaveAcesso === "string" && /^[\d\s]+$/.test(o.chaveAcesso)
+    ? o.chaveAcesso.replace(/\s/g, "") : null;
 
   let valor: number | null = null;
   if (typeof o.valor === "number" && Number.isFinite(o.valor)) valor = o.valor;
@@ -109,6 +119,8 @@ export function normalizarExtracaoIA(raw: unknown): ExtracaoIA {
 
   return {
     cnpjEmitente: cnpj,
+    cnpjDestinatario: destinatario,
+    chaveAcesso: chave?.length === 44 ? chave : null,
     valor,
     dataFatoGerador: data,
     litros,
@@ -131,11 +143,11 @@ function extraiJsonDaResposta(texto: string): unknown {
 }
 
 /** A API pode expor o texto consolidado ou apenas o item de saída. */
+class ErroProviderVisao extends Error {}
+
 function textoRespostaOpenAI(resposta: unknown): string {
   const dados = resposta as {
     output_text?: unknown;
-    status?: unknown;
-    incomplete_details?: unknown;
     output?: { content?: { type?: string; text?: string }[] }[];
   };
   if (typeof dados.output_text === "string" && dados.output_text.trim()) return dados.output_text;
@@ -146,9 +158,7 @@ function textoRespostaOpenAI(resposta: unknown): string {
     .join("\n")
     .trim();
   if (texto) return texto;
-  throw new Error(
-    `OpenAI resposta vazia (status=${String(dados.status ?? "desconhecido")}; detalhe=${JSON.stringify(dados.incomplete_details ?? null).slice(0, 120)})`,
-  );
+  throw new ErroProviderVisao("resposta sem conteúdo utilizável");
 }
 
 async function comTimeout<T>(fn: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
@@ -161,12 +171,16 @@ async function comTimeout<T>(fn: (signal: AbortSignal) => Promise<T>, ms: number
   }
 }
 
-/** JSON Schema da annotation do Mistral OCR — as descriptions orientam o modelo (mesmas regras do PROMPT). */
+/** Schema compartilhado Mistral/Responses: todos required; ausentes usam null.
+ * https://developers.openai.com/api/docs/guides/structured-outputs
+ */
 const SCHEMA_ANNOTATION = {
   type: "object",
   additionalProperties: false,
   required: [
     "cnpjEmitente",
+    "cnpjDestinatario",
+    "chaveAcesso",
     "valor",
     "dataFatoGerador",
     "litros",
@@ -181,6 +195,14 @@ const SCHEMA_ANNOTATION = {
     cnpjEmitente: {
       type: ["string", "null"],
       description: 'CNPJ do emitente no formato "00.000.000/0000-00"; null se não legível',
+    },
+    cnpjDestinatario: {
+      type: ["string", "null"],
+      description: "CNPJ do destinatário/comprador EXPLICITAMENTE impresso, com 14 dígitos. Não copiar emitente, inferir do cadastro nem usar CPF. Ausente ou ilegível: null.",
+    },
+    chaveAcesso: {
+      type: ["string", "null"],
+      description: "Chave de acesso completa de 44 dígitos legíveis. Não completar nem reconstruir dígitos; não confundir com número da nota ou protocolo. Qualquer dígito ausente/duvidoso: null.",
     },
     valor: {
       type: ["number", "null"],
@@ -238,7 +260,7 @@ export function extrairAnnotationMistral(resposta: unknown): unknown {
 
 async function chamarMistral(arquivo: ArquivoNota): Promise<ExtracaoIA> {
   const apiKey = process.env.MISTRAL_API_KEY;
-  if (!apiKey) throw new Error("MISTRAL_API_KEY ausente");
+  if (!apiKey) throw new ErroProviderVisao("credencial não configurada");
   // Mesma variável já lida por `policy/mistral.ts` — nada novo precisa entrar no .env do servidor.
   const model = process.env.MISTRAL_OCR_MODEL ?? "mistral-ocr-latest";
 
@@ -266,8 +288,7 @@ async function chamarMistral(arquivo: ArquivoNota): Promise<ExtracaoIA> {
     60_000,
   );
   if (!res.ok) {
-    const corpo = await res.text().catch(() => "");
-    throw new Error(`Mistral OCR HTTP ${res.status}: ${corpo.slice(0, 200)}`);
+    throw new ErroProviderVisao(`HTTP ${res.status}`);
   }
   const json = (await res.json()) as unknown;
   return normalizarExtracaoIA(extrairAnnotationMistral(json));
@@ -275,7 +296,7 @@ async function chamarMistral(arquivo: ArquivoNota): Promise<ExtracaoIA> {
 
 async function chamarOpenAI(arquivo: ArquivoNota): Promise<ExtracaoIA> {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY ausente");
+  if (!apiKey) throw new ErroProviderVisao("credencial não configurada");
   const model = process.env.OCR_OPENAI_MODEL ?? "gpt-4o-mini";
 
   const res = await comTimeout(
@@ -320,8 +341,7 @@ async function chamarOpenAI(arquivo: ArquivoNota): Promise<ExtracaoIA> {
     60_000,
   );
   if (!res.ok) {
-    const corpo = await res.text().catch(() => "");
-    throw new Error(`OpenAI HTTP ${res.status}: ${corpo.slice(0, 200)}`);
+    throw new ErroProviderVisao(`HTTP ${res.status}`);
   }
   return normalizarExtracaoIA(extraiJsonDaResposta(textoRespostaOpenAI(await res.json())));
 }
@@ -364,6 +384,11 @@ export class VisaoOcrProvider implements OcrProvider {
         if (ia.valor == null) pendentes.push("valor");
         if (!ia.dataFatoGerador) pendentes.push("dataFatoGerador");
         if (!ia.categoriaSugerida) pendentes.push("categoria");
+        if (ia.categoriaSugerida === "combustivel") {
+          if (!ia.cnpjDestinatario) pendentes.push("cnpjDestinatario");
+          if (!ia.chaveAcesso) pendentes.push("chaveAcesso");
+          if (ia.litros === null) pendentes.push("litros");
+        }
         const avisos: string[] = [];
         if (ia.consumidorIdentificado === false) {
           avisos.push("Consumidor NÃO identificado no documento (sem CPF/CNPJ).");
@@ -371,6 +396,8 @@ export class VisaoOcrProvider implements OcrProvider {
         if (ia.resumoItens) avisos.push(`Itens: ${ia.resumoItens}`);
         return {
           cnpjEmitente: ia.cnpjEmitente,
+          cnpjDestinatario: ia.cnpjDestinatario,
+          chaveAcesso: ia.chaveAcesso,
           cfop: null,
           ncm: null,
           cst: null,
@@ -386,13 +413,15 @@ export class VisaoOcrProvider implements OcrProvider {
           confiancaTipo: ia.confiancaTipo,
         };
       } catch (e) {
-        erros.push(`${t.nome}: ${e instanceof Error ? e.message : "erro"}`);
+        erros.push(`${t.nome}: ${e instanceof ErroProviderVisao ? e.message : "falha de transporte ou resposta inválida"}`);
       }
     }
 
     // Nunca trava o fluxo: sem leitura → revisão manual (D-014)
     return {
       cnpjEmitente: null,
+      cnpjDestinatario: null,
+      chaveAcesso: null,
       cfop: null,
       ncm: null,
       cst: null,

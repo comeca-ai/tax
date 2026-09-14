@@ -23,6 +23,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { useActiveCompany } from "@/hooks/useActiveCompany"
 import type { Perfil, RegimeTributario } from "@contracts/types"
 import EmpresaForm from "../components/EmpresaForm"
+import ConfiguracaoFiscal from "../components/ConfiguracaoFiscal"
 import type { EmpresaFormValores } from "../components/EmpresaForm"
 import { REGIME_ROTULO } from "@/components/ops/rotulos"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -296,6 +297,7 @@ export default function Empresas() {
 
               {/* Sidebar de status */}
               <div className="flex flex-col gap-4">
+                <ConfiguracaoFiscal key={activeCompany.id} empresaId={activeCompany.id} />
                 {/* Checklist de completude */}
                 <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-card">
                   <div

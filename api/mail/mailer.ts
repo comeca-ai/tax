@@ -1,6 +1,11 @@
 import nodemailer from "nodemailer";
 import { PERFIL_LABELS, type Perfil } from "@contracts/types";
 
+/** Campos cadastrados nunca se tornam marcação ativa no e-mail. */
+export function escaparHtmlEmail(value: string): string {
+  return value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
+}
+
 /**
  * Mailer plugável (v1.2.0): se SMTP_HOST não estiver configurado, retorna
  * { enviado: false } e o caller devolve o link de aceite para o admin
@@ -73,9 +78,8 @@ export async function enviarConviteEmail(opts: {
 }
 
 /**
- * Convite do colaborador (v1.9.1). O canal do convite é o E-MAIL: o WhatsApp
- * está fora por ora (decisão do dono, commit `feabce5`), então o link leva à
- * tela de aceite do painel — `/convite/<token>` — onde a pessoa cria a senha.
+ * Convite de acesso por e-mail. O template WhatsApp de boas-vindas é outro
+ * envio e não contém o link de aceite. A pessoa cria a senha no painel.
  * Sem SMTP (ou falhando), devolve `{ enviado: false }` e o caller mostra o
  * link para o admin copiar e mandar por onde quiser.
  */
@@ -105,10 +109,10 @@ export async function enviarConviteColaboradorEmail(opts: {
   const html = `
 <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a1a;">
   <h2 style="color: #0f766e;">Ative seu acesso ao reembolso</h2>
-  <p>Olá, <strong>${opts.nome}</strong>! A <strong>${opts.empresa}</strong> cadastrou você no reembolso.</p>
+  <p>Olá, <strong>${escaparHtmlEmail(opts.nome)}</strong>! A <strong>${escaparHtmlEmail(opts.empresa)}</strong> cadastrou você no reembolso.</p>
   <p>Abra o link abaixo, escolha uma senha e comece a enviar suas despesas:</p>
   <p style="margin: 24px 0;">
-    <a href="${opts.link}"
+    <a href="${escaparHtmlEmail(opts.link)}"
        style="background: #0f766e; color: #ffffff; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
       Ativar meu acesso
     </a>
@@ -131,8 +135,8 @@ export async function enviarConviteColaboradorEmail(opts: {
       html,
     });
     return { enviado: true };
-  } catch (err) {
-    console.error("[mailer] Falha ao enviar convite do colaborador:", err);
+  } catch {
+    console.error("[mailer] Envio do convite do colaborador não confirmado; verificar registro técnico.");
     return { enviado: false };
   }
 }
@@ -192,8 +196,8 @@ export async function enviarResetSenhaEmail(opts: {
       html,
     });
     return { enviado: true };
-  } catch (err) {
-    console.error("[mailer] Falha ao enviar e-mail de reset:", err);
+  } catch {
+    console.error("[mailer] Falha ao enviar e-mail de reset; detalhes sensíveis omitidos.");
     return { enviado: false };
   }
 }

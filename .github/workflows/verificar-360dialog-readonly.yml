@@ -56,7 +56,7 @@ jobs:
       - name: Consultar saúde e configuração, sem alterar provedor
         id: consulta
         env:
-          DIALOG_360_API_KEY: ${{ secrets.DIALOG_360_API_KEY || secrets.API_KEY }}
+          DIALOG_360_API_KEY: ${{ secrets.API_KEY }}
           DIALOG_360_WEBHOOK_SECRET: ${{ secrets.DIALOG_360_WEBHOOK_SECRET }}
         run: |
           node tools/whatsapp/verificar-360dialog-readonly.mjs

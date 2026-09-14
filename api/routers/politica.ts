@@ -29,7 +29,7 @@ import { assertAdminDaEmpresa, assertEmpresaAcesso, registrarLog } from "./_shar
  * (garantido na transação de ativação).
  */
 
-const UPLOADS_DIR = path.join(process.cwd(), "uploads", "politicas");
+const UPLOADS_DIR = path.join(process.env.UPLOADS_DIR ?? path.join(process.cwd(), "uploads"), "politicas");
 
 function nomeArquivoSeguro(nome: string): string {
   return nome.replace(/[^a-zA-Z0-9_.-]/g, "_").slice(-120);
@@ -57,7 +57,9 @@ export const politicaRouter = createRouter({
   upload: protectedProcedure
     .input(politicaUploadInput)
     .mutation(async ({ input, ctx }) => {
-      await assertEmpresaAcesso(ctx, input.empresaId);
+      // Criar um rascunho também altera a política; não basta poder consultá-la.
+      // Autorizar antes do parser evita trabalho externo e escrita por leitores.
+      await assertAdminDaEmpresa(ctx, input.empresaId);
       const db = getDb();
 
       const parser = getPolicyParser();

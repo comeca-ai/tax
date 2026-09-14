@@ -1,0 +1,63 @@
+{
+  "run": "e8c1bde8-ca02-41d6-ba72-e08d3153900b",
+  "startedAt": "2026-09-14T01:37:02.279Z",
+  "sourceCommit": "1eab6fee72cbe65985383a3b917e1bed321610a2",
+  "origin": "http://127.0.0.1:3199",
+  "database": "reembolsa_poc_test_20260913",
+  "syntheticOnly": true,
+  "sessionInjected": true,
+  "externalRequestsAllowed": false,
+  "checks": [
+    {
+      "name": "anonymous-protected-route",
+      "passed": true
+    },
+    {
+      "name": "dashboard-authenticated",
+      "passed": true
+    },
+    {
+      "name": "review-queue-and-detail",
+      "passed": true
+    },
+    {
+      "name": "policy-active",
+      "passed": true
+    },
+    {
+      "name": "policy-upload-empty",
+      "passed": true
+    },
+    {
+      "name": "field-tenant-selection",
+      "passed": true
+    },
+    {
+      "name": "company-switch-clears-person",
+      "passed": true
+    },
+    {
+      "name": "mobile-layout-menu",
+      "passed": true
+    }
+  ],
+  "screenshots": [
+    "01-login-anonimo.png",
+    "02-dashboard.png",
+    "03-fila-detalhe.png",
+    "04-politica.png",
+    "05-upload.png",
+    "06-campo.png",
+    "07-troca-empresa.png",
+    "08-menu-mobile.png",
+    "09-campo-mobile.png"
+  ],
+  "browserErrors": 0,
+  "blockedExternalRequests": 6,
+  "cleanup": true,
+  "success": true,
+  "scriptSha256": "d56cacfc3143ce1f08685f5d4f7ba7d3b2a51e06b6429896f6abf30534942089",
+  "serverArtifactSha256": "200c49fa6e2ea76b0185d132530cf7babd0dbcf35b6e1c2cf8ca546731be5cc6",
+  "serverOutputBytesSuppressed": 28,
+  "finishedAt": "2026-09-14T01:37:19.026Z"
+}

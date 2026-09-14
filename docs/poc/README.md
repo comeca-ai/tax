@@ -38,6 +38,42 @@ Documento no CNPJ do empregador não é confirmação de crédito tributário.
 - As 17 issues abaixo representam trabalho pendente, inclusive integração e
   homologação de bases já disponíveis. Nenhuma está concluída neste documento.
 
+## Regra transversal — ajustes mantendo o padrão
+
+Adição solicitada pelo usuário em 13/09/2026: os ajustes necessários em
+frontends, chaves, endpoints e integrações fazem parte da implementação da POC,
+preservando o padrão visual e técnico do projeto. Esta regra não declara as
+entregas concluídas nem amplia a autorização para custos ou alterações em produção.
+
+- Frontend: reutilizar componentes, tokens, tipografia e navegação do painel;
+  manter autenticação, permissões, seleção de empresa e estados reais de
+  carregamento, vazio e erro. O ZIP é referência visual, não substitui a aplicação
+  por um protótipo com dados ou ações simulados.
+- Backend e integrações: manter contratos, validação, isolamento por empresa,
+  idempotência e convenções existentes. Mudanças incompatíveis exigem migração
+  explícita e documentada, sem fallback silencioso de credenciais.
+- Chaves: usar configuração de servidor e armazenamento de segredos; nunca
+  incluir valores no frontend, Git, documentação ou logs. Mudança de nome não
+  comprova rotação nem revogação de uma credencial.
+- Verificação: incluir testes unitários e de regressão dos comportamentos
+  alterados; validar a integração e as telas em homologação. Registrar evidências,
+  limitações e procedimentos de reversão antes de declarar aceite.
+- Coordenação: os agentes responsáveis por frontend, transporte/segurança e
+  campo/combustível aplicam esta regra; a integração final revisa os contratos
+  entre as frentes. Ajustes não autorizam compras, serviços pagos ou remoção de
+  controles de segurança para cumprir o prazo.
+
+### Limite autorizado para testes externos
+
+Em 13/09/2026, o usuário autorizou chamadas em até 20 testes. Para controle
+conservador, cada chamada externa de teste consome uma unidade desse limite,
+inclusive retentativas e chamadas adicionais dentro do mesmo cenário. Testes
+unitários locais com respostas simuladas não consomem essa cota. O coordenador
+centraliza as execuções e registra cenário, horário, resultado e saldo, sem
+credenciais ou dados pessoais nos registros. Esgotado o limite, novas chamadas
+exigem autorização; a autorização quantitativa não confirma gratuidade nem
+autoriza compra de créditos ou contratação de serviços.
+
 ## Cinco marcos
 
 | Marco | Resultado | Entregas |

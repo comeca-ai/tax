@@ -1,0 +1,49 @@
+{
+  "em": "2026-09-13T15:07:45.424Z",
+  "somenteDadosSinteticos": true,
+  "limite": 20,
+  "eventos": [
+    {
+      "consulta": 1,
+      "cenario": "ocr_pdf_sintetico",
+      "destino": "openai",
+      "reservadoEm": "2026-09-13T15:07:38.841Z",
+      "estado": "reservada"
+    },
+    {
+      "consulta": 1,
+      "estado": "respondida",
+      "http": 200,
+      "tokensEntrada": 1258,
+      "tokensSaida": 124
+    },
+    {
+      "consulta": 2,
+      "cenario": "politica_texto_sintetico",
+      "destino": "openai",
+      "reservadoEm": "2026-09-13T15:07:42.414Z",
+      "estado": "reservada"
+    },
+    {
+      "consulta": 2,
+      "estado": "respondida",
+      "http": 200,
+      "tokensEntrada": 1253,
+      "tokensSaida": 296
+    }
+  ],
+  "resultados": [
+    {
+      "cenario": "ocr_pdf_sintetico",
+      "provedorOpenai": true,
+      "totalCorreto": true,
+      "dataCorreta": true,
+      "litrosCorretos": true
+    },
+    {
+      "cenario": "politica_texto_sintetico",
+      "provedorOpenai": true,
+      "possuiRegras": true
+    }
+  ]
+}

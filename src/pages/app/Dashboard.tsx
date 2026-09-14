@@ -51,6 +51,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import QueryError from "@/components/painel/QueryError";
 import type { CategoriaDespesa, NivelConfianca } from "@contracts/types";
 import {
   CATEGORIA_COR,
@@ -556,6 +557,10 @@ export default function Dashboard() {
         </div>
       </motion.div>
     );
+  }
+
+  if (resumo.isError || despesasQ.isError) {
+    return <QueryError titulo="Visão geral indisponível" onRetry={() => { void resumo.refetch(); void despesasQ.refetch(); }} />;
   }
 
   const subtitulo = activeCompany

@@ -14,8 +14,8 @@ Não registrar os valores neste documento, em commits, logs ou chat.
 
 | Nome no projeto | Significado | Uso atual |
 |---|---|---|
-| `API_KEY` | Chave de API gerada para o canal na 360dialog; nome atual no GitHub | Os workflows a mapeiam para `DIALOG_360_API_KEY`, usado internamente no header `D360-API-KEY` |
-| `DIALOG_360_API_KEY` | Nome interno da variável e nome de secret legado aceito | Tem precedência quando ambos os nomes estão cadastrados |
+| `API_KEY` | Chave de API gerada para o canal na 360dialog; único nome aceito no GitHub | Os workflows a mapeiam explicitamente para `DIALOG_360_API_KEY`, usado internamente no header `D360-API-KEY` |
+| `DIALOG_360_API_KEY` | Nome interno da variável no servidor | Não é consultado como secret GitHub; não há fallback ou precedência entre duas chaves |
 | `URL_API_MENSAGENS` | Endereço da API de mensagens exibido pela 360dialog | Cadastrado pelo usuário como secret; o código atual não usa esse valor para escolher endpoints |
 | `DIALOG_360_WEBHOOK_SECRET` | Segredo definido pela aplicação para autenticar eventos recebidos | O receptor atual exige correspondência literal com `Authorization`; não é uma segunda chave emitida pela 360dialog |
 
@@ -46,7 +46,7 @@ O workflow [verificar-secrets-whatsapp.yml](../../.github/workflows/verificar-se
 agora executa somente por disparo manual a partir da `main`, com confirmação
 explícita e no environment `homologacao`. O resultado fica no resumo imutável
 da execução; o workflow não escreve commits no repositório.
-Ele informa a presença dos nomes separadamente e exige somente a API key
+Ele informa a presença dos nomes separadamente e exige somente `API_KEY`
 para concluir essa checagem. A presença da URL ou do segredo do receptor não
 é confundida com a validade da chave nem com o aceite da integração.
 

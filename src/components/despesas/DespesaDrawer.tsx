@@ -1,3 +1,4 @@
+import EnvioWhatsapp from "./EnvioWhatsapp"
 import { useMemo, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import {
@@ -11,6 +12,7 @@ import {
 import { toast } from "sonner"
 import { trpc } from "@/providers/trpc"
 import type { NivelConfianca } from "@contracts/types"
+import { ROTULOS_VERIFICACAO_FISCAL } from "@contracts/fiscal"
 import ConfidenceBadge from "@/components/app/ConfidenceBadge"
 import FiscalField from "@/components/app/FiscalField"
 import MoneyValue from "@/components/app/MoneyValue"
@@ -30,10 +32,12 @@ import {
 } from "@/components/ui/select"
 import { formatBRL } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { pertenceAEmpresa } from "@/components/painel/seguranca"
 import MemorialCard, { type MemorialLinha } from "./MemorialCard"
 import VereditoPolitica from "@/components/politica/VereditoPolitica"
 import StatusChip from "./StatusChip"
 import { fileParaBase64 } from "./arquivo"
+import IdentificacaoColaborador from "./IdentificacaoColaborador"
 import {
   CATEGORIA_META,
   TIPOS_EVIDENCIA,
@@ -47,6 +51,7 @@ import {
 } from "./meta"
 
 interface DespesaDrawerProps {
+  empresaId: number
   despesaId: number | null
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -70,7 +75,7 @@ function Secao({ index, title, children }: { index: number; title: string; child
   )
 }
 
-export default function DespesaDrawer({ despesaId, open, onOpenChange }: DespesaDrawerProps) {
+export default function DespesaDrawer({ empresaId, despesaId, open, onOpenChange }: DespesaDrawerProps) {
   const utils = trpc.useUtils()
   const query = trpc.despesas.get.useQuery(
     { id: despesaId ?? 0 },
@@ -99,7 +104,7 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
     },
   })
 
-  const data = query.data
+  const data = pertenceAEmpresa(query.data?.despesa, empresaId) ? query.data : undefined
   const despesa = data?.despesa
   const nota = data?.nota ?? null
   const creditos = useMemo(() => data?.creditos ?? [], [data])
@@ -149,9 +154,11 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
   }, [despesa, creditos, evidencias])
 
   async function enviarEvidencia() {
-    if (!despesaId || !arquivo) return
+    if (!despesa || !despesaId || !arquivo || addEvidencia.isPending) return
+    if (arquivo.size === 0 || arquivo.size > 10 * 1024 * 1024) { toast.error("Selecione um arquivo não vazio de até 10 MB."); return }
+    try {
     const base64 = await fileParaBase64(arquivo)
-    addEvidencia.mutate({
+    await addEvidencia.mutateAsync({
       despesaId,
       tipo: tipoEvidencia,
       arquivoNome: arquivo.name,
@@ -159,6 +166,7 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
       arquivoBase64: base64,
       observacao: observacao.trim() || undefined,
     })
+    } catch { toast.error("Não foi possível anexar a evidência. Tente novamente.") }
   }
 
   const categoriaMeta = despesa?.categoria ? CATEGORIA_META[despesa.categoria] : null
@@ -202,11 +210,11 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
             </div>
           )}
 
-          {query.isError && (
+          {(query.isError || (query.isSuccess && !despesa)) && (
             <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
               <TriangleAlert className="h-6 w-6 text-conf-vedado-dot" />
               <p className="text-sm text-text-500">
-                Não foi possível carregar a despesa. {query.error.message}
+                Não foi possível carregar a despesa da empresa selecionada.
               </p>
             </div>
           )}
@@ -214,6 +222,13 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
           {despesa && (
             <>
               {/* 1 · Resumo */}
+              <Secao index={0} title="Autenticidade fiscal">
+                <p className="text-sm text-text-900">{query.data?.verificacaoFiscal ? ROTULOS_VERIFICACAO_FISCAL[query.data.verificacaoFiscal.estado] : "Sem verificação fiscal registrada para esta despesa"}</p>
+                {query.data?.verificacaoFiscal?.modelo && <p className="text-xs text-text-500">Modelo {query.data.verificacaoFiscal.modelo}</p>}
+                {query.data?.verificacaoFiscal?.verificadaEm && <p className="text-xs text-text-500">Consulta em {new Date(query.data.verificacaoFiscal.verificadaEm).toLocaleString("pt-BR")}</p>}
+                <p className="text-xs text-text-500">A situação fiscal é uma etapa da análise. O reembolso depende da política da empresa.</p>
+              </Secao>
+              <EnvioWhatsapp envio={data?.envioWhatsapp} categoria={despesa.categoria} />
               <Secao index={0} title="Resumo">
                 <div className="grid grid-cols-2 gap-x-4 gap-y-4">
                   <FiscalField label="Data do fato gerador" value={formatData(nota?.dataFatoGerador)} confidence={ocrPct} />
@@ -233,6 +248,7 @@ export default function DespesaDrawer({ despesaId, open, onOpenChange }: Despesa
                 {despesa.motivoDeslocamento && (
                   <FiscalField label="Motivo do deslocamento" value={despesa.motivoDeslocamento} mono={false} />
                 )}
+                <IdentificacaoColaborador key={despesa.id} empresaId={despesa.empresaId} despesaId={despesa.id} colaboradorAtual={despesa.colaborador} centroCustoAtual={despesa.centroCusto} />
               </Secao>
 
               {/* 2 · Uso misto */}

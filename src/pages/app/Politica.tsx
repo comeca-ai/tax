@@ -43,6 +43,8 @@ import {
   semAutorizacaoDeAprovacao,
 } from "@/components/politica/regrasExtraidas";
 import { cn } from "@/lib/utils";
+import { podeEditarPolitica, erroArquivoPolitica } from "@/components/painel/seguranca";
+import PoliticaSimulador from "@/components/politica/PoliticaSimulador";
 
 const PASSOS = [
   { numero: 1, rotulo: "Enviar documento" },
@@ -96,18 +98,15 @@ const STATUS_CHIP: Record<StatusPolitica, string> = {
   inativa: "bg-paper text-text-500 ring-1 ring-line",
 };
 
-export default function Politica() {
+export default function Politica({ iniciarUpload = false }: { iniciarUpload?: boolean }) {
   const { activeCompany, isLoading: empresaLoading } = useActiveCompany();
   const { user, isLoading: sessaoLoading } = useAuth();
   const utils = trpc.useUtils();
   const empresaId = activeCompany?.id ?? 0;
   // Mesmo critério do servidor: admin da plataforma (suporte) ou dono da empresa.
-  const podeDecidir =
-    user !== null &&
-    activeCompany !== null &&
-    (user.perfil === "admin" || activeCompany.usuarioId === user.id);
+  const podeDecidir = podeEditarPolitica(user, activeCompany);
 
-  const [modo, setModo] = useState<"status" | "wizard">("status");
+  const [modo, setModo] = useState<"status" | "wizard">(iniciarUpload ? "wizard" : "status");
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [upload, setUpload] = useState<PoliticaUploadItem | null>(null);
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
@@ -159,6 +158,9 @@ export default function Politica() {
 
   const processarArquivo = useCallback(
     async (arquivo: File) => {
+      if (!podeDecidir || uploadMut.isPending) return;
+      const erroArquivo = erroArquivoPolitica(arquivo);
+      if (erroArquivo) { toast.error(erroArquivo); return; }
       setUpload({
         nome: arquivo.name,
         tamanho: arquivo.size,
@@ -191,7 +193,7 @@ export default function Politica() {
         });
       }
     },
-    [empresaId, uploadMut]
+    [empresaId, uploadMut, podeDecidir]
   );
 
   function selecionarArquivo(arquivo: File) {
@@ -209,7 +211,7 @@ export default function Politica() {
   }
 
   async function salvarRegras() {
-    if (!politicaId || !form) return;
+    if (!podeDecidir || !politicaId || !form || updateRegras.isPending) return;
     try {
       const res = await updateRegras.mutateAsync({
         id: politicaId,
@@ -235,6 +237,7 @@ export default function Politica() {
   }
 
   async function ativarPolitica(id: number) {
+    if (!podeDecidir || ativar.isPending) return;
     try {
       const res = await ativar.mutateAsync({ id });
       toast.success("Política ativada", {
@@ -260,6 +263,7 @@ export default function Politica() {
   }
 
   async function desativarPolitica(id: number) {
+    if (!podeDecidir || desativar.isPending) return;
     try {
       await desativar.mutateAsync({ id });
       toast.success("Política desativada", {
@@ -367,6 +371,14 @@ export default function Politica() {
   }
 
   // ── Wizard (nova versão) ──────────────────────────────────────────────────
+  if (ativaQuery.isError || listQuery.isError) {
+    return <div role="alert" className="rounded-xl border border-line bg-surface p-8"><h1 className="font-semibold">Não foi possível carregar a política</h1><p className="mt-2 text-sm text-text-500">Os dados não estão disponíveis. Tente novamente antes de alterar a política.</p><button className="mt-4 rounded-lg bg-brand-500 px-4 py-2 text-white" onClick={() => { void ativaQuery.refetch(); void listQuery.refetch(); }}>Tentar novamente</button></div>;
+  }
+
+  if (modo === "wizard" && !podeDecidir && !sessaoLoading) {
+    return <div role="alert" className="rounded-xl border border-line bg-surface p-8">{AVISO_SEM_PERMISSAO}<Link to="/app/politica" className="mt-4 block text-brand-500">Consultar norma de reembolso</Link></div>;
+  }
+
   if (modo === "wizard") {
     return (
       <motion.div
@@ -478,6 +490,7 @@ export default function Politica() {
                   />
                 )}
               </div>
+              <PoliticaSimulador key={politicaId} empresaId={empresaId} politicaId={politicaId} />
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <button
                   type="button"

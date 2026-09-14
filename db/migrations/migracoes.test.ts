@@ -240,9 +240,10 @@ describe("schema.ts — estruturas da Norma PoC", () => {
     }
   });
 
-  it("a veiculos da empresa (RF-09) continua intacta", () => {
+  it("veículos preservam campos fiscais e recebem vínculo E4 aditivo", () => {
     const c = getTableColumns(veiculos);
-    expect(Object.keys(c)).toHaveLength(8);
+    expect(Object.keys(c)).toEqual(expect.arrayContaining(["id", "empresaId", "placa", "renavam", "kmPorLitroDeclarado", "tarifaReembolsoKm", "descricao", "createdAt"]));
+    for (const campo of ["colaboradorId", "motorizacao", "ufLicenciamento"] as const) expect(c[campo].notNull).toBe(false);
     expect(Object.keys(c)).toContain("kmPorLitroDeclarado");
     expect(Object.keys(getTableColumns(despesas))).toContain("veiculoId");
   });

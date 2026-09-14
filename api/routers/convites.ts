@@ -1,3 +1,4 @@
+import { dominioAdministrador, exigirDominioConvite } from "../lib/dominioConvite";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
@@ -49,6 +50,7 @@ export const convitesRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const email = input.email.trim().toLowerCase();
+      exigirDominioConvite(email, await dominioAdministrador(db, ctx.usuario.id));
 
       // `admin` e `revisor` alcançam todas as empresas — só a plataforma concede.
       if (!perfisConvidaveis(ctx.usuario.perfil).includes(input.perfil)) {
@@ -171,6 +173,7 @@ export const convitesRouter = createRouter({
           message: "Convite não encontrado.",
         });
       }
+      exigirDominioConvite(atual.email, await dominioAdministrador(db, atual.createdById));
       const { id, link } = await emitirConviteAcesso(db, {
         email: atual.email,
         perfil: atual.perfil,
@@ -290,7 +293,7 @@ export const convitesRouter = createRouter({
 
       ctx.resHeaders.append(
         "set-cookie",
-        cookieSessao(criarTokenSessao(id), requisicaoSegura(ctx.req)),
+        cookieSessao(criarTokenSessao(id, senhaHash), requisicaoSegura(ctx.req)),
       );
       await registrarLog(db, {
         usuarioId: id,

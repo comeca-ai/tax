@@ -5,7 +5,8 @@ const REPOSITORY = 'comeca-ai/projeto_tribureembolsa';
 const BRANCH_REF = 'refs/heads/main';
 const HEALTH = 'https://waba-v2.360dialog.io/health_status';
 const WEBHOOK = 'https://waba-v2.360dialog.io/v1/configs/webhook';
-const HOMOLOG_WEBHOOK = 'https://homolog.oreembolsabot.app/api/webhooks/360dialog';
+const HOMOLOG_WEBHOOK = 'https://homolog.oreembolsobot.app/api/webhooks/360dialog';
+const LEGACY_HOMOLOG_WEBHOOK = 'https://homolog.oreembolsabot.app/api/webhooks/360dialog';
 const CHANNEL_WEBHOOK = 'https://oreembolsobot.app/api/webhooks/360dialog';
 
 function assertSafe(condition, message) {
@@ -17,7 +18,7 @@ function classifyWebhook(raw) {
   try {
     const url = new URL(raw);
     if (url.href === CHANNEL_WEBHOOK) return 'canal_informado';
-    if (url.href === HOMOLOG_WEBHOOK) return 'homologacao';
+    if ([HOMOLOG_WEBHOOK, LEGACY_HOMOLOG_WEBHOOK].includes(url.href)) return 'homologacao';
     if (url.hostname === 'oreembolsabot.app' || url.hostname === 'www.oreembolsabot.app') return 'producao';
     return 'outro';
   } catch { return 'invalido'; }
@@ -48,6 +49,7 @@ export async function verifyReadonly({ apiKey, webhookSecret, fetchFn = fetch })
     await webhook.body?.cancel();
   }
   await health.body?.cancel();
+  const configurationRead = configuration !== null && typeof configuration === 'object' && !Array.isArray(configuration);
   const url = configuration && typeof configuration === 'object' ? configuration.url : null;
   const headers = configuration && typeof configuration.headers === 'object' && configuration.headers
     ? configuration.headers : {};
@@ -56,11 +58,11 @@ export async function verifyReadonly({ apiKey, webhookSecret, fetchFn = fetch })
     apiKeyAccepted: health.status === 200 && webhook.status === 200,
     healthStatusClass: `${Math.floor(health.status / 100)}xx`,
     webhookReadStatusClass: `${Math.floor(webhook.status / 100)}xx`,
-    webhookConfigured: typeof url === 'string' && Boolean(url.trim()),
-    webhookTarget: classifyWebhook(url),
-    authorizationHeaderConfigured: typeof authorization === 'string' && Boolean(authorization),
+    webhookConfigured: configurationRead ? typeof url === 'string' && Boolean(url.trim()) : null,
+    webhookTarget: configurationRead ? classifyWebhook(url) : 'nao_verificado',
+    authorizationHeaderConfigured: configurationRead ? typeof authorization === 'string' && Boolean(authorization) : null,
     webhookSecretConfigured,
-    authorizationMatchesSecret: webhookSecretConfigured
+    authorizationMatchesSecret: webhookSecretConfigured && configurationRead
       ? typeof authorization === 'string' && authorization === webhookSecret : null,
     requests: ['GET /health_status', 'GET /v1/configs/webhook'],
     providerMutation: false,
@@ -81,7 +83,7 @@ async function cli() {
   }
   fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
     `API key aceita: ${result.apiKeyAccepted ? 'sim' : 'não'}\n\n`
-    + `Webhook configurado: ${result.webhookConfigured ? 'sim' : 'não'}\n\n`
+    + `Webhook configurado: ${result.webhookConfigured === null ? 'não verificado' : result.webhookConfigured ? 'sim' : 'não'}\n\n`
     + `Destino classificado: ${result.webhookTarget}\n\n`
     + `Authorization coincide com o secret: ${result.authorizationMatchesSecret === null
       ? 'não verificado (segredo de referência ausente)' : result.authorizationMatchesSecret ? 'sim' : 'não'}\n\n`

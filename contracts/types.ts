@@ -138,6 +138,10 @@ export const relatorioFiltroInput = z.object({
 /** Resultado da extração OCR de uma nota fiscal (RF-01). */
 export type OcrExtracao = {
   cnpjEmitente: string | null;
+  /** Destinatário explícito no documento; nunca inferido do emitente ou do cadastro. Ausente em providers legados. */
+  cnpjDestinatario?: string | null;
+  /** Chave de acesso integral (44 dígitos), sem reconstruir dígitos ilegíveis. Ausente em providers legados. */
+  chaveAcesso?: string | null;
   cfop: string | null;
   ncm: string | null;
   cst: string | null;
@@ -619,4 +623,3 @@ export const conviteAceitarInput = z.object({
 });
 
 // ── Consulta de CNPJ na Receita (ReceitaWS) — v1.3.0 ───────────────────────
-

@@ -9,8 +9,8 @@ atual aos nomes dos secrets do repositório encontrou `API_KEY` e
 mensagens. `DIALOG_360_WEBHOOK_SECRET` é uma configuração própria do receptor
 do projeto, não uma segunda credencial fornecida pela 360dialog. Sua presença
 atual não está confirmada. Ver [inventário e uso dos campos](SECRETS-ACTIONS.md).
-Os workflows aceitam `API_KEY` como alternativa ao nome legado
-`DIALOG_360_API_KEY` e a repassam à variável interna `DIALOG_360_API_KEY`.
+Os workflows aceitam somente o secret `API_KEY` e o repassam explicitamente
+à variável interna `DIALOG_360_API_KEY`. Não há fallback para nomes legados.
 
 O environment GitHub `homologacao` foi criado e limitado à branch `main` em
 13/09/2026. Na inspeção daquela preparação, não possuía secrets nem variables.
@@ -112,7 +112,7 @@ Configurar a autenticação do receptor continua sendo uma etapa da integração
 
 | Nome | Tipo | Conteúdo/finalidade |
 |---|---|---|
-| `API_KEY` (ou `DIALOG_360_API_KEY`) | secret | chave do canal autorizado para homologação; o workflow usa `DIALOG_360_API_KEY` internamente e dá precedência ao nome legado se ambos existirem |
+| `API_KEY` | secret | único nome da chave no GitHub; o workflow usa `DIALOG_360_API_KEY` internamente |
 | `DIALOG_360_WEBHOOK_SECRET` | secret | segredo próprio da aplicação, valor literal completo de `Authorization`, distinto da API key e não emitido pela 360dialog |
 | `HOMOLOG_SSH_PRIVATE_KEY` | secret | identidade SSH exclusiva para o comando restrito; nunca a chave de produção ou de push ao GitHub |
 | `HOMOLOG_SSH_KNOWN_HOSTS` | secret | entrada `known_hosts` obtida por canal confiável e conferida pela operação |

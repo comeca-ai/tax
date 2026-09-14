@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { ServicoEnv } from "./servicoAuth";
 
 export type SituacaoColaboradorWhatsapp = "ativo" | "suspenso";
 
@@ -16,13 +17,16 @@ export type ColaboradorResolvidoWhatsapp = {
  * A API de serviço aceita E.164 canônico para eliminar busca aproximada entre
  * países/DDDs. O banco armazena somente dígitos; o sinal `+` não é persistido.
  */
-export function normalizarTelefoneE164(telefone: string | undefined): string | null {
+export function normalizarTelefoneE164(
+  telefone: string | undefined
+): string | null {
   if (!telefone || !/^\+[1-9]\d{7,14}$/.test(telefone)) return null;
   return telefone.slice(1);
 }
 
 export type ResolverColaboradoresWhatsapp = (
   telefoneNormalizado: string,
+  empresaId: number
 ) => Promise<ColaboradorResolvidoWhatsapp[]>;
 
 /**
@@ -31,22 +35,29 @@ export type ResolverColaboradoresWhatsapp = (
  * banco, token ou rede externa.
  */
 export function criarRouterIdentificacaoWhatsapp(
-  resolver: ResolverColaboradoresWhatsapp,
+  resolver: ResolverColaboradoresWhatsapp
 ) {
-  const app = new Hono();
+  const app = new Hono<ServicoEnv>();
 
   app.get("/colaboradores", async c => {
+    const tenant = c.get("servicoTenant");
+    if (!tenant) return c.json({ error: "Unauthorized" }, 401);
     const telefone = normalizarTelefoneE164(c.req.query("telefone"));
     if (!telefone) return c.json({ error: "Telefone inválido." }, 400);
 
     try {
-      const colaboradores = await resolver(telefone);
+      const colaboradores = (await resolver(telefone, tenant.empresaId)).filter(
+        p => p.empresaId === tenant.empresaId
+      );
       // Lista vazia é a única resposta para número não cadastrado: não há
       // diferença observável que revele empresa, pessoa ou estado interno.
       return c.json({ colaboradores });
     } catch (erro) {
       // Não registrar telefone/payload em log: ambos são dados pessoais.
-      console.error("[whatsapp] Falha ao resolver colaborador da integração:", erro);
+      console.error(
+        "[whatsapp] Falha ao resolver colaborador da integração:",
+        erro
+      );
       return c.json({ error: "Serviço temporariamente indisponível." }, 503);
     }
   });

@@ -1,5 +1,9 @@
 import { and, eq } from "drizzle-orm";
-import { colaboradores, empresas, politicasReembolso } from "../../../../db/schema";
+import {
+  colaboradores,
+  empresas,
+  politicasReembolso,
+} from "../../../../db/schema";
 import { getDb } from "../../../queries/connection";
 import type { ColaboradorResolvidoWhatsapp } from "./identificacao";
 
@@ -9,7 +13,8 @@ function tagsDoColaborador(colaborador: {
   papelFluxo: string;
 }): string[] {
   const tags: string[] = [colaborador.equipe];
-  if (colaborador.nivelAprovacao !== null) tags.push(`nivel:${colaborador.nivelAprovacao}`);
+  if (colaborador.nivelAprovacao !== null)
+    tags.push(`nivel:${colaborador.nivelAprovacao}`);
   tags.push(`papel:${colaborador.papelFluxo}`);
   return tags;
 }
@@ -17,7 +22,13 @@ function tagsDoColaborador(colaborador: {
 /** Consulta interna: traz somente a identidade operacional do agente. */
 export async function resolverColaboradoresPorTelefone(
   telefoneNormalizado: string,
+  empresaId?: number
 ): Promise<ColaboradorResolvidoWhatsapp[]> {
+  if (
+    empresaId !== undefined &&
+    (!Number.isSafeInteger(empresaId) || empresaId <= 0)
+  )
+    return [];
   const db = getDb();
   const rows = await db
     .select({
@@ -37,10 +48,17 @@ export async function resolverColaboradoresPorTelefone(
       politicasReembolso,
       and(
         eq(politicasReembolso.empresaId, colaboradores.empresaId),
-        eq(politicasReembolso.status, "ativa"),
-      ),
+        eq(politicasReembolso.status, "ativa")
+      )
     )
-    .where(eq(colaboradores.telefone, telefoneNormalizado));
+    .where(
+      and(
+        eq(colaboradores.telefone, telefoneNormalizado),
+        empresaId === undefined
+          ? undefined
+          : eq(colaboradores.empresaId, empresaId)
+      )
+    );
 
   return rows.map(row => ({
     colaboradorId: row.colaboradorId,

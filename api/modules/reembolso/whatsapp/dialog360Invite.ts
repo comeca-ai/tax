@@ -1,3 +1,5 @@
+import { ReservaConsultaPocIndisponivel } from "../../../lib/pocConsultas";
+
 /**
  * Envio de boas-vindas pela 360dialog após a confirmação do convite.
  *
@@ -12,6 +14,38 @@ type ParametroTexto = { type: "text"; text: string };
 type Resposta360dialog = {
   messages?: { id?: unknown }[];
 };
+
+export type ResultadoBoasVindas = {
+  /** Compatibilidade: significa aceite pela API, não confirmação de entrega. */
+  enviado: boolean;
+  messageId: string | null;
+  status:
+    "aceito" | "falhou" | "incerto" | "nao_configurado" | "limite_atingido";
+};
+
+async function lerRespostaLimitada(
+  response: Response
+): Promise<Resposta360dialog> {
+  if (!response.body) throw new Error("Resposta ausente");
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > 65_536) throw new Error("Resposta acima do limite");
+      chunks.push(value);
+    }
+    return JSON.parse(
+      Buffer.concat(chunks).toString("utf8")
+    ) as Resposta360dialog;
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
 
 export function montarTemplateBoasVindasWhatsapp(opts: {
   telefone: string;
@@ -37,17 +71,30 @@ export function montarTemplateBoasVindasWhatsapp(opts: {
 export async function enviarBoasVindasWhatsapp360dialog(opts: {
   telefone: string | null | undefined;
   nome: string;
-}): Promise<{ enviado: boolean; messageId: string | null }> {
-  const apiKey = process.env.DIALOG_360_API_KEY;
-  const template = process.env.DIALOG_360_WELCOME_TEMPLATE;
+}): Promise<ResultadoBoasVindas> {
+  const apiKey = process.env.DIALOG_360_API_KEY?.trim();
+  const template = process.env.DIALOG_360_WELCOME_TEMPLATE?.trim();
+  const idioma = process.env.DIALOG_360_WELCOME_TEMPLATE_LANGUAGE || "pt_BR";
   const telefone = opts.telefone?.replace(/\D/g, "") ?? "";
-  if (!apiKey || !template || telefone.length < 10 || telefone.length > 15) {
-    return { enviado: false, messageId: null };
+  if (!apiKey || !template) {
+    return { enviado: false, messageId: null, status: "nao_configurado" };
+  }
+  if (
+    !/^[1-9]\d{9,14}$/.test(telefone) ||
+    !/^[a-z0-9_]{1,128}$/.test(template) ||
+    !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(idioma) ||
+    /[\r\n]/.test(apiKey) ||
+    !opts.nome.trim() ||
+    opts.nome.length > 255 ||
+    /[\r\n\t]/.test(opts.nome)
+  ) {
+    return { enviado: false, messageId: null, status: "falhou" };
   }
 
   try {
     const response = await fetch(DIALOG_360_MESSAGES_URL, {
       method: "POST",
+      redirect: "error",
       headers: {
         "content-type": "application/json",
         "D360-API-KEY": apiKey,
@@ -57,25 +104,43 @@ export async function enviarBoasVindasWhatsapp360dialog(opts: {
           telefone,
           nome: opts.nome,
           template,
-          idioma: process.env.DIALOG_360_WELCOME_TEMPLATE_LANGUAGE || "pt_BR",
-        }),
+          idioma,
+        })
       ),
       signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {
-      console.error(`[360dialog] Falha ao enviar boas-vindas WhatsApp: HTTP ${response.status}`);
-      return { enviado: false, messageId: null };
+      console.error(
+        `[360dialog] Falha ao enviar boas-vindas WhatsApp: HTTP ${response.status}`
+      );
+      await response.body?.cancel().catch(() => {});
+      // Um erro de gateway/servidor não prova que o POST não foi processado.
+      return {
+        enviado: false,
+        messageId: null,
+        status: response.status >= 500 ? "incerto" : "falhou",
+      };
     }
-    const resposta = (await response.json().catch(() => null)) as Resposta360dialog | null;
+    const resposta = await lerRespostaLimitada(response);
     const messageId = resposta?.messages?.[0]?.id;
-    if (typeof messageId !== "string" || !messageId) {
-      console.warn("[360dialog] Mensagem aceita sem messageId na resposta.");
-      return { enviado: true, messageId: null };
+    if (
+      typeof messageId !== "string" ||
+      !/^wamid\.[A-Za-z0-9+/=_.-]+$/.test(messageId) ||
+      messageId.length > 128
+    ) {
+      console.warn(
+        "[360dialog] Resposta sem identificador válido; não reenviar automaticamente."
+      );
+      return { enviado: false, messageId: null, status: "incerto" };
     }
-    return { enviado: true, messageId };
-  } catch (erro) {
-    console.error("[360dialog] Falha ao enviar boas-vindas WhatsApp:", erro);
-    return { enviado: false, messageId: null };
+    return { enviado: true, messageId, status: "aceito" };
+  } catch (error) {
+    if (error instanceof ReservaConsultaPocIndisponivel)
+      return { enviado: false, messageId: null, status: "limite_atingido" };
+    console.error(
+      "[360dialog] Resultado de boas-vindas incerto; não reenviar automaticamente."
+    );
+    return { enviado: false, messageId: null, status: "incerto" };
   }
 }

@@ -33,6 +33,7 @@ test('faz somente dois GETs fixos e sanitiza o resultado', async () => {
 });
 
 for (const [name, url, expected] of [
+  ['homologação no domínio atual', 'https://homolog.oreembolsobot.app/api/webhooks/360dialog', 'homologacao'],
   ['canal informado pelo usuário', 'https://oreembolsobot.app/api/webhooks/360dialog', 'canal_informado'],
   ['caminho diferente no domínio do canal', 'https://oreembolsobot.app/outro', 'outro'],
   ['produção', 'https://oreembolsabot.app/api/webhooks/360dialog', 'producao'],
@@ -52,6 +53,10 @@ test('401 não ecoa corpo nem credencial', async () => {
     response(401, { error: apiKey }) });
   assert.equal(result.apiKeyAccepted, false);
   assert.equal(result.healthStatusClass, '4xx');
+  assert.equal(result.webhookConfigured, null);
+  assert.equal(result.authorizationHeaderConfigured, null);
+  assert.equal(result.authorizationMatchesSecret, null);
+  assert.equal(result.webhookTarget, 'nao_verificado');
   assert(!JSON.stringify(result).includes(apiKey));
 });
 

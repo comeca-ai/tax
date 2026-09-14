@@ -1,3 +1,4 @@
+import EnvioWhatsapp from "@/components/despesas/EnvioWhatsapp";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -48,6 +49,7 @@ import {
   formatarNumero,
 } from "@/components/ops/rotulos";
 import { cn } from "@/lib/utils";
+import { podeConfirmarDecisao, pertenceAEmpresa } from "@/components/painel/seguranca";
 
 const MOTIVOS_REJEICAO = [
   "Documento insuficiente",
@@ -170,7 +172,7 @@ export default function RevisaoDetalhe({
     onSettled: () => setUploadProgresso(false),
   });
 
-  const dados = detalhe.data;
+  const dados = pertenceAEmpresa(detalhe.data?.despesa, empresaId) ? detalhe.data : undefined;
   const despesa = dados?.despesa;
   const nota = dados?.nota;
   const evidencias = useMemo(() => dados?.evidencias ?? [], [dados]);
@@ -181,13 +183,14 @@ export default function RevisaoDetalhe({
     !somenteLeitura && despesa?.confianca === "media" && semEvidencia;
 
   function abrirDialog(decisao: Decisao) {
+    if (somenteLeitura || !empresaId || decidir.isPending) return;
     setJustificativa(notas);
     setMotivoRejeicao(MOTIVOS_REJEICAO[0]);
     setDialog(decisao);
   }
 
   function confirmarDecisao() {
-    if (!despesa || !dialog) return;
+    if (!despesa || !dialog || !podeConfirmarDecisao({ empresaId, somenteLeitura, pending: decidir.isPending, justificativa, exigeDelegacao: exigeMotivoDelegacao, motivoDelegacao })) return;
     const texto =
       dialog === "rejeitar"
         ? `${motivoRejeicao}: ${justificativa.trim()}`.slice(0, 2000)
@@ -204,7 +207,8 @@ export default function RevisaoDetalhe({
   }
 
   function aoSelecionarArquivo(arquivo: File) {
-    if (!despesa) return;
+    if (!despesa || somenteLeitura || uploadProgresso) return;
+    if (arquivo.size === 0 || arquivo.size > 10 * 1024 * 1024) { toast.error("Selecione um arquivo não vazio de até 10 MB."); return; }
     setUploadProgresso(true);
     const leitor = new FileReader();
     leitor.onload = () => {
@@ -250,6 +254,7 @@ export default function RevisaoDetalhe({
     );
   }
 
+  const envioWhatsapp = detalhe.data?.envioWhatsapp;
   const IconeCategoria =
     CATEGORIA_ICONE[despesa.categoria as CategoriaDespesa] ?? FileText;
 
@@ -263,6 +268,7 @@ export default function RevisaoDetalhe({
     >
       {/* Cabeçalho de decisão: conserva os dados extraídos e prioriza o veredito. */}
       <div className="border-b border-line bg-[#0B7A75]/[0.035] p-6 pb-5">
+        <EnvioWhatsapp envio={envioWhatsapp} categoria={despesa.categoria} />
         <p className="mb-3 font-mono text-[10px] font-medium uppercase tracking-[0.09em] text-[#0B7A75]">
           Despesa #{despesa.id} · conferência operacional
         </p>
@@ -695,9 +701,7 @@ export default function RevisaoDetalhe({
               type="button"
               onClick={confirmarDecisao}
               disabled={
-                justificativa.trim().length < 3 ||
-                (exigeMotivoDelegacao && motivoDelegacao.trim().length < 3) ||
-                decidir.isPending
+                !podeConfirmarDecisao({ empresaId, somenteLeitura, pending: decidir.isPending, justificativa, exigeDelegacao: exigeMotivoDelegacao, motivoDelegacao })
               }
               className={cn(
                 "inline-flex h-10 items-center gap-2 rounded-[10px] px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50",

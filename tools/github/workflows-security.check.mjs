@@ -41,7 +41,7 @@ test('consulta da 360dialog não escreve no repositório', () => {
 
 for (const [name, credentials, expectedCode] of [
   ['cadastro atual API_KEY e URL', { API_KEY: 'synthetic-api-key', URL_API_MENSAGENS: 'https://example.invalid' }, 0],
-  ['nome legado', { DIALOG_360_API_KEY: 'synthetic-legacy-key' }, 0],
+  ['nome legado sozinho não é aceito', { DIALOG_360_API_KEY: 'synthetic-legacy-key' }, 1],
   ['URL sem chave', { URL_API_MENSAGENS: 'https://example.invalid' }, 1],
 ]) test(`checagem real de presença: ${name}`, () => {
   const source = workflows.find(item => item.file === 'verificar-secrets-whatsapp.yml').source;
@@ -59,6 +59,14 @@ for (const [name, credentials, expectedCode] of [
     assert(output.includes('DIALOG_360_WEBHOOK_SECRET: ausente'));
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('chave do canal tem um único nome no GitHub, sem fallback silencioso', () => {
+  for (const file of ['configurar-whatsapp-homolog.yml', 'verificar-360dialog-readonly.yml']) {
+    const source = workflows.find(item => item.file === file).source;
+    assert.match(source, /DIALOG_360_API_KEY:\s*\$\{\{ secrets\.API_KEY \}\}/);
+    assert.doesNotMatch(source, /secrets\.DIALOG_360_API_KEY/);
   }
 });
 

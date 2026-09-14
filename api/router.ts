@@ -1,4 +1,5 @@
 import { createRouter, publicQuery } from "./middleware";
+import { equipeLoteRouter } from "./routers/equipeLote";
 import { authRouter } from "./routers/auth";
 import { empresasRouter } from "./modules/empresas";
 import { despesasRouter } from "./routers/despesas";
@@ -8,6 +9,10 @@ import { regrasRouter } from "./routers/regras";
 import { politicaRouter } from "./routers/politica";
 import { convitesRouter } from "./routers/convites";
 import { colaboradoresRouter } from "./routers/colaboradores";
+import { campoRouter } from "./routers/campo";
+import { veiculosRouter } from "./routers/veiculos";
+import { nfeIoRouter } from "./routers/nfeio";
+import { fiscalRouter } from "./routers/fiscal";
 
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
@@ -21,6 +26,11 @@ export const appRouter = createRouter({
   politica: politicaRouter,
   convites: convitesRouter,
   colaboradores: colaboradoresRouter,
+  equipeLote: equipeLoteRouter,
+  campo: campoRouter,
+  nfeio: nfeIoRouter,
+  fiscal: fiscalRouter,
+  veiculos: veiculosRouter,
 });
 
 export type AppRouter = typeof appRouter;

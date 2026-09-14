@@ -60,3 +60,27 @@ A auditoria não executou `POST` de configuração no provedor, não enviou mens
 ## Conclusão
 
 As proteções do repositório e o CI anterior foram verificados. A integração externa 360dialog permanece **parcialmente validada**: a chave anterior funcionou em uma consulta; a chave recém-gerada e o recebimento real ainda precisam de verificação. Próximas etapas: integrar a correção por PR com CI e revisão, executar o diagnóstico com a chave atual, concluir a configuração de autenticação do receptor e validar recebimento durável no canal autorizado. A validação local desta alteração está registrada separadamente dos testes históricos acima.
+
+## Continuação da implementação — 13/09/2026
+
+Esta seção complementa o registro histórico acima, sem transformar testes
+anteriores em evidência da versão em desenvolvimento.
+
+- O fallback silencioso foi removido dos workflows na branch de implementação:
+  `API_KEY` é o único nome aceito no GitHub, mapeado explicitamente para
+  `DIALOG_360_API_KEY` no processo. O nome legado sozinho é rejeitado. Isso não
+  representa rotação nem comprova revogação de tokens expostos.
+- Os 8 testes sintéticos de segurança dos workflows passaram após essa alteração,
+  incluindo rejeição do nome legado e preservação de comparação não verificada
+  como `null`. Foi necessário executar fora do sandbox para permitir subprocessos;
+  não houve uso de credenciais reais ou chamadas ao provedor nesses testes.
+- A execução está dividida entre 1 agente coordenador e 3 agentes auxiliares:
+  frontend, transporte/segurança e campo/combustível, em worktrees separados.
+  São agentes de IA, não quatro desenvolvedores humanos nem quatro revisores
+  independentes. Não há medição disponível de cobrança ou horas humanas.
+- Foi acrescentada ao [roadmap](../poc/README.md#regra-transversal--ajustes-mantendo-o-padrão)
+  a exigência de preservar o padrão visual e técnico nos ajustes de frontend,
+  chaves e integrações, com regressão, isolamento por empresa e reversão.
+- Alterações locais e testes sintéticos não comprovam publicação no GitHub,
+  deploy, recebimento real de mensagens ou aceite completo da POC. Esses marcos
+  exigem evidências próprias da versão integrada.

@@ -1,18 +1,6 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useSyncExternalStore } from "react"
 import { trpc } from "@/providers/trpc"
-
-const STORAGE_KEY = "activeCompanyId"
-
-function lerIdSalvo(): number | null {
-  try {
-    const bruto = window.localStorage.getItem(STORAGE_KEY)
-    if (!bruto) return null
-    const id = Number(bruto)
-    return Number.isInteger(id) && id > 0 ? id : null
-  } catch {
-    return null
-  }
-}
+import { getActiveCompanyId, selectCompany, subscribeCompany } from "./activeCompanyStore"
 
 /**
  * Empresas do usuário + empresa ativa (multi-tenant).
@@ -26,16 +14,11 @@ export function useActiveCompany() {
   })
 
   const companies = useMemo(() => query.data ?? [], [query.data])
-  const [activeId, setActiveId] = useState<number | null>(() => lerIdSalvo())
+  const activeId = useSyncExternalStore(subscribeCompany, getActiveCompanyId, () => null)
 
   const setActiveCompanyId = useCallback((id: number) => {
-    setActiveId(id)
-    try {
-      window.localStorage.setItem(STORAGE_KEY, String(id))
-    } catch {
-      // localStorage indisponível (modo privado) — mantém só em memória.
-    }
-  }, [])
+    if (companies.some(company => company.id === id)) selectCompany(id)
+  }, [companies])
 
   // Id salvo inválido/ausente → primeira empresa da lista.
   const activeCompany =
@@ -46,5 +29,6 @@ export function useActiveCompany() {
     companies,
     setActiveCompanyId,
     isLoading: query.isLoading,
+    error: query.error,
   }
 }

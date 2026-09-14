@@ -1,3 +1,4 @@
+import { dominioAdministrador, exigirDominioConvite } from "../lib/dominioConvite";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { createRouter, perfilProcedure, protectedProcedure } from "../middleware";
@@ -5,10 +6,7 @@ import { getDb } from "../queries/connection";
 import { colaboradores } from "@db/schema";
 import { assertAdminDaEmpresa, assertEmpresaAcesso, registrarLog } from "./_shared";
 import { normalizarTelefone } from "../modules/reembolso/agente";
-import { emitirConviteAcesso } from "../lib/conviteAcesso";
-import { gerarLinkConviteWhatsapp } from "../lib/conviteWhatsapp";
-import { enviarConviteColaboradorEmail } from "../mail/mailer";
-import { enviarBoasVindasWhatsapp360dialog } from "../modules/reembolso/whatsapp/dialog360Invite";
+import { enviarConviteColaboradorIdempotente } from "../modules/reembolso/convites/servico";
 import { TRPCError } from "@trpc/server";
 
 /** Mesma trava de `assertAdminDaEmpresa`, dita na linguagem desta tela. */
@@ -45,7 +43,8 @@ export const colaboradoresRouter = createRouter({
     .input(colaboradorInput)
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
-      await assertAdminDaEmpresa(ctx, input.empresaId, MSG_SO_ADMIN);
+      const empresa = await assertAdminDaEmpresa(ctx, input.empresaId, MSG_SO_ADMIN);
+      exigirDominioConvite(input.email, await dominioAdministrador(db, empresa.usuarioId));
 
       const result = await db.insert(colaboradores).values({
         empresaId: input.empresaId,
@@ -130,62 +129,7 @@ export const colaboradoresRouter = createRouter({
       if (!colaborador) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Colaborador não encontrado." });
       }
-      const empresa = await assertAdminDaEmpresa(ctx, colaborador.empresaId, MSG_SO_ADMIN);
-      if (!colaborador.email) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Cadastre o e-mail do colaborador antes de enviar o convite.",
-        });
-      }
-      if (colaborador.usuarioId) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Este colaborador já ativou o acesso dele.",
-        });
-      }
-
-      const { link } = await emitirConviteAcesso(db, {
-        email: colaborador.email,
-        perfil: "cliente",
-        createdById: ctx.usuario.id,
-      });
-      const { enviado } = await enviarConviteColaboradorEmail({
-        para: colaborador.email,
-        nome: colaborador.nome,
-        empresa: empresa.razaoSocial,
-        link,
-      });
-      const whatsapp = await enviarBoasVindasWhatsapp360dialog({
-        telefone: colaborador.telefone,
-        nome: colaborador.nome,
-      });
-      const linkWhatsapp = whatsapp.enviado
-        ? null
-        : gerarLinkConviteWhatsapp({
-            telefone: colaborador.telefone,
-            nome: colaborador.nome,
-            empresa: empresa.razaoSocial,
-            link,
-          });
-
-      await registrarLog(db, {
-        usuarioId: ctx.usuario.id,
-        empresaId: colaborador.empresaId,
-        acao: "colaborador.convite",
-        entidade: "colaboradores",
-        entidadeId: colaborador.id,
-        detalhes: enviado
-          ? `Convite enviado por e-mail para ${colaborador.email}${whatsapp.enviado ? `; boas-vindas aceitas pela 360dialog${whatsapp.messageId ? ` (messageId: ${whatsapp.messageId})` : ""}` : linkWhatsapp ? "; link WhatsApp disponível" : ""}`
-          : `Link de convite gerado para envio manual (SMTP indisponível)${whatsapp.enviado ? `; boas-vindas aceitas pela 360dialog${whatsapp.messageId ? ` (messageId: ${whatsapp.messageId})` : ""}` : linkWhatsapp ? "; WhatsApp disponível" : ""}`,
-      });
-
-      return {
-        linkAceite: link,
-        linkWhatsapp,
-        enviadoPorWhatsapp: whatsapp.enviado,
-        messageIdWhatsapp: whatsapp.messageId,
-        enviadoPorEmail: enviado,
-        email: colaborador.email,
-      };
+      await assertAdminDaEmpresa(ctx, colaborador.empresaId, MSG_SO_ADMIN);
+      return enviarConviteColaboradorIdempotente({ empresaId: colaborador.empresaId, colaboradorId: colaborador.id, usuarioId: ctx.usuario.id });
     }),
 });

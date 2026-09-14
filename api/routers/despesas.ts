@@ -1,3 +1,5 @@
+import { registrarDecisaoDespesa, historicoDecisoesDespesa } from "../modules/reembolso/decisoes/registro";
+import { metadadosDespesasWhatsapp } from "../modules/reembolso/whatsapp/metadadosDespesa";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -31,8 +33,14 @@ import { avaliarDespesa } from "../modules/reembolso/policy/agent";
 import { consolidarRegras } from "../modules/reembolso/policy/derivar";
 import { confiancaDaNota, decidirReembolso } from "../modules/reembolso/decisor";
 import { assertEmpresaAcesso, registrarLog } from "./_shared";
+import { fiscalDocumentos } from "@db/fiscalSchema";
+import { exigeRevisaoFiscal, ROTULOS_VERIFICACAO_FISCAL } from "@contracts/fiscal";
+import { identidadeFiscalDoUpload } from "../modules/fiscal/verificacao/documento";
+import { lerResultadoFiscal, verificarFiscalAntesDaDecisao } from "../modules/fiscal/verificacao/service";
+import { despesaIdentificacaoRouter, identificarSolicitanteWeb } from "../modules/reembolso/identificacaoDespesa";
 
 export const despesasRouter = createRouter({
+  identificacao: despesaIdentificacaoRouter,
   /**
    * RF-01: upload da nota fiscal na plataforma → persiste arquivo → OCR.
    * Retorna a extração para revisão dos campos antes de criar a despesa.
@@ -51,8 +59,10 @@ export const despesasRouter = createRouter({
       });
 
       let notaFiscalId: number;
+      const identidade = identidadeFiscalDoUpload(input.arquivoBase64, extracao.chaveAcesso);
       try {
-        const result = await db.insert(notasFiscais).values({
+        notaFiscalId = await db.transaction(async tx => {
+        const result = await tx.insert(notasFiscais).values({
           empresaId: input.empresaId,
           cnpjEmitente: extracao.cnpjEmitente,
           cfop: extracao.cfop,
@@ -67,12 +77,18 @@ export const despesasRouter = createRouter({
           arquivoNome: input.arquivoNome,
           arquivoMime: input.arquivoMime,
           arquivoBase64: input.arquivoBase64,
+          arquivoChecksum: identidade.hash,
+          arquivoTamanhoBytes: identidade.tamanho,
+          arquivoStorageProvider: "database",
           origem: "ocr",
         });
-        notaFiscalId = Number(result[0].insertId);
+        const id = Number(result[0].insertId);
+        await tx.insert(fiscalDocumentos).values({ notaFiscalId: id, empresaId: input.empresaId, usuarioId: ctx.usuario.id, chave: identidade.chave, chaveEstado: identidade.chaveEstado, hash: identidade.hash });
+        return id;
+        });
       } catch (err) {
         // Nunca vazar SQL/params para o cliente — mensagem amigável PT-BR
-        console.error("[uploadNota] falha ao persistir nota fiscal:", err);
+        console.error("[uploadNota] falha ao persistir nota fiscal", err instanceof Error ? err.name : "Error");
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message:
@@ -135,6 +151,8 @@ export const despesasRouter = createRouter({
           message: "Esta nota fiscal já está vinculada a uma despesa.",
         });
       }
+
+      const verificacaoFiscal = await verificarFiscalAntesDaDecisao(ctx, input);
 
       // Atualiza a nota com os campos confirmados pelo usuário
       await db
@@ -230,12 +248,15 @@ export const despesasRouter = createRouter({
         // "aprovado" → mantém o fluxo do motor tributário
       }
 
-      const insertDespesa = await db.insert(despesas).values({
+      if (exigeRevisaoFiscal(verificacaoFiscal) && statusFinal !== "rejeitada") statusFinal = "em_revisao";
+      const solicitante = await identificarSolicitanteWeb(ctx, input.empresaId, input);
+      const despesaId = await db.transaction(async tx => {
+      const insertDespesa = await tx.insert(despesas).values({
         empresaId: input.empresaId,
         notaFiscalId: input.notaFiscalId,
         categoria: input.categoria,
-        colaborador: input.colaborador ?? null,
-        centroCusto: input.centroCusto ?? null,
+        colaborador: solicitante.colaborador,
+        centroCusto: solicitante.centroCusto,
         motivoDeslocamento: input.motivoDeslocamento ?? null,
         kmComercial: input.kmComercial,
         kmNaoComercial: input.kmNaoComercial,
@@ -244,6 +265,7 @@ export const despesasRouter = createRouter({
         valorReembolsavel: resultado.valorReembolsavel,
         confianca: resultado.confianca,
         status: statusFinal,
+        motivoRevisao: exigeRevisaoFiscal(verificacaoFiscal) ? ROTULOS_VERIFICACAO_FISCAL[verificacaoFiscal.estado] : null,
         memorial,
         politicaDecisao: politicaResultado?.decisao ?? null,
         politicaMotivo: politicaResultado
@@ -261,7 +283,7 @@ export const despesasRouter = createRouter({
             ? ("rejeitado" as const)
             : ("em_revisao" as const);
       if (resultado.memorialTributos.length > 0) {
-        await db.insert(creditosApurados).values(
+        await tx.insert(creditosApurados).values(
           resultado.memorialTributos.map((m) => ({
             despesaId,
             tributo: m.tributo,
@@ -275,7 +297,7 @@ export const despesasRouter = createRouter({
       }
 
       // RF-04: trilha imutável com regra, versão e data
-      await registrarLog(db, {
+      await registrarLog(tx, {
         usuarioId: ctx.usuario.id,
         empresaId: input.empresaId,
         acao: "despesa.create",
@@ -287,7 +309,7 @@ export const despesasRouter = createRouter({
 
       // Trilha do agente de política: actorId null = agente automático
       if (politicaAtiva && politicaResultado) {
-        await registrarLog(db, {
+        await registrarLog(tx, {
           usuarioId: null,
           empresaId: input.empresaId,
           acao: "politica_avaliacao",
@@ -303,8 +325,13 @@ export const despesasRouter = createRouter({
         });
       }
 
+      await registrarDecisaoDespesa(tx,{empresaId:input.empresaId,despesaId,origemDecisao:"automatica",usuarioId:null,usuarioNome:null,statusAplicado:statusFinal,motivo:politicaResultado?.motivos.join("\n") || memorial || `Regras fiscais aplicadas; confiança ${resultado.confianca}.`,politicaId:politicaAtiva?.id??null,politicaVersao:politicaAtiva?.versao??null,regrasAplicadas:politicaResultado?.regrasAplicadas??[]});
+      return despesaId;
+      });
+
       return {
         despesaId,
+        verificacaoFiscal,
         resultado,
         politica: politicaResultado
           ? { ...politicaResultado, versao: politicaAtiva?.versao ?? null }
@@ -355,6 +382,8 @@ export const despesasRouter = createRouter({
         });
       }
 
+      const verificacaoFiscal = await verificarFiscalAntesDaDecisao(ctx, input);
+
       // Política ativa (mais recente)
       const politicaRows = await db
         .select()
@@ -392,6 +421,10 @@ export const despesasRouter = createRouter({
         { politicaVersao: politicaAtiva?.versao ?? null },
       );
 
+      if (exigeRevisaoFiscal(verificacaoFiscal)) {
+        if (decisao.decisao !== "negado") decisao.decisao = "revisao_manual";
+        decisao.motivos.push(ROTULOS_VERIFICACAO_FISCAL[verificacaoFiscal.estado]);
+      }
       const statusFinal: StatusDespesa =
         decisao.decisao === "aprovado"
           ? "aprovada"
@@ -456,9 +489,13 @@ export const despesasRouter = createRouter({
         ...decisao.ressalvas.map((r) => `Ressalva: ${r}`),
       ];
 
-      const insert = await db.insert(despesas).values({
+      const solicitante = await identificarSolicitanteWeb(ctx, input.empresaId);
+      const despesaId = await db.transaction(async tx => {
+      const insert = await tx.insert(despesas).values({
         empresaId: input.empresaId,
         notaFiscalId: input.notaFiscalId,
+        colaborador: solicitante.colaborador,
+        centroCusto: solicitante.centroCusto,
         categoria: decisao.categoria,
         kmComercial: 0,
         kmNaoComercial: 0,
@@ -488,7 +525,7 @@ export const despesasRouter = createRouter({
             : motor.confianca === "vedado"
               ? ("rejeitado" as const)
               : ("em_revisao" as const);
-        await db.insert(creditosApurados).values(
+        await tx.insert(creditosApurados).values(
           motor.memorialTributos.map((m) => ({
             despesaId,
             tributo: m.tributo,
@@ -502,7 +539,7 @@ export const despesasRouter = createRouter({
       }
 
       // Trilha: decisão do reembolso (ator: agente automático)
-      await registrarLog(db, {
+      await registrarLog(tx, {
         usuarioId: null,
         empresaId: input.empresaId,
         acao: "reembolso_decisao",
@@ -519,8 +556,13 @@ export const despesasRouter = createRouter({
         regraVersao: politicaAtiva ? `politica-v${politicaAtiva.versao}` : "sem-politica",
       });
 
+      await registrarDecisaoDespesa(tx,{empresaId:input.empresaId,despesaId,origemDecisao:"automatica",usuarioId:null,usuarioNome:null,statusAplicado:statusFinal,motivo:linhasMotivo.join("\n") || "Avaliação automática registrada sem motivo detalhado.",politicaId:politicaAtiva?.id??null,politicaVersao:politicaAtiva?.versao??null,regrasAplicadas:decisao.regrasAplicadas});
+      return despesaId;
+      });
+
       return {
         despesaId,
+        verificacaoFiscal,
         decisao: decisao.decisao,
         motivos: decisao.motivos,
         ressalvas: decisao.ressalvas,
@@ -560,8 +602,11 @@ export const despesasRouter = createRouter({
         .leftJoin(notasFiscais, eq(despesas.notaFiscalId, notasFiscais.id))
         .where(and(...condicoes))
         .orderBy(desc(despesas.createdAt));
+      const envios = await metadadosDespesasWhatsapp(input.empresaId, rows.map(r => r.despesa.id));
       return rows.map((r) => ({
         ...r.despesa,
+        colaborador: r.despesa.colaborador?.trim() || envios.get(r.despesa.id)?.nome || null,
+        envioWhatsapp: envios.get(r.despesa.id) ?? null,
         dataFatoGerador: r.dataFatoGerador,
         valorNota: r.valorNota,
       }));
@@ -617,8 +662,12 @@ export const despesasRouter = createRouter({
           .where(eq(evidenciasDocumentais.despesaId, despesa.id)),
       ]);
 
+      const envioWhatsapp = (await metadadosDespesasWhatsapp(despesa.empresaId, [despesa.id])).get(despesa.id) ?? null;
       return {
-        despesa,
+        despesa: { ...despesa, colaborador: despesa.colaborador?.trim() || envioWhatsapp?.nome || null },
+        envioWhatsapp,
+        historicoDecisoes: await historicoDecisoesDespesa(despesa.empresaId, despesa.id),
+        verificacaoFiscal: await lerResultadoFiscal(despesa.empresaId, despesa.notaFiscalId),
         nota: nota[0] ?? null,
         creditos,
         evidencias,

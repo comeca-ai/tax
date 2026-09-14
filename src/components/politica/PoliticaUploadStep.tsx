@@ -53,8 +53,11 @@ export default function PoliticaUploadStep({ item, onArquivo, onAnalisar, onRemo
     noKeyboard: true,
     maxSize: TAMANHO_MAX,
     multiple: false,
+    disabled: processando,
     accept: {
-      "image/*": [".jpg", ".jpeg", ".png", ".webp"],
+      "image/jpeg": [".jpg", ".jpeg"],
+      "image/png": [".png"],
+      "image/webp": [".webp"],
       "application/pdf": [".pdf"],
       "text/plain": [".txt"],
       "text/markdown": [".md"],

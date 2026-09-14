@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, NavLink, Outlet } from "react-router"
 import {
   Building2, Check, ChevronDown, CirclePlus, ClipboardCheck, FileChartColumn,
-  LayoutDashboard, LogOut, Menu, Receipt, Scale, ScrollText, SlidersHorizontal, Users, X, Zap,
+  LayoutDashboard, LogOut, MapPin, Menu, Receipt, Scale, ScrollText, SlidersHorizontal, Users, X, Zap,
   type LucideIcon,
 } from "lucide-react"
 import {
@@ -13,6 +13,7 @@ import { useActiveCompany } from "@/hooks/useActiveCompany"
 import { useAuth } from "@/hooks/useAuth"
 import type { RegimeTributario } from "@contracts/types"
 import { cn } from "@/lib/utils"
+import { podeEditarPolitica } from "@/components/painel/seguranca"
 
 const REGIME_ROTULO: Record<RegimeTributario, string> = {
   lucro_real: "Lucro Real", lucro_presumido: "Lucro Presumido", simples_nacional: "Simples Nacional",
@@ -30,15 +31,18 @@ interface NavItem {
   adminOnly?: boolean
   equipeOnly?: boolean
   revisaoOnly?: boolean
+  politicaOnly?: boolean
 }
 
 const NAVEGACAO_PRINCIPAL: NavItem[] = [
   { to: "/app/dashboard", label: "Visão geral", icon: LayoutDashboard },
   { to: "/app/revisao", label: "Fila de revisão", icon: ClipboardCheck, revisaoOnly: true },
   { to: "/app/despesas", label: "Despesas", icon: Receipt },
-  { to: "/app/politica", label: "Política", icon: ScrollText },
+  { to: "/app/politica", label: "Norma de reembolso", icon: ScrollText },
+  { to: "/app/politica/nova", label: "Subir política", icon: CirclePlus, politicaOnly: true },
 ]
 const NAVEGACAO_SECUNDARIA: NavItem[] = [
+  { to: "/app/campo", label: "Campo e conciliação", icon: MapPin, equipeOnly: true },
   { to: "/app/rapido", label: "Envio rápido", icon: Zap },
   { to: "/app/empresas", label: "Empresas", icon: Building2 },
   { to: "/app/equipe", label: "Equipe", icon: Users, equipeOnly: true },
@@ -47,8 +51,8 @@ const NAVEGACAO_SECUNDARIA: NavItem[] = [
   { to: "/app/ajustes", label: "Ajustes", icon: SlidersHorizontal, adminOnly: true },
 ]
 
-function itemPermitido(item: NavItem, perfil: string | undefined, podeGerenciarEquipe: boolean, podeRevisar: boolean) {
-  return (!item.adminOnly || perfil === "admin") && (!item.equipeOnly || podeGerenciarEquipe) && (!item.revisaoOnly || podeRevisar)
+function itemPermitido(item: NavItem, perfil: string | undefined, podeGerenciarEquipe: boolean, podeRevisar: boolean, podePolitica = false) {
+  return (!item.adminOnly || perfil === "admin") && (!item.equipeOnly || podeGerenciarEquipe) && (!item.revisaoOnly || podeRevisar) && (!item.politicaOnly || podePolitica)
 }
 
 function CompanySwitcher() {
@@ -81,7 +85,7 @@ function CompanySwitcher() {
 
 function LinkNavegacao({ item, mobile = false, onNavigate }: { item: NavItem; mobile?: boolean; onNavigate?: () => void }) {
   const Icon = item.icon
-  return <NavLink to={item.to} end={item.to === "/app/despesas" || item.to === "/app/dashboard"} onClick={onNavigate} className={({ isActive }) => cn(
+  return <NavLink to={item.to} end={item.to === "/app/despesas" || item.to === "/app/dashboard" || item.to === "/app/politica"} onClick={onNavigate} className={({ isActive }) => cn(
     mobile ? "flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium" : "flex h-[60px] items-center gap-1 border-b-2 px-3 text-[13px] font-medium transition-colors",
     isActive ? (mobile ? "bg-[#E6F2F0] text-[#075E5A]" : "border-[#0B7A75] text-text-900") : (mobile ? "text-text-500 hover:bg-[#F4F6F5] hover:text-text-900" : "border-transparent text-text-500 hover:text-text-900"),
   )}>{mobile && <Icon className="h-4 w-4" />}{item.label}</NavLink>
@@ -98,7 +102,8 @@ function MoreNavigation() {
 
 function DesktopNavigation() {
   const { user, podeGerenciarEquipe, podeRevisarDespesas } = useAuth()
-  const itens = NAVEGACAO_PRINCIPAL.filter((item) => itemPermitido(item, user?.perfil, podeGerenciarEquipe, podeRevisarDespesas))
+  const { activeCompany } = useActiveCompany()
+  const itens = NAVEGACAO_PRINCIPAL.filter((item) => itemPermitido(item, user?.perfil, podeGerenciarEquipe, podeRevisarDespesas, podeEditarPolitica(user, activeCompany)))
   return <nav aria-label="Navegação principal" className="hidden h-[60px] items-stretch lg:flex">{itens.map((item) => <LinkNavegacao key={item.to} item={item} />)}<MoreNavigation /></nav>
 }
 
@@ -113,7 +118,8 @@ function UserControl() {
 
 function MobileNavigation({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { user, podeGerenciarEquipe, podeRevisarDespesas, logout } = useAuth()
-  const itens = [...NAVEGACAO_PRINCIPAL, ...NAVEGACAO_SECUNDARIA].filter((item) => itemPermitido(item, user?.perfil, podeGerenciarEquipe, podeRevisarDespesas))
+  const { activeCompany } = useActiveCompany()
+  const itens = [...NAVEGACAO_PRINCIPAL, ...NAVEGACAO_SECUNDARIA].filter((item) => itemPermitido(item, user?.perfil, podeGerenciarEquipe, podeRevisarDespesas, podeEditarPolitica(user, activeCompany)))
   if (!open) return null
   return <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu de navegação">
     <button type="button" aria-label="Fechar menu" onClick={onClose} className="absolute inset-0 bg-[#14211F]/25 backdrop-blur-[1px]" />
@@ -127,7 +133,7 @@ function MobileNavigation({ open, onClose }: { open: boolean; onClose: () => voi
 
 /** Casca v2: navegação horizontal clara, conectada às rotas e permissões reais. */
 export default function AppShell() {
-  const { activeCompany, isLoading } = useActiveCompany()
+  const { activeCompany, isLoading, error } = useActiveCompany()
   const cadastroIncompleto = !isLoading && activeCompany !== null && activeCompany.cadastroCompleto === false
   const [menuOpen, setMenuOpen] = useState(false)
   useEffect(() => { document.body.style.overflow = menuOpen ? "hidden" : ""; return () => { document.body.style.overflow = "" } }, [menuOpen])
@@ -138,7 +144,7 @@ export default function AppShell() {
     </div></header>
     <MobileNavigation open={menuOpen} onClose={() => setMenuOpen(false)} />
     {cadastroIncompleto && <div className="border-b border-[#EBD2A2] bg-[#FBF3E4] px-4 py-2.5 sm:px-6 lg:px-8"><div className="mx-auto flex max-w-[1320px] items-center gap-3 text-[13px] text-[#8A5A0E]"><span className="flex-1">Complete os dados fiscais da empresa para processar os reembolsos com segurança.</span><Link to="/app/empresas" className="font-semibold text-[#8A5A0E]">Completar cadastro</Link></div></div>}
-    <main className="mx-auto w-full max-w-[1320px] px-4 py-7 sm:px-6 sm:py-8 lg:px-8"><Outlet /></main>
+    <main className="mx-auto w-full max-w-[1320px] px-4 py-7 sm:px-6 sm:py-8 lg:px-8">{error ? <section role="alert" className="rounded-xl border border-line bg-surface p-8"><h1 className="font-semibold">Não foi possível consultar suas empresas</h1><p className="mt-2 text-sm text-text-500">Recarregue a página para restabelecer o contexto antes de continuar.</p><button className="mt-4 rounded-lg bg-brand-500 px-4 py-2 text-white" onClick={() => window.location.reload()}>Recarregar</button></section> : <Outlet key={activeCompany?.id ?? "sem-empresa"} />}</main>
     <footer className="border-t border-[#E1E6E3] px-4 py-3 sm:px-6 lg:px-8"><p className="mx-auto max-w-[1320px] font-mono text-[11px] tracking-[0.02em] text-text-500">Classificações de média confiança devem ser validadas por um responsável. reembolsa.ia não presta aconselhamento jurídico.</p></footer>
   </div>
 }

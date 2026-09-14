@@ -7,6 +7,16 @@ import { ehAdminDeAlgumaEmpresa } from "./routers/_shared";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
+  errorFormatter({ shape, error }) {
+    return {
+      ...shape,
+      message: error.code === "INTERNAL_SERVER_ERROR"
+        ? "Falha interna. Tente novamente ou contate o suporte."
+        : shape.message,
+      // Nunca enviar stack/SQL/causa interna ao navegador, mesmo em homologação.
+      data: { ...shape.data, stack: undefined },
+    };
+  },
 });
 
 export const createRouter = t.router;

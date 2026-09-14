@@ -109,6 +109,9 @@ const SCHEMA_RULESET = {
   },
 } as const;
 
+/** Somente mensagens construídas localmente podem chegar aos avisos do painel. */
+class ErroOpenAiPolitica extends Error {}
+
 async function comTimeout<T>(fn: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
   const controle = new AbortController();
   const timer = setTimeout(() => controle.abort(), ms);
@@ -155,7 +158,7 @@ function textoDaResposta(resposta: unknown): string {
     .map((item) => item.text)
     .join("\n")
     .trim();
-  if (!texto) throw new Error("OpenAI resposta vazia");
+  if (!texto) throw new ErroOpenAiPolitica("resposta sem conteúdo utilizável");
   return texto;
 }
 
@@ -195,8 +198,7 @@ async function extrairRuleset(input: ArquivoPolitica, apiKey: string, modelo: st
     240_000,
   );
   if (!resposta.ok) {
-    const corpo = await resposta.text().catch(() => "");
-    throw new Error(`OpenAI HTTP ${resposta.status}: ${corpo.slice(0, 200)}`);
+    throw new ErroOpenAiPolitica(`HTTP ${resposta.status}`);
   }
   return JSON.parse(textoDaResposta(await resposta.json())) as RulesetLLM;
 }
@@ -229,7 +231,7 @@ export class OpenAiPolicyParser implements PolicyParser {
         avisos: [resumo.replace(/\n/g, " · "), ...avisosQualidade(ruleset.qualidade_extracao)],
       };
     } catch (erro) {
-      const motivo = erro instanceof Error ? erro.message : String(erro);
+      const motivo = erro instanceof ErroOpenAiPolitica ? erro.message : "falha de transporte ou resposta inválida";
       return this.comFallback(input, `OpenAI indisponível (${motivo})`);
     }
   }

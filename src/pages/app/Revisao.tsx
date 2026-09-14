@@ -1,3 +1,4 @@
+import EnvioWhatsapp from "@/components/despesas/EnvioWhatsapp";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { AnimatePresence, motion } from "framer-motion";
@@ -39,6 +40,7 @@ import {
   formatarDataHora,
 } from "@/components/ops/rotulos";
 import { cn } from "@/lib/utils";
+import QueryError from "@/components/painel/QueryError";
 
 type FilaItem =
   inferRouterOutputs<AppRouter>["revisao"]["fila"]["itens"][number];
@@ -291,6 +293,10 @@ export default function Revisao() {
     );
   }
 
+  if (fila.isError || (aba === "resolvidas" && resolvidasQuery.isError)) {
+    return <QueryError titulo="Fila de revisão indisponível" onRetry={() => { void fila.refetch(); if (aba === "resolvidas") void resolvidasQuery.refetch(); }} />;
+  }
+
   const aguardandoEvidencia = itens.filter(
     i => i.quantidadeEvidencias === 0
   ).length;
@@ -492,7 +498,7 @@ export default function Revisao() {
                       <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-text-900">
                         {CATEGORIA_ROTULO[
                           despesa.categoria as CategoriaDespesa
-                        ] ?? despesa.categoria}
+                        ] ?? "A classificar"}
                         {despesa.colaborador ? ` · ${despesa.colaborador}` : ""}
                       </span>
                       <ConfidenceBadge
@@ -502,6 +508,7 @@ export default function Revisao() {
                         }
                       />
                     </div>
+                    <EnvioWhatsapp envio={item.envioWhatsapp} categoria={despesa.categoria} />
                     <div className="flex items-baseline justify-between gap-2">
                       <MoneyValue
                         value={item.valorNota ?? despesa.valorFiscal}
@@ -631,7 +638,7 @@ export default function Revisao() {
                       </span>
                       <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-text-900">
                         {CATEGORIA_ROTULO[d.categoria as CategoriaDespesa] ??
-                          d.categoria}
+                          "A classificar"}
                       </span>
                       <span
                         className={cn(
@@ -644,6 +651,7 @@ export default function Revisao() {
                         {d.status === "aprovada" ? "Aprovada" : "Rejeitada"}
                       </span>
                     </div>
+                    <EnvioWhatsapp envio={d.envioWhatsapp} categoria={d.categoria} />
                     <div className="flex items-baseline justify-between gap-2">
                       <MoneyValue
                         value={d.valorNota ?? d.valorFiscal}
@@ -666,7 +674,7 @@ export default function Revisao() {
           <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-card">
             {selecionadoId !== null &&
             resolvidas.some(d => d.id === selecionadoId) ? (
-              <RevisaoDetalhe despesaId={selecionadoId} somenteLeitura />
+              <RevisaoDetalhe despesaId={selecionadoId} empresaId={activeCompany?.id} somenteLeitura />
             ) : (
               !resolvidasQuery.isLoading && (
                 <div className="flex min-h-[280px] items-center justify-center p-8 text-sm text-text-500">

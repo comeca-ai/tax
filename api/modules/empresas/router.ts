@@ -1,7 +1,11 @@
-import { eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createRouter, protectedProcedure, publicQuery } from "../../middleware";
+import {
+  createRouter,
+  protectedProcedure,
+  publicQuery,
+} from "../../middleware";
 import { getDb } from "../../queries/connection";
 import { cnaesSecundarios, colaboradores, empresas } from "@db/schema";
 import { cnpjConsultaInput, empresaInput } from "@contracts/empresas";
@@ -16,37 +20,45 @@ import { criarEmpresa } from "./service";
 /** RF-00: cadastro completo exige CNAE principal, regime tributário e UF. */
 function cadastroCompleto(empresa: typeof empresas.$inferSelect): boolean {
   return Boolean(
-    empresa.cnaePrincipal && empresa.regimeTributario && empresa.uf,
+    empresa.cnaePrincipal && empresa.regimeTributario && empresa.uf
   );
 }
 
 export const empresasRouter = createRouter({
   /**
-   * Lista as empresas do usuário (admin/revisor veem todas). Para o cliente,
+   * Lista as empresas do usuário (somente admin da plataforma vê todas).
    * são as que ele criou MAIS aquelas em que é colaborador — o convidado
    * precisa enxergar a empresa que o convidou (v1.9.1).
    */
   list: protectedProcedure.query(async ({ ctx }) => {
     const db = getDb();
     let rows;
-    if (ctx.usuario.perfil === "cliente") {
+    if (ctx.usuario.perfil !== "admin") {
       const vinculos = await db
         .select({ empresaId: colaboradores.empresaId })
         .from(colaboradores)
-        .where(eq(colaboradores.usuarioId, ctx.usuario.id));
-      const ids = [...new Set(vinculos.map((v) => v.empresaId))];
+        .where(
+          and(
+            eq(colaboradores.usuarioId, ctx.usuario.id),
+            eq(colaboradores.statusVinculo, "ativo")
+          )
+        );
+      const ids = [...new Set(vinculos.map(v => v.empresaId))];
       rows = await db
         .select()
         .from(empresas)
         .where(
           ids.length
-            ? or(eq(empresas.usuarioId, ctx.usuario.id), inArray(empresas.id, ids))
-            : eq(empresas.usuarioId, ctx.usuario.id),
+            ? or(
+                eq(empresas.usuarioId, ctx.usuario.id),
+                inArray(empresas.id, ids)
+              )
+            : eq(empresas.usuarioId, ctx.usuario.id)
         );
     } else {
       rows = await db.select().from(empresas);
     }
-    return rows.map((e) => ({ ...e, cadastroCompleto: cadastroCompleto(e) }));
+    return rows.map(e => ({ ...e, cadastroCompleto: cadastroCompleto(e) }));
   }),
 
   /** Detalhe da empresa + CNAEs secundários (RF-00). */
@@ -61,7 +73,7 @@ export const empresasRouter = createRouter({
         .where(eq(cnaesSecundarios.empresaId, input.id));
       return {
         ...empresa,
-        cnaesSecundarios: cnaes.map((c) => c.cnae),
+        cnaesSecundarios: cnaes.map(c => c.cnae),
         cadastroCompleto: cadastroCompleto(empresa),
       };
     }),
@@ -107,7 +119,9 @@ export const empresasRouter = createRouter({
     .input(empresaInput)
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
-      const id = await db.transaction((tx) => criarEmpresa(tx, ctx.usuario.id, input));
+      const id = await db.transaction(tx =>
+        criarEmpresa(tx, ctx.usuario.id, input)
+      );
 
       return { id, cadastroCompleto: true };
     }),
@@ -134,10 +148,10 @@ export const empresasRouter = createRouter({
         .where(eq(cnaesSecundarios.empresaId, input.id));
       if (input.dados.cnaesSecundarios.length > 0) {
         await db.insert(cnaesSecundarios).values(
-          input.dados.cnaesSecundarios.map((cnae) => ({
+          input.dados.cnaesSecundarios.map(cnae => ({
             empresaId: input.id,
             cnae,
-          })),
+          }))
         );
       }
 

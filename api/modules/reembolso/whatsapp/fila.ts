@@ -8,6 +8,8 @@ export const STATUS_FILA_WHATSAPP = [
   "processado",
   "falhou",
   "cancelado",
+  "esgotado",
+  "incerto",
 ] as const;
 
 export type StatusFilaWhatsapp = (typeof STATUS_FILA_WHATSAPP)[number];

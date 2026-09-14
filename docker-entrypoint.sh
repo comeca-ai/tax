@@ -1,6 +1,6 @@
 #!/bin/sh
 # reembolsa.ia — entrypoint de produção (self-hosted)
-# 1) aguarda o banco, 2) aplica migrações, 3) seed idempotente, 4) sobe o app
+# 1) aguarda o banco, 2) aplica migrações, 3) seed estrutural idempotente, 4) sobe o app
 set -e
 
 echo "▶ Aguardando banco de dados..."
@@ -21,8 +21,8 @@ for f in db/migrations/0*.sql; do
   npx tsx db/migrations/apply.ts "$(basename "$f")"
 done
 
-echo "▶ Seed (idempotente — matriz de regras + dados demo)..."
-npx tsx db/seed.ts || echo "⚠ Seed pulado (já aplicado ou erro não fatal)"
+echo "▶ Seed estrutural (matriz de regras + configuração)..."
+npx tsx db/seed.ts
 
 echo "▶ Subindo reembolsa.ia na porta 3000..."
 exec npm start

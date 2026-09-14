@@ -5,12 +5,21 @@ import { createRouter, protectedProcedure, publicQuery } from "../middleware";
 import { getDb } from "../queries/connection";
 import { resetsSenha, usuarios } from "@db/schema";
 import { criarEmpresa } from "../modules/empresas";
-import { loginInput, registroComEmpresaInput, registroInput } from "@contracts/types";
-import { podeGerenciarEquipe, podeRevisarDespesas } from "@contracts/permissoes";
+import {
+  loginInput,
+  registroComEmpresaInput,
+  registroInput,
+} from "@contracts/types";
+import {
+  podeGerenciarEquipe,
+  podeRevisarDespesas,
+} from "@contracts/permissoes";
 import { hashSenha, verificarSenha } from "../auth/password";
 import { gerarTokenConvite } from "../lib/conviteUtils";
 import { ehChaveDuplicada } from "../lib/erroDb";
 import { enviarResetSenhaEmail } from "../mail/mailer";
+import { exigirLimiteAuth } from "../auth/rateLimit";
+import { revogarSessao } from "../auth/revogacao";
 
 const RESET_TTL_MS = 1000 * 60 * 60; // 1 hora
 import {
@@ -18,6 +27,8 @@ import {
   cookieSessao,
   criarTokenSessao,
   requisicaoSegura,
+  SESSION_COOKIE,
+  lerCookie,
 } from "../auth/session";
 import {
   ehAdminDeAlgumaEmpresa,
@@ -30,6 +41,7 @@ export const authRouter = createRouter({
   registro: publicQuery
     .input(registroInput)
     .mutation(async ({ input, ctx }) => {
+      await exigirLimiteAuth("registro", input.email);
       const db = getDb();
       const email = input.email.trim().toLowerCase();
 
@@ -51,7 +63,8 @@ export const authRouter = createRouter({
         .select({ id: usuarios.id })
         .from(usuarios)
         .limit(1);
-      const perfil = total.length === 0 ? ("admin" as const) : ("cliente" as const);
+      const perfil =
+        total.length === 0 ? ("admin" as const) : ("cliente" as const);
 
       const senhaHash = await hashSenha(input.senha);
       const result = await db.insert(usuarios).values({
@@ -64,7 +77,7 @@ export const authRouter = createRouter({
 
       ctx.resHeaders.append(
         "set-cookie",
-        cookieSessao(criarTokenSessao(id), requisicaoSegura(ctx.req)),
+        cookieSessao(criarTokenSessao(id, senhaHash), requisicaoSegura(ctx.req))
       );
       await registrarLog(db, {
         usuarioId: id,
@@ -96,6 +109,7 @@ export const authRouter = createRouter({
   registroComEmpresa: publicQuery
     .input(registroComEmpresaInput)
     .mutation(async ({ input, ctx }) => {
+      await exigirLimiteAuth("registro", input.email);
       const db = getDb();
       const email = input.email.trim().toLowerCase();
 
@@ -111,30 +125,35 @@ export const authRouter = createRouter({
         });
       }
 
-      const total = await db.select({ id: usuarios.id }).from(usuarios).limit(1);
-      const perfil = total.length === 0 ? ("admin" as const) : ("cliente" as const);
+      const total = await db
+        .select({ id: usuarios.id })
+        .from(usuarios)
+        .limit(1);
+      const perfil =
+        total.length === 0 ? ("admin" as const) : ("cliente" as const);
 
       const senhaHash = await hashSenha(input.senha);
 
-      const gravar = async () => db.transaction(async (tx) => {
-        const rUsuario = await tx.insert(usuarios).values({
-          email,
-          nome: input.nome.trim(),
-          senhaHash,
-          perfil,
-        });
-        const id = Number(rUsuario[0].insertId);
+      const gravar = async () =>
+        db.transaction(async tx => {
+          const rUsuario = await tx.insert(usuarios).values({
+            email,
+            nome: input.nome.trim(),
+            senhaHash,
+            perfil,
+          });
+          const id = Number(rUsuario[0].insertId);
 
-        await registrarLog(tx, {
-          usuarioId: id,
-          acao: "usuario.registro",
-          entidade: "usuario",
-          entidadeId: id,
-        });
-        const empresaId = await criarEmpresa(tx, id, input);
+          await registrarLog(tx, {
+            usuarioId: id,
+            acao: "usuario.registro",
+            entidade: "usuario",
+            entidadeId: id,
+          });
+          const empresaId = await criarEmpresa(tx, id, input);
 
-        return { id, empresaId };
-      });
+          return { id, empresaId };
+        });
 
       // A pré-checagem de e-mail é otimista: entre ela e o INSERT cabe outro
       // cadastro do mesmo e-mail. O índice único é quem garante — mas o erro
@@ -151,7 +170,9 @@ export const authRouter = createRouter({
             message: "E-mail já cadastrado.",
           });
         }
-        console.error("[auth] registroComEmpresa falhou:", erro);
+        console.error(
+          "[auth] registroComEmpresa falhou; detalhes sensíveis omitidos."
+        );
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Não foi possível concluir o cadastro. Tente novamente.",
@@ -160,7 +181,7 @@ export const authRouter = createRouter({
 
       ctx.resHeaders.append(
         "set-cookie",
-        cookieSessao(criarTokenSessao(id), requisicaoSegura(ctx.req)),
+        cookieSessao(criarTokenSessao(id, senhaHash), requisicaoSegura(ctx.req))
       );
 
       // Acabou de criar a própria empresa — já é admin dela (v1.9.1), o que
@@ -178,6 +199,7 @@ export const authRouter = createRouter({
 
   /** Login email/senha → cookie de sessão HttpOnly. */
   login: publicQuery.input(loginInput).mutation(async ({ input, ctx }) => {
+    await exigirLimiteAuth("login", input.email);
     const db = getDb();
     const email = input.email.trim().toLowerCase();
     const rows = await db
@@ -195,7 +217,10 @@ export const authRouter = createRouter({
 
     ctx.resHeaders.append(
       "set-cookie",
-      cookieSessao(criarTokenSessao(usuario.id), requisicaoSegura(ctx.req)),
+      cookieSessao(
+        criarTokenSessao(usuario.id, usuario.senhaHash),
+        requisicaoSegura(ctx.req)
+      )
     );
     await registrarLog(db, {
       usuarioId: usuario.id,
@@ -226,8 +251,10 @@ export const authRouter = createRouter({
     };
   }),
 
-  /** Encerra a sessão (limpa cookie). */
-  logout: publicQuery.mutation(({ ctx }) => {
+  /** Revoga o token no banco antes de limpar o cookie. */
+  logout: publicQuery.mutation(async ({ ctx }) => {
+    const token = lerCookie(ctx.req, SESSION_COOKIE);
+    if (token) await revogarSessao(token);
     ctx.resHeaders.append("set-cookie", cookieLimparSessao());
     return { ok: true };
   }),
@@ -256,12 +283,13 @@ export const authRouter = createRouter({
 
   /**
    * Solicita redefinição de senha (v1.6.1). Resposta é SEMPRE a mesma,
-   * existindo ou não o e-mail — não vaza quem tem conta. Sem SMTP, o link
-   * vai para o log do servidor (admin recupera por lá), nunca para o cliente.
+   * existindo ou não o e-mail — não vaza quem tem conta. Sem SMTP, nenhum
+   * link de recuperação é exibido ou registrado em logs.
    */
   solicitarResetSenha: publicQuery
     .input(z.object({ email: z.string().trim().email().max(255) }))
     .mutation(async ({ input }) => {
+      await exigirLimiteAuth("solicitarReset", input.email);
       const db = getDb();
       const email = input.email.trim().toLowerCase();
       const rows = await db
@@ -279,7 +307,9 @@ export const authRouter = createRouter({
       const link = `${appUrl}/redefinir-senha/${token}`;
       const { enviado } = await enviarResetSenhaEmail({ para: email, link });
       if (!enviado) {
-        console.log(`[auth] Reset de senha para ${email} (SMTP indisponível): ${link}`);
+        console.warn(
+          "[auth] E-mail de recuperação não enviado: SMTP indisponível."
+        );
       }
       return { ok: true };
     }),
@@ -289,10 +319,14 @@ export const authRouter = createRouter({
     .input(
       z.object({
         token: z.string().trim().min(20).max(128),
-        novaSenha: z.string().min(8, "A senha tem no mínimo 8 caracteres").max(128),
-      }),
+        novaSenha: z
+          .string()
+          .min(8, "A senha tem no mínimo 8 caracteres")
+          .max(128),
+      })
     )
     .mutation(async ({ input }) => {
+      await exigirLimiteAuth("redefinirSenha", input.token);
       const db = getDb();
       const rows = await db
         .select()
@@ -301,7 +335,9 @@ export const authRouter = createRouter({
         .limit(1);
       const reset = rows[0];
       const invalido =
-        !reset || reset.usedAt !== null || reset.expiresAt.getTime() < Date.now();
+        !reset ||
+        reset.usedAt !== null ||
+        reset.expiresAt.getTime() < Date.now();
       if (invalido) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -309,50 +345,91 @@ export const authRouter = createRouter({
         });
       }
 
-      await db
-        .update(usuarios)
-        .set({ senhaHash: await hashSenha(input.novaSenha) })
-        .where(eq(usuarios.email, reset.email));
-      await db
-        .update(resetsSenha)
-        .set({ usedAt: new Date() })
-        .where(eq(resetsSenha.id, reset.id));
-
-      await registrarLog(db, {
-        acao: "usuario.redefinir_senha",
-        entidade: "usuarios",
-        detalhes: `Senha redefinida para ${reset.email}`,
+      const senhaHash = await hashSenha(input.novaSenha);
+      await db.transaction(async tx => {
+        // Mesmo lock da troca de senha: serializa reset, troca e invalidação de links.
+        const [usuario] = await tx
+          .select({ id: usuarios.id })
+          .from(usuarios)
+          .where(eq(usuarios.email, reset.email))
+          .for("update");
+        const [atual] = await tx
+          .select()
+          .from(resetsSenha)
+          .where(eq(resetsSenha.id, reset.id))
+          .for("update");
+        if (
+          !usuario ||
+          !atual ||
+          atual.usedAt !== null ||
+          atual.expiresAt.getTime() <= Date.now()
+        )
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Link inválido ou expirado. Solicite uma nova redefinição.",
+          });
+        await tx
+          .update(usuarios)
+          .set({ senhaHash })
+          .where(eq(usuarios.id, usuario.id));
+        await tx
+          .update(resetsSenha)
+          .set({ usedAt: new Date() })
+          .where(eq(resetsSenha.email, reset.email));
+        await registrarLog(tx, {
+          usuarioId: usuario.id,
+          acao: "usuario.redefinir_senha",
+          entidade: "usuarios",
+          entidadeId: usuario.id,
+        });
       });
       return { ok: true };
     }),
 
   /** Troca de senha (autenticado). */
   trocarSenha: protectedProcedure
-    .input(z.object({ senhaAtual: z.string().min(1), novaSenha: z.string().min(8).max(128) }))
+    .input(
+      z.object({
+        senhaAtual: z.string().min(1),
+        novaSenha: z.string().min(8).max(128),
+      })
+    )
     .mutation(async ({ input, ctx }) => {
+      await exigirLimiteAuth("trocarSenha", String(ctx.usuario.id));
       const db = getDb();
-      const rows = await db
-        .select()
-        .from(usuarios)
-        .where(eq(usuarios.id, ctx.usuario.id))
-        .limit(1);
-      const usuario = rows[0];
-      if (!usuario || !(await verificarSenha(input.senhaAtual, usuario.senhaHash))) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "Senha atual incorreta.",
+      await db.transaction(async tx => {
+        const rows = await tx
+          .select()
+          .from(usuarios)
+          .where(eq(usuarios.id, ctx.usuario.id))
+          .for("update");
+        const usuario = rows[0];
+        if (
+          !usuario ||
+          !(await verificarSenha(input.senhaAtual, usuario.senhaHash))
+        ) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Senha atual incorreta.",
+          });
+        }
+        await tx
+          .update(usuarios)
+          .set({ senhaHash: await hashSenha(input.novaSenha) })
+          .where(eq(usuarios.id, usuario.id));
+        await tx
+          .update(resetsSenha)
+          .set({ usedAt: new Date() })
+          .where(eq(resetsSenha.email, usuario.email));
+        await registrarLog(tx, {
+          usuarioId: usuario.id,
+          acao: "usuario.trocar_senha",
+          entidade: "usuario",
+          entidadeId: usuario.id,
         });
-      }
-      await db
-        .update(usuarios)
-        .set({ senhaHash: await hashSenha(input.novaSenha) })
-        .where(eq(usuarios.id, usuario.id));
-      await registrarLog(db, {
-        usuarioId: usuario.id,
-        acao: "usuario.trocar_senha",
-        entidade: "usuario",
-        entidadeId: usuario.id,
       });
+      ctx.resHeaders.append("set-cookie", cookieLimparSessao());
       return { ok: true };
     }),
 });

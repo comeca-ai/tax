@@ -122,6 +122,9 @@ export const cnaesSecundarios = mysqlTable("cnaes_secundarios", {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const veiculos = mysqlTable("veiculos", {
+  colaboradorId: bigint("colaborador_id", { mode: "number", unsigned: true }),
+  motorizacao: mysqlEnum("motorizacao", ["combustao", "hibrido", "eletrico"]),
+  ufLicenciamento: varchar("uf_licenciamento", { length: 2 }),
   id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
     .notNull()
@@ -132,7 +135,10 @@ export const veiculos = mysqlTable("veiculos", {
   tarifaReembolsoKm: double("tarifa_reembolso_km").notNull().default(0),
   descricao: varchar("descricao", { length: 255 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, t => [
+  uniqueIndex("veiculos_pessoa_placa_unique").on(t.colaboradorId, t.placa),
+  foreignKey({ name: "veiculos_pessoa_empresa_fk", columns: [t.empresaId, t.colaboradorId], foreignColumns: [colaboradores.empresaId, colaboradores.id] }),
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. Notas fiscais (ingestão / OCR) — RF-01
@@ -167,7 +173,7 @@ export const notasFiscais = mysqlTable("notas_fiscais", {
   arquivoTamanhoBytes: int("arquivo_tamanho_bytes"),
   origem: mysqlEnum("origem", ["ocr", "manual"]).notNull().default("manual"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, t => [uniqueIndex("notas_fiscais_empresa_id_id_uq").on(t.empresaId, t.id)]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 6. Despesas — RF-01/RF-02/RF-05
@@ -435,6 +441,8 @@ export const colaboradores = mysqlTable(
     email: varchar("email", { length: 255 }),
     telefone: varchar("telefone", { length: 20 }),
     matricula: varchar("matricula", { length: 50 }),
+    tipoVinculo: mysqlEnum("tipo_vinculo", ["CLT", "MEI", "PJ"]),
+    superiorDiretoId: bigint("superior_direto_id", { mode: "number", unsigned: true }),
     centroCusto: varchar("centro_custo", { length: 100 }),
     // Documento para pagamento (v1.8, migração 0011): coleta TARDIA, no
     // primeiro reembolso a pagar — ambos nullable de propósito, ninguém
@@ -460,6 +468,7 @@ export const colaboradores = mysqlTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   },
   t => [
+    foreignKey({ name: "colaboradores_superior_tenant_fk", columns: [t.empresaId, t.superiorDiretoId], foreignColumns: [t.empresaId, t.id] }),
     uniqueIndex("colaboradores_empresa_telefone_unique").on(
       t.empresaId,
       t.telefone

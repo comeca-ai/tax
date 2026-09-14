@@ -1,0 +1,37 @@
+{
+  "em": "2026-09-13T15:20:47.177Z",
+  "somenteDadosSinteticos": true,
+  "limite": 20,
+  "fontesSha256": {
+    "api/modules/fiscal/ocr/visao.ts": "819de478e5f6d1a78f8f65335191bc27f0b35bae8f644be6471592c687f8ccf8",
+    "api/modules/reembolso/policy/openai.ts": "c873b8aa2c2af97d82a331269224e5268a9bbb0e48b5519c2485d10107b3447c",
+    "tools/poc/ensaiar-ocr.ts": "f3a33ce1a4020b5696451bbf9a5366fb76e631e5dee94ce839c68781b5d2307d"
+  },
+  "eventos": [
+    {
+      "consulta": 5,
+      "cenario": "ocr_pdf_identidade_fiscal",
+      "destino": "openai",
+      "reservadoEm": "2026-09-13T15:20:42.392Z",
+      "estado": "reservada"
+    },
+    {
+      "consulta": 5,
+      "estado": "respondida",
+      "http": 200,
+      "tokensEntrada": 1649,
+      "tokensSaida": 166
+    }
+  ],
+  "resultados": [
+    {
+      "cenario": "ocr_pdf_identidade_fiscal",
+      "provedorOpenai": true,
+      "totalCorreto": true,
+      "dataCorreta": true,
+      "litrosCorretos": true,
+      "destinatarioCorreto": true,
+      "chaveCorreta": true
+    }
+  ]
+}

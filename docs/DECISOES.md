@@ -5,12 +5,13 @@
 
 ---
 
-## D-025 · Avaliar integrador fiscal: Focus NFe primeiro, NFE.io como alternativa — 13/09/2026
+## D-025 · NFE.io para consulta inicial NF-e 55 — atualização em 13/09/2026
 
-**Decisão do usuário:** incluir no plano uma prova técnica de captura de NF-e
-por integrador, com **Focus NFe como primeira opção** e **NFE.io como
-alternativa**. O recorte inicial é uma empresa piloto, NF-e modelo 55 e notas
-de combustível conhecidas e autorizadas para teste.
+**Decisão atual do usuário:** implementar NFE.io para a consulta inicial de
+NF-e modelo 55, usando a Chave de Dados já cadastrada como `API_NFE_IO`.
+A preferência anterior era avaliar Focus NFe primeiro; esta escolha foi
+substituída explicitamente em 13/09. **Focus não foi implementado.** O recorte
+continua sendo uma empresa piloto e notas conhecidas e autorizadas para teste.
 
 **Consequências:** a avaliação fica em POC-12, sem criar uma entrega concorrente.
 Verificar XML completo, itens/quantidades, eventos e cancelamentos, certificado,
@@ -24,9 +25,15 @@ certificado/dados reais, manifestar operações fiscais ou ativar produção.
 Essas ações exigem autorização própria. Aprovar reembolso pela política não
 autoriza manifestação fiscal automaticamente.
 
-**Portão de decisão:** anexar resultados e recomendação de seguir ou não com
-Focus; se não atender, avaliar NFE.io. Fechar então o recorte de consulta fiscal
-E8 exigido no aceite. A prova isolada não conclui E8, integridade E9 ou a POC.
+**Implementação inicial:** consulta JSON por host fixo, autenticação de empresa,
+chave fiscal persistida, gate desabilitado por padrão e orçamento durável
+provisionado somente pelo operador. Cancelamento prevalece sobre protocolo
+original 100; não há aprovação de despesa automática nem promessa de NFC-e 65.
+Detalhes em [NFE-IO-CONSULTA.md](whatsapp-poc/NFE-IO-CONSULTA.md).
+
+**Portão de decisão:** NFE.io ainda não foi testado externamente nesta entrega.
+Anexar evidência real, consumo do limite global autorizado e resultado antes
+de concluir E8. A prova isolada não conclui integridade E9 ou a POC.
 **Invalidaria:** resultado técnico/comercial incompatível com os critérios, ou
 nova escolha explícita de produto registrada antes da contratação.
 

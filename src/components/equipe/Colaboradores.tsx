@@ -1,3 +1,4 @@
+import ImportarEquipe from "./ImportarEquipe"
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { motion } from "framer-motion"
@@ -6,12 +7,13 @@ import { toast } from "sonner"
 import { trpc } from "@/providers/trpc"
 import { useActiveCompany } from "@/hooks/useActiveCompany"
 import { Skeleton } from "@/components/ui/skeleton"
-import { mensagemErro } from "@/lib/convites"
+import { codigoErroTrpc, mensagemErro } from "@/lib/convites"
+import { apresentacaoConvite, type ResultadoConvite, type StatusWhatsapp } from "./statusConvite"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Colaboradores (v1.6.0; convite reescrito na v1.9.1) — quem pede reembolso.
-// O convite vai por e-mail e, se houver WhatsApp, o gestor recebe também um
-// link wa.me com o aceite pronto para compartilhar de forma intencional.
+// Cada canal apresenta seu próprio resultado. Compartilhamento manual só é
+// oferecido quando não há envio WhatsApp em andamento ou resultado incerto.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface Colaborador {
@@ -37,13 +39,7 @@ interface ColaboradoresClient {
   }
   listar: { query(input: { empresaId: number }): Promise<Colaborador[]> }
   enviarConvite: {
-    mutate(input: { id: number }): Promise<{
-      linkAceite: string
-      linkWhatsapp: string | null
-      enviadoPorWhatsapp: boolean
-      enviadoPorEmail: boolean
-      email: string | null
-    }>
+    mutate(input: { id: number }): Promise<ResultadoConvite>
   }
 }
 
@@ -68,12 +64,8 @@ export default function Colaboradores() {
   const [telefone, setTelefone] = useState("")
   const [email, setEmail] = useState("")
   const [matricula, setMatricula] = useState("")
-  const [linkConvite, setLinkConvite] = useState<{
-    email: string | null
-    link: string
-    whatsapp: string | null
-    emailEnviado: boolean
-  } | null>(null)
+  const [linkConvite, setLinkConvite] = useState<ResultadoConvite | null>(null)
+  const [statusConvites, setStatusConvites] = useState<Record<string, StatusWhatsapp>>({})
 
   const lista = useQuery({
     queryKey: ["colaboradores", "listar", empresaId],
@@ -98,47 +90,30 @@ export default function Colaboradores() {
 
   const convite = useMutation({
     mutationFn: (id: number) => colaboradores.enviarConvite.mutate({ id }),
-    onSuccess: async (res) => {
+    retry: false,
+    onSuccess: async (res, id) => {
+      const estado = apresentacaoConvite(res)
+      setStatusConvites((anteriores) => ({ ...anteriores, [`${empresaId}:${id}`]: estado.status }))
+      setLinkConvite(res)
+      const notificar = estado.status === "entregue" ? toast.success : estado.status === "falhou" ? toast.error : toast.info
+      notificar(estado.titulo, {
+        description: `${estado.descricao} ${res.enviadoPorEmail ? "E-mail enviado." : "E-mail não enviado."}`,
+      })
       await queryClient.invalidateQueries({ queryKey: ["colaboradores"] })
-      if ((!res.enviadoPorEmail && !res.enviadoPorWhatsapp) || res.linkWhatsapp) {
-        setLinkConvite({
-          email: res.email,
-          link: res.linkAceite,
-          whatsapp: res.linkWhatsapp,
-          emailEnviado: res.enviadoPorEmail || res.enviadoPorWhatsapp,
-        })
-      } else {
+    },
+    onError: (_erro, id) => {
+      if (codigoErroTrpc(_erro) === "BAD_REQUEST" && /^Use um e-mail com o domínio @[a-z0-9.-]+, igual ao do administrador da empresa\.$/.test(mensagemErro(_erro, ""))) {
         setLinkConvite(null)
-      }
-      if (res.enviadoPorEmail || res.enviadoPorWhatsapp) {
-        toast.success(
-          res.enviadoPorEmail && res.enviadoPorWhatsapp
-            ? "Convite enviado por e-mail e WhatsApp"
-            : res.enviadoPorWhatsapp
-              ? "Convite enviado por WhatsApp"
-              : "Convite enviado por e-mail",
-          {
-            description: res.linkWhatsapp ? "O envio manual por WhatsApp também está pronto." : res.email ?? undefined,
-          },
-        )
+        toast.error("Convite não enviado", { description: mensagemErro(_erro, "Confira o domínio do e-mail.") })
         return
       }
-      // Sem SMTP o e-mail não sai: o link fica na tela para o gestor mandar.
-      try {
-        await navigator.clipboard.writeText(res.linkAceite)
-        toast.success("Link do convite copiado", {
-          description: res.linkWhatsapp
-            ? "Envie pelo WhatsApp ou compartilhe o link copiado."
-            : "O e-mail automático não saiu — mande este link para o colaborador.",
-        })
-      } catch {
-        toast.info("Copie o link do convite abaixo")
-      }
+      // A transport failure does not prove that the server did not send the invitation.
+      setStatusConvites((anteriores) => ({ ...anteriores, [`${empresaId}:${id}`]: "incerto" }))
+      setLinkConvite(null)
+      toast.error("Não foi possível confirmar o convite", {
+        description: "Confira o status com o responsável antes de repetir o envio para evitar duplicidade.",
+      })
     },
-    onError: (erro) =>
-      toast.error("Não foi possível gerar o convite", {
-        description: mensagemErro(erro, "Tente novamente."),
-      }),
   })
 
   function cadastrar(e: React.FormEvent) {
@@ -172,6 +147,8 @@ export default function Colaboradores() {
           WhatsApp — ela escolhe uma senha e já envia as despesas.
         </p>
       </header>
+
+      <p className="text-sm text-text-500">Novos cadastros e convites devem usar o mesmo domínio do e-mail do administrador da empresa.</p>
 
       {/* Cadastro rápido */}
       <form
@@ -228,15 +205,15 @@ export default function Colaboradores() {
         </button>
       </form>
 
-      {/* Link de aceite — só aparece quando o e-mail automático não saiu */}
+      <ImportarEquipe key={empresaId} empresaId={empresaId} />
+
+      {/* Aceitação pela API, entrega e envio por e-mail são resultados distintos. */}
       {linkConvite && (
-        <div className="flex flex-col gap-2 rounded-xl border border-brand-500/30 bg-brand-500/5 p-4">
+        <div role="status" className="flex flex-col gap-2 rounded-xl border border-brand-500/30 bg-brand-500/5 p-4">
           <div className="flex items-center gap-2">
             <Link2 className="h-4 w-4 text-brand-500" />
             <span className="text-[13px] font-semibold text-text-900">
-              {linkConvite.emailEnviado
-                ? `Convite enviado para ${linkConvite.email ?? "o colaborador"}`
-                : `O e-mail automático não saiu — mande este link para ${linkConvite.email ?? "o colaborador"}`}
+              {apresentacaoConvite(linkConvite).titulo}
             </span>
             <button
               type="button"
@@ -246,15 +223,19 @@ export default function Colaboradores() {
               Fechar
             </button>
           </div>
-          <div className="rounded-[10px] border border-line bg-surface px-3 py-2.5">
+          <p className="text-[13px] text-text-700">{apresentacaoConvite(linkConvite).descricao}</p>
+          <p className="text-[13px] text-text-700">
+            {linkConvite.enviadoPorEmail ? `E-mail enviado para ${linkConvite.email ?? "o colaborador"}.` : "E-mail não enviado."}
+          </p>
+          {!apresentacaoConvite(linkConvite).bloquearReenvio && <div className="rounded-[10px] border border-line bg-surface px-3 py-2.5">
             <span className="break-all font-mono text-[12px] leading-relaxed text-text-900">
-              {linkConvite.link}
+              {linkConvite.linkAceite}
             </span>
-          </div>
+          </div>}
           <div className="flex flex-wrap gap-2">
-            {linkConvite.whatsapp && (
+            {!apresentacaoConvite(linkConvite).bloquearReenvio && linkConvite.linkWhatsapp && (
               <a
-                href={linkConvite.whatsapp}
+                href={linkConvite.linkWhatsapp}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex h-9 items-center gap-2 rounded-[9px] bg-[#25D366] px-3.5 text-[12px] font-semibold text-white transition hover:brightness-95"
@@ -296,6 +277,8 @@ export default function Colaboradores() {
             <tbody>
               {itens.map((c, i) => {
                 const chip = STATUS_CHIP[c.statusAtivacao]
+                const statusWhatsapp = statusConvites[`${empresaId}:${c.id}`]
+                const estadoConvite = statusWhatsapp ? apresentacaoConvite({ statusWhatsapp, enviadoPorWhatsapp: false }) : null
                 return (
                   <motion.tr
                     key={c.id}
@@ -315,7 +298,8 @@ export default function Colaboradores() {
                     <td className="px-4 text-right">
                       <button
                         type="button"
-                        disabled={convite.isPending}
+                        disabled={convite.isPending || estadoConvite?.bloquearReenvio}
+                        title={estadoConvite?.descricao}
                         onClick={() => convite.mutate(c.id)}
                         className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[12px] font-semibold text-text-700 transition hover:bg-paper disabled:opacity-50"
                       >
@@ -324,7 +308,7 @@ export default function Colaboradores() {
                         ) : (
                           <Link2 className="h-3.5 w-3.5" />
                         )}
-                        {c.statusAtivacao === "pendente" ? "Enviar convite" : "Reenviar convite"}
+                        {estadoConvite?.bloquearReenvio ? estadoConvite.titulo : c.statusAtivacao === "pendente" ? "Enviar convite" : "Reenviar convite"}
                       </button>
                     </td>
                   </motion.tr>

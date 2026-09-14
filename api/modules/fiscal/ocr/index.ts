@@ -1,5 +1,6 @@
 import type { CategoriaDespesa, OcrExtracao } from "@contracts/types";
 import { VisaoOcrProvider } from "./visao";
+import { extrairIdentidadeFiscalTexto } from "./identidadeTexto";
 
 /**
  * Provider plugável de OCR/extração (RF-01).
@@ -112,6 +113,8 @@ export class HeuristicOcrProvider implements OcrProvider {
       // Binário (imagem/PDF escaneado): sem extração local → preenchimento assistido
       return {
         cnpjEmitente: null,
+        cnpjDestinatario: null,
+        chaveAcesso: null,
         cfop: null,
         ncm: null,
         cst: null,
@@ -184,6 +187,8 @@ export class HeuristicOcrProvider implements OcrProvider {
       );
     }
 
+    const identidade = extrairIdentidadeFiscalTexto(texto);
+    if (identidade.chaveAmbigua) avisos.push("Documento contém chaves fiscais diferentes; revisão documental necessária.");
     const categoriaSugerida = sugerirCategoria(texto, cfop, ncm);
 
     const extraidos: Record<string, unknown> = {
@@ -216,6 +221,8 @@ export class HeuristicOcrProvider implements OcrProvider {
 
     return {
       cnpjEmitente,
+      cnpjDestinatario: identidade.cnpjDestinatario,
+      chaveAcesso: identidade.chaveAcesso,
       cfop,
       ncm,
       cst,
