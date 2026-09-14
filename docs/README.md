@@ -6,6 +6,7 @@ instruções dispersas na raiz do repositório.
 
 ## Comece por aqui
 
+- [Escopo técnico para fornecedor](escopo-tecnico-fornecedor.md): visão factual da branch atual para discovery, orçamento e handover.
 - [Roadmap da POC completa](poc/README.md): módulos, dependências e aceite de campo/combustível.
 - [Topologia da POC](poc/TOPOLOGIA.md): desenho com estado atual e integrações pendentes.
 - [Revisão de hierarquia](poc/REVISAO-HIERARQUIA.md): lacunas atuais e regras derivadas da política.
