@@ -12,6 +12,7 @@ import {
   Clock,
   FileWarning,
   Info,
+  MapPin,
   Receipt,
   ScanLine,
   ShieldCheck,
@@ -299,6 +300,10 @@ export default function Dashboard() {
     { empresaId: empresaId ?? 0 },
     { enabled: empresaId !== undefined, retry: false }
   );
+  const checkpointsQ = trpc.campo.checkpoints.useQuery(
+    { empresaId: empresaId ?? 0 },
+    { enabled: empresaId !== undefined, retry: false }
+  );
 
   useEffect(() => {
     if (resumo.error)
@@ -559,8 +564,8 @@ export default function Dashboard() {
     );
   }
 
-  if (resumo.isError || despesasQ.isError) {
-    return <QueryError titulo="Visão geral indisponível" onRetry={() => { void resumo.refetch(); void despesasQ.refetch(); }} />;
+  if (resumo.isError || despesasQ.isError || checkpointsQ.isError) {
+    return <QueryError titulo="Visão geral indisponível" onRetry={() => { void resumo.refetch(); void despesasQ.refetch(); void checkpointsQ.refetch(); }} />;
   }
 
   const subtitulo = activeCompany
@@ -779,6 +784,17 @@ export default function Dashboard() {
           </motion.div>
         ))}
       </div>
+
+      <section id="checkpoints" className="rounded-xl border border-line bg-surface p-5 shadow-card">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 font-display text-lg font-medium text-text-900"><MapPin className="h-4 w-4 text-brand-500" /> Checkpoints acumulados por usuário</h2>
+            <p className="mt-1 text-sm text-text-500">Total de checkpoints registrados nas jornadas da empresa selecionada.</p>
+          </div>
+          <span className="rounded-full bg-brand-500/10 px-3 py-1 font-mono text-sm font-semibold text-brand-500">{checkpointsQ.data?.totalCheckpoints ?? 0} total</span>
+        </div>
+        {checkpointsQ.data?.usuarios.length ? <div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b border-line text-xs uppercase tracking-wide text-text-500"><th className="pb-2 pr-3">Usuário</th><th className="pb-2 pr-3">Cargo</th><th className="pb-2 pr-3">Jornadas</th><th className="pb-2 pr-3">Checkpoints</th><th className="pb-2">Último registro</th></tr></thead><tbody>{checkpointsQ.data.usuarios.map(usuario => <tr key={usuario.colaboradorId} className="border-b border-line/60 last:border-0"><td className="py-3 pr-3 font-medium">{usuario.nome}</td><td className="py-3 pr-3 text-text-500">{usuario.cargo ?? "Não informado"}</td><td className="py-3 pr-3 font-mono">{usuario.jornadas}</td><td className="py-3 pr-3 font-mono font-semibold text-brand-500">{usuario.checkpoints}</td><td className="py-3 text-text-500">{usuario.ultimoCheckpointEm ? new Date(usuario.ultimoCheckpointEm).toLocaleString("pt-BR") : "Nenhum"}</td></tr>)}</tbody></table></div> : <p className="mt-4 text-sm text-text-500">Nenhum checkpoint acumulado ainda.</p>}
+      </section>
 
       {semDados ? (
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-line bg-surface px-8 py-16 text-center">

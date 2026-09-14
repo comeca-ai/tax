@@ -141,3 +141,11 @@ export function atualizarConciliacoes(estado: EstadoCampo): void {
 export function metricasCampo(estado: EstadoCampo) {
   return { jornadas: estado.jornadas.length, jornadasIncompletas: estado.jornadas.filter(j => j.pontos.at(-1)?.tipo !== "check_out").length, documentos: estado.documentos.length, documentosRegulares: estado.documentos.filter(d => d.estado === "regular").length, pendenciasDocumentais: estado.conciliacoes.filter(c => c.estado === "documentacao_pendente").length, lembretesPendentes: estado.conciliacoes.filter(c => c.lembrete === "pendente").length };
 }
+
+/** Agregado determinístico para a visualização de checkpoints por colaborador. */
+export function checkpointsDoUsuario(estado: EstadoCampo) {
+  const pontos = estado.jornadas.flatMap(j => j.pontos);
+  const checkpoints = pontos.filter(p => p.tipo === "checkpoint");
+  const ultimo = checkpoints.map(p => p.ocorridoEm).sort().at(-1) ?? null;
+  return { checkpoints: checkpoints.length, jornadas: estado.jornadas.length, ultimoCheckpointEm: ultimo };
+}

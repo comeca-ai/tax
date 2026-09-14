@@ -1,14 +1,14 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { UFS_BRASIL } from "../../contracts/empresas";
 import { colaboradores, despesas, empresas, empresasConfig, politicasReembolso } from "../../db/schema";
 import { pocCampo, pocPagamentos, pocConfiguracao } from "../../db/pocSchema";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { assertAdminDaEmpresa, registrarLog } from "./_shared";
+import { assertAdminDaEmpresa, assertEmpresaAcesso, registrarLog } from "./_shared";
 import type { TrpcContext } from "../context";
-import { atualizarConciliacoes, conciliar, metricasCampo, novoEstadoCampo } from "../modules/reembolso/campo/dominio";
+import { atualizarConciliacoes, checkpointsDoUsuario, conciliar, metricasCampo, novoEstadoCampo } from "../modules/reembolso/campo/dominio";
 import { alterarCampo, eventoCampoSchema, registrarEventoCampo, vincularPresencaCampo } from "../modules/reembolso/campo/servico";
 import { calcularJornadaPersistida } from "../modules/reembolso/campo/calculoMaps";
 import { configuracaoCampoSchema, memorialReembolso } from "../modules/reembolso/campo/politica";
@@ -65,6 +65,15 @@ export const campoRouter = createRouter({
     const [row] = await getDb().select().from(pocCampo).where(and(eq(pocCampo.empresaId, identity.empresaId), eq(pocCampo.colaboradorId, identity.colaboradorId)));
     const estado = row?.estado ?? novoEstadoCampo();
     return { ...estado, metricas: metricasCampo(estado) };
+  }),
+  /** Totais de checkpoint por pessoa, sempre limitados à empresa autorizada. */
+  checkpoints: protectedProcedure.input(z.object({ empresaId: z.number().int().positive() })).query(async ({ input, ctx }) => {
+    await assertEmpresaAcesso(ctx, input.empresaId);
+    const rows = await getDb().select({ colaboradorId: colaboradores.id, usuarioId: colaboradores.usuarioId, nome: colaboradores.nome, cargo: colaboradores.cargo, estado: pocCampo.estado })
+      .from(colaboradores).leftJoin(pocCampo, and(eq(colaboradores.id, pocCampo.colaboradorId), eq(colaboradores.empresaId, pocCampo.empresaId)))
+      .where(and(eq(colaboradores.empresaId, input.empresaId), eq(colaboradores.statusVinculo, "ativo"))).orderBy(asc(colaboradores.nome));
+    const usuarios = rows.map(row => ({ colaboradorId: row.colaboradorId, usuarioId: row.usuarioId, nome: row.nome, cargo: row.cargo, ...checkpointsDoUsuario(row.estado ?? novoEstadoCampo()) }));
+    return { totalCheckpoints: usuarios.reduce((total, usuario) => total + usuario.checkpoints, 0), usuarios };
   }),
   vincularPresenca: protectedProcedure.input(pessoaInput.extend({ presencaId: z.string().uuid(), veiculo: z.string().min(1).max(10) })).mutation(async ({ input, ctx }) => {
     const identity = await contexto(ctx, input.colaboradorId);

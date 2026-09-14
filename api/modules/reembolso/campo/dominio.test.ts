@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { adicionarPonto, atualizarConciliacoes, chaveFiscalValida, conciliar, novoEstadoCampo, type Jornada } from "./dominio";
+import { adicionarPonto, atualizarConciliacoes, checkpointsDoUsuario, chaveFiscalValida, conciliar, novoEstadoCampo, type Jornada } from "./dominio";
 import { estimarJornada } from "./maps";
 import { aplicarModo, valorEstimadoCentavos } from "./politica";
 import type { DecisaoReembolso } from "../decisor";
@@ -15,6 +15,12 @@ function completa() {
 }
 
 describe("jornadas persistíveis", () => {
+  it("agrega somente checkpoints e preserva o último registro", () => {
+    const estado = novoEstadoCampo();
+    estado.jornadas.push(completa());
+    expect(checkpointsDoUsuario(estado)).toEqual({ checkpoints: 1, jornadas: 1, ultimoCheckpointEm: "2026-09-13T10:00:00.000Z" });
+    expect(checkpointsDoUsuario(novoEstadoCampo())).toEqual({ checkpoints: 0, jornadas: 0, ultimoCheckpointEm: null });
+  });
   it("preserva origem e torna reentrega idêntica neutra", () => {
     const j = adicionarPonto(vazia(), ponto, agora);
     expect(adicionarPonto(j, ponto, "2026-09-13T13:00:00Z")).toBe(j);
