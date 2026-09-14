@@ -1,0 +1,35 @@
+name: JhonemeJampeiro - validar OpenAI manualmente
+
+on:
+  workflow_dispatch:
+    inputs:
+      approved:
+        description: Confirmo revisão e custo de uma única chamada OpenAI para homologação
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jampeiro-live-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: github.repository == 'comeca-ai/projeto_tribureembolsa' && github.ref == 'refs/heads/main' && inputs.approved
+    environment: homologacao
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validar primeiro sem credenciais
+        run: python3 -m unittest discover -s services/jhonemejampeiro -p 'test_*.py'
+      - name: Uma chamada, sem saída sensível e sem deploy
+        env:
+          OPEN_AI_KEY: ${{ secrets.OPEN_AI_KEY }}
+          JAMPEIRO_LIVE_SMOKE_APPROVED: 'true'
+        run: python3 services/jhonemejampeiro/smoke_ai.py
