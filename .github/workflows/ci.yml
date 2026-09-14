@@ -48,5 +48,8 @@ jobs:
       - name: Verificar segurança dos workflows
         run: node --test tools/github/workflows-security.check.mjs
 
+      - name: Testar provisionamento isolado de integrações (sem secrets/rede)
+        run: node tools/deploy/provisionar-integracoes-homolog.check.mjs
+
       - name: Gerar build de produção
         run: npm run build
