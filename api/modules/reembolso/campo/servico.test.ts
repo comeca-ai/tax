@@ -55,7 +55,7 @@ describe("serviço campo com persistência transacional simulada", () => {
     await interpretarMensagemCampo(identidade, { id: "gps", type: "location", location: { latitude: 0, longitude: 0 }, timestamp });
     expect((await interpretarMensagemCampo(identidade, { id: "c2", type: "text", text: "checkout", timestamp }))?.textoResposta).toContain("localização");
   });
-  it("rejeita checkout sem entrada, GPS antigo, ID adulterado e comando expirado", async () => {
+  it("rejeita checkout sem entrada, GPS antigo e ID adulterado; local expirado inicia automaticamente", async () => {
     const timestamp = Math.floor(Date.now() / 1000);
     const mensagem = { id: "c1", type: "text", text: "check-in", timestamp };
     expect((await interpretarMensagemCampo(identidade, { ...mensagem, id: "saida", text: "check-out" }))?.textoResposta).toContain("antes");
@@ -63,13 +63,15 @@ describe("serviço campo com persistência transacional simulada", () => {
     await expect(interpretarMensagemCampo(identidade, { ...mensagem, text: "check-out" })).rejects.toThrow(/outro conteúdo/);
     await expect(interpretarMensagemCampo(identidade, { id: "gps", type: "location", location: { latitude: 0, longitude: 0 }, timestamp: timestamp - 1 })).rejects.toThrow(/anterior ao comando/);
     estado!.conversa!.pendente!.expiraEm = new Date(Date.now() - 1000).toISOString();
-    expect((await interpretarMensagemCampo(identidade, { id: "gps", type: "location", location: { latitude: 0, longitude: 0 }, timestamp }))?.textoResposta).toContain("Antes da localização");
-    expect(estado?.presencas ?? []).toHaveLength(0);
+    expect((await interpretarMensagemCampo(identidade, { id: "gps", type: "location", location: { latitude: 0, longitude: 0 }, timestamp }))?.textoResposta).toContain("Check-in registrado");
+    expect(estado?.presencas ?? []).toHaveLength(1);
   });
-  it("não infere comando de coordenada solta", async () => {
+  it("infere check-in e check-out de localizações consecutivas", async () => {
     const r = await interpretarMensagemCampo(identidade, { id: "m", type: "location", location: { latitude: 0, longitude: 0 }, timestamp: Date.now() / 1000 });
-    expect(r?.textoResposta).toContain("Antes da localização");
-    expect(estado?.jornadas).toHaveLength(0);
+    expect(r?.textoResposta).toContain("Check-in registrado");
+    const saida = await interpretarMensagemCampo(identidade, { id: "m2", type: "location", location: { latitude: 0.1, longitude: 0.1 }, timestamp: Date.now() / 1000 });
+    expect(saida?.textoResposta).toContain("Check-out registrado");
+    expect(estado?.presencas?.[0].pontos.map(p => p.tipo)).toEqual(["check_in", "check_out"]);
   });
   it("suspensão impede captura antes de ler o agregado", async () => {
     ativo = false;

@@ -17,6 +17,7 @@ import { getPolicyParser } from "../modules/reembolso/policy/parser";
 import { consolidarRegras } from "../modules/reembolso/policy/derivar";
 import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "../modules/reembolso/policy/texto";
 import { avaliarDespesa } from "../modules/reembolso/policy/agent";
+import { arquitetarPolitica } from "../modules/reembolso/policy/arquiteto";
 import {
   POLITICA_ATIVA_IMUTAVEL,
   politicaEditavel,
@@ -50,6 +51,15 @@ async function buscarPoliticaOuFalhar(id: number) {
 }
 
 export const politicaRouter = createRouter({
+  /** Gera um rascunho estruturado a partir de um pedido; não grava nem ativa. */
+  arquitetar: protectedProcedure
+    .input(z.object({ id: z.number().int().positive(), pedido: z.string().trim().min(3).max(4_000) }))
+    .mutation(async ({ input, ctx }) => {
+      const politica = await buscarPoliticaOuFalhar(input.id);
+      await assertAdminDaEmpresa(ctx, politica.empresaId);
+      const regrasAtuais = regrasPoliticaSchema.parse(politica.regras ?? {}).regrasExtraidas;
+      return arquitetarPolitica({ pedido: input.pedido, regrasAtuais });
+    }),
   /**
    * Upload do documento da política → parser plugável extrai regras →
    * salva arquivo em uploads/ e registro em status "rascunho".

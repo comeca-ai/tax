@@ -52,6 +52,7 @@ jobs:
           DIALOG_360_API_KEY: ${{ secrets.API_KEY }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.API_GOOGLE_MAPS }}
           API_NFE_IO: ${{ secrets.API_NFE_IO }}
+          OPENAI_API_KEY: ${{ secrets.OPEN_AI_KEY }}
           HOMOLOG_SSH_PRIVATE_KEY: ${{ secrets.HOMOLOG_SSH_PRIVATE_KEY }}
           HOMOLOG_SSH_KNOWN_HOSTS: ${{ secrets.HOMOLOG_SSH_KNOWN_HOSTS }}
           HOMOLOG_SSH_HOST: ${{ vars.HOMOLOG_SSH_HOST }}

@@ -567,6 +567,8 @@ export default function Dashboard() {
     ? `${activeCompany.razaoSocial} · ${REGIME_LABEL[activeCompany.regimeTributario]} · ${activeCompany.uf} · ${faixa.rotulo}`
     : "";
   const primeiroNome = user?.nome.trim().split(/\s+/)[0] || "";
+  const horaAtual = new Date().getHours();
+  const saudacao = horaAtual < 12 ? "Bom dia" : horaAtual < 18 ? "Boa tarde" : "Boa noite";
   const periodoAtual = format(new Date(), "MMMM 'de' yyyy", { locale: ptBR });
 
   return (
@@ -586,7 +588,7 @@ export default function Dashboard() {
               Visão geral · {periodoAtual}
             </p>
             <h1 className="mt-1.5 font-display text-[28px] font-semibold tracking-[-0.02em] text-text-900 sm:text-[30px]">
-              {primeiroNome ? `Bom dia, ${primeiroNome}.` : "Visão geral"}
+              {primeiroNome ? `${saudacao}, ${primeiroNome}.` : "Visão geral"}
             </h1>
             <p className="mt-1.5 max-w-2xl text-[14px] leading-relaxed text-text-500">
               Acompanhe as despesas, decisões e créditos da empresa selecionada

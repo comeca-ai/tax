@@ -106,8 +106,23 @@ export async function interpretarMensagemCampo(identidade: IdentidadeCampo, mens
     } else {
       const pendente = estado.conversa.pendente;
       if (!pendente || Date.parse(pendente.expiraEm) < Date.now()) {
+        // A localização pode iniciar ou encerrar a presença sem exigir um
+        // comando textual. Comando explícito continua sendo aceito acima e
+        // preserva o fluxo de checkpoint.
         estado.conversa.pendente = null;
-        textoResposta = "Antes da localização, envie check-in, checkpoint ou check-out.";
+        const aberta = estado.presencas?.find(p => p.pontos.at(-1)?.tipo !== "check_out");
+        const tipo = aberta ? "check_out" : "check_in";
+        const presencaId = aberta?.id ?? randomUUID();
+        const ponto = pontoSchema.parse({ id: mensagem.id, tipo, ...mensagem.location, ocorridoEm: timestampRecebido.toISOString() });
+        estado.presencas ??= [];
+        const presenca = aberta ?? { id: presencaId, pontos: [] };
+        if (!aberta) estado.presencas.push(presenca);
+        const pontos = acrescentarPonto(presenca.pontos, ponto, new Date().toISOString());
+        const novo = pontos.at(-1)!;
+        presenca.pontos.push({ ...novo, comandoId: mensagem.id, comandoEm: timestampRecebido.toISOString() });
+        textoResposta = tipo === "check_in"
+          ? "Check-in registrado. Envie outra localização quando encerrar."
+          : "Check-out registrado!";
       } else if (pendente.fluxo !== "presenca") {
         // Comandos antigos não são reinterpretados após a separação dos fluxos.
         estado.conversa.pendente = null;

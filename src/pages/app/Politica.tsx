@@ -425,7 +425,7 @@ export default function Politica({ iniciarUpload = false }: { iniciarUpload?: bo
             </motion.div>
           )}
 
-          {step === 2 && form && extracao && (
+          {step === 2 && politicaId !== null && form && extracao && (
             <motion.div
               key="politica-passo-2"
               initial={{ opacity: 0, x: 40 }}
@@ -434,6 +434,7 @@ export default function Politica({ iniciarUpload = false }: { iniciarUpload?: bo
               transition={{ duration: 0.25, ease: "easeOut" }}
             >
               <PoliticaRegrasStep
+                politicaId={politicaId}
                 form={form}
                 onChange={setForm}
                 camposPendentes={extracao.camposPendentes}
