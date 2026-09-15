@@ -22,6 +22,7 @@ const ROTULO_REGRA: Record<string, string> = {
 }
 
 const ROTULO_LACUNA: Record<LacunaTipo, string> = {
+  "condicao-nao-avaliada": "a condição da regra precisa ser verificada na revisão",
   "conflito-vedado-permissivo": "a política veda e libera a mesma categoria",
   "so-vedado-sem-marcacao": "a categoria só tem regra vedada, sem marcação do gestor",
   "marcacao-sem-valor": "regra marcada para o agente aprovar sozinho, sem limite em reais",

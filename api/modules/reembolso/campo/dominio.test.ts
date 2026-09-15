@@ -21,6 +21,20 @@ describe("jornadas persistíveis", () => {
     expect(checkpointsDoUsuario(estado)).toEqual({ checkpoints: 1, jornadas: 1, ultimoCheckpointEm: "2026-09-13T10:00:00.000Z" });
     expect(checkpointsDoUsuario(novoEstadoCampo())).toEqual({ checkpoints: 0, jornadas: 0, ultimoCheckpointEm: null });
   });
+  it("inclui presença sem jornada e não duplica evento copiado para a jornada", () => {
+    const estado = novoEstadoCampo();
+    const jornada = completa();
+    estado.jornadas.push(jornada);
+    estado.presencas = [
+      { id: "presenca-vinculada", jornadaId: jornada.id, pontos: [{ ...jornada.pontos[1], comandoId: "cmd-1", comandoEm: agora }] },
+      { id: "presenca-inicial", pontos: [{
+        id: "presenca-checkpoint", tipo: "checkpoint", latitude: -22, longitude: -43,
+        ocorridoEm: "2026-09-13T11:30:00.000Z", recebidoEm: agora, comandoId: "cmd-2", comandoEm: agora,
+      }] },
+    ];
+
+    expect(checkpointsDoUsuario(estado)).toEqual({ checkpoints: 2, jornadas: 2, ultimoCheckpointEm: "2026-09-13T11:30:00.000Z" });
+  });
   it("preserva origem e torna reentrega idêntica neutra", () => {
     const j = adicionarPonto(vazia(), ponto, agora);
     expect(adicionarPonto(j, ponto, "2026-09-13T13:00:00Z")).toBe(j);

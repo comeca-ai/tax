@@ -22,6 +22,7 @@ import {
 } from "../../../../contracts/fiscal";
 import type { OcrExtracao } from "../../../../contracts/types";
 import { identidadeFiscalDoUpload } from "../../fiscal/verificacao/documento";
+import { documentoJaRegistrado } from "../../fiscal/verificacao/duplicidade";
 import { verificarFiscalWhatsapp } from "../../fiscal/verificacao/service";
 export type ResultadoRecebimentoComprovanteWhatsapp = {
   despesaId: number | null;
@@ -231,7 +232,7 @@ export async function receberComprovanteWhatsapp(
     if (!colaborador)
       throw new ErroComprovanteWhatsapp("Vínculo inválido", "VINCULO_INVALIDO");
     // Serializa documentos da empresa, inclusive remetentes diferentes.
-    // O lock cobre consulta de checksum + criação da nota/despesa.
+    // O lock é compartilhado com upload web e cobre hash/chave + nota/despesa.
     await tx
       .select({ id: empresas.id })
       .from(empresas)
@@ -287,17 +288,11 @@ export async function receberComprovanteWhatsapp(
         idempotente: true,
       };
     const arquivo = prepararComprovanteParaBanco(pedido.comprovante);
-    const [duplicado] = await tx
-      .select({ id: notasFiscais.id })
-      .from(notasFiscais)
-      .where(
-        and(
-          eq(notasFiscais.empresaId, pedido.empresaId),
-          eq(notasFiscais.arquivoChecksum, arquivo.arquivoChecksum)
-        )
-      )
-      .limit(1);
-    if (duplicado)
+    const identidadeFiscal = identidadeFiscalDoUpload(
+      arquivo.arquivoBase64,
+      pedido.extracao?.chaveAcesso
+    );
+    if (await documentoJaRegistrado(tx, pedido.empresaId, identidadeFiscal))
       throw new ErroComprovanteWhatsapp(
         "Este comprovante já foi registrado na empresa.",
         "DUPLICADO"
@@ -321,10 +316,6 @@ export async function receberComprovanteWhatsapp(
       confiancaTipo: ocr?.confiancaTipo,
     });
     const notaFiscalId = Number(nota[0].insertId);
-    const identidadeFiscal = identidadeFiscalDoUpload(
-      arquivo.arquivoBase64,
-      ocr?.chaveAcesso
-    );
     await tx
       .insert(fiscalDocumentos)
       .values({

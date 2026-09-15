@@ -6,11 +6,13 @@ import {
   whatsappInbox,
 } from "../../../../db/schema";
 import { receberComprovanteWhatsapp } from "./comprovanteDb";
+import { fiscalDocumentos } from "../../../../db/fiscalSchema";
 const state = vi.hoisted(() => ({
   collaborator: true,
   owner: 1,
   existing: true,
   duplicate: false,
+  duplicateKey: false,
   selected: [] as unknown[],
   values: vi.fn(),
 }));
@@ -23,7 +25,7 @@ vi.mock("../../../queries/connection", () => ({
             state.selected.push(table);
             return {
               where: () => ({
-                limit: async () => (state.duplicate ? [{ id: 123 }] : []),
+                limit: () => ({ for: async () => ((table === notasFiscais && state.duplicate) || (table === fiscalDocumentos && state.duplicateKey) ? [{ id: 123 }] : []) }),
                 for: async () =>
                   table === colaboradores
                     ? state.collaborator
@@ -65,6 +67,7 @@ beforeEach(() => {
   state.owner = 1;
   state.existing = true;
   state.duplicate = false;
+  state.duplicateKey = false;
   state.selected = [];
   state.values.mockReset();
   state.values.mockResolvedValue([{ affectedRows: 0 }]);
@@ -105,5 +108,20 @@ it("mesmo binário em outra mensagem é bloqueado antes de criar nota ou despesa
     notasFiscais,
   ]);
   // Apenas reserva de inbox, revertida pela transação real ao lançar o erro.
+  expect(state.values).toHaveBeenCalledTimes(1);
+});
+
+it("mesma chave em outro binário também é bloqueada antes da despesa", async () => {
+  state.existing = false;
+  state.duplicateKey = true;
+  const base = "3526091420016600016655001000000007100000000";
+  const sum = [...base].reverse().reduce((s, d, i) => s + Number(d) * (2 + i % 8), 0);
+  const dv = 11 - sum % 11;
+  await expect(receberComprovanteWhatsapp({ ...pedido, mensagemId: "wamid.same-key", extracao: {
+    chaveAcesso: base + (dv >= 10 ? 0 : dv), cnpjEmitente: null, cfop: null, ncm: null, cst: null, valor: 30,
+    dataFatoGerador: "2026-09-15", litros: null, categoriaSugerida: "alimentacao", confiancaExtracao: "alta",
+    camposPendentes: [], provedor: "fixture", avisos: [],
+  } })).rejects.toMatchObject({ codigo: "DUPLICADO" });
+  expect(state.selected).toEqual([colaboradores, empresas, whatsappInbox, notasFiscais, fiscalDocumentos]);
   expect(state.values).toHaveBeenCalledTimes(1);
 });

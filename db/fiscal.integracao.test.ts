@@ -64,6 +64,7 @@ const calls: number[] = [];
 let currentNote: number;
 let viaWhatsapp = false;
 let nextModel = "55";
+let documentSequence = 0;
 const ctx = (user = owner): TrpcContext => ({
   req: new Request("http://localhost"),
   resHeaders: new Headers(),
@@ -77,7 +78,7 @@ const ctx = (user = owner): TrpcContext => ({
 const fiscal = (user = owner) => fiscalRouter.createCaller(ctx(user));
 const expenses = (user = owner) => despesasRouter.createCaller(ctx(user));
 function key(model = "55") {
-  const base = `35260914200166000166${model}001000000007100000000`;
+  const base = `35260914200166000166${model}001${String(documentSequence).padStart(9, "0")}100000000`;
   const sum = [...base]
     .reverse()
     .reduce((s, d, i) => s + Number(d) * (2 + (i % 8)), 0);
@@ -86,13 +87,13 @@ function key(model = "55") {
 }
 async function upload(model = "55") {
   nextModel = model;
+  documentSequence++;
   const result = await expenses(colleague).uploadNota({
     empresaId: empresa,
     arquivoNome: "fixture.jpg",
     arquivoMime: "image/jpeg",
-    arquivoBase64: Buffer.from(`fixture-fiscal-${randomUUID()}`).toString(
-      "base64"
-    ),
+    // Assinatura JPEG sintética; o OCR permanece simulado neste ensaio de banco.
+    arquivoBase64: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from(`fixture-fiscal-${randomUUID()}`)]).toString("base64"),
   });
   noteIds.push(result.notaFiscalId);
   currentNote = result.notaFiscalId;
@@ -428,6 +429,7 @@ describe.skipIf(!target)(
     it("WhatsApp geral55 reserva fora do lock, usa ator real e conserva sombra sem jornada", async () => {
       viaWhatsapp = true;
       nextModel = "55";
+      documentSequence++;
       const pedido = {
         empresaId: empresa,
         colaboradorId: targetPerson,
@@ -484,6 +486,7 @@ describe.skipIf(!target)(
     });
     it("WhatsApp geral65 persiste não suportada sem consumir saldo ou inventar usuário", async () => {
       nextModel = "65";
+      documentSequence++;
       const pedido = {
         empresaId: empresa,
         colaboradorId: targetPerson,

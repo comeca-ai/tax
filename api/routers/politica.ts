@@ -5,7 +5,7 @@ import { and, desc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { politicasReembolso } from "@db/schema";
+import { empresas, politicasReembolso } from "@db/schema";
 import {
   politicaTestarInput,
   politicaUpdateRegrasInput,
@@ -47,6 +47,20 @@ async function buscarPoliticaOuFalhar(id: number) {
   if (!politica) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Política não encontrada." });
   }
+  return politica;
+}
+
+type Transacao = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+/** Mesma ordem de bloqueios em edição/ativação/desativação; versão é por empresa. */
+async function bloquearPolitica(tx: Transacao, id: number, empresaId: number) {
+  const [empresa] = await tx.select({ id: empresas.id }).from(empresas)
+    .where(eq(empresas.id, empresaId)).for("update");
+  if (!empresa) throw new TRPCError({ code: "NOT_FOUND", message: "Empresa não encontrada." });
+  const [politica] = await tx.select().from(politicasReembolso)
+    .where(and(eq(politicasReembolso.id, id), eq(politicasReembolso.empresaId, empresaId)))
+    .for("update");
+  if (!politica) throw new TRPCError({ code: "NOT_FOUND", message: "Política não encontrada." });
   return politica;
 }
 
@@ -214,30 +228,24 @@ export const politicaRouter = createRouter({
       // Editar regra é declarar o que o agente pode aprovar ou negar sozinho: só o
       // admin da empresa (ou o suporte da plataforma) decide isso (P-4, v1.8).
       await assertAdminDaEmpresa(ctx, politica.empresaId);
-      // RF-07: a política em vigor é imutável. Gravar em cima dela fazia as marcações
-      // valerem no "Salvar regras" — antes do simulador, antes de "Ativar política" — e
-      // duas configurações diferentes conviviam sob a mesma versão, sem que
-      // `politicaVersaoAplicada` identificasse qual regra decidiu o quê.
-      if (!politicaEditavel(politica.status)) {
-        throw new TRPCError({ code: "CONFLICT", message: POLITICA_ATIVA_IMUTAVEL });
-      }
       const db = getDb();
       // Limites, exigências e tetos nascem das regras extraídas (servidor é a fonte).
       // "edicao": lista vazia é declaração do gestor — apagar tudo zera os parâmetros.
       const regras = consolidarRegras(input.regras, "edicao");
 
-      await db
-        .update(politicasReembolso)
-        .set({ regras, camposPendentes: [] })
-        .where(eq(politicasReembolso.id, politica.id));
-
-      await registrarLog(db, {
-        usuarioId: ctx.usuario.id,
-        empresaId: politica.empresaId,
-        acao: "politica.update_regras",
-        entidade: "politica_reembolso",
-        entidadeId: politica.id,
-        detalhes: `Regras editadas manualmente (${regras.regrasExtraidas.length} regras extraídas, ${regras.camposCustomizados.length} campos customizados).`,
+      await db.transaction(async tx => {
+        const atual = await bloquearPolitica(tx, politica.id, politica.empresaId);
+        // Releitura sob bloqueio: a ativação pode ter ocorrido após a autorização.
+        if (!politicaEditavel(atual.status)) {
+          throw new TRPCError({ code: "CONFLICT", message: POLITICA_ATIVA_IMUTAVEL });
+        }
+        await tx.update(politicasReembolso).set({ regras, camposPendentes: [] })
+          .where(and(eq(politicasReembolso.id, atual.id), eq(politicasReembolso.empresaId, atual.empresaId), ne(politicasReembolso.status, "ativa")));
+        await registrarLog(tx, {
+          usuarioId: ctx.usuario.id, empresaId: atual.empresaId,
+          acao: "politica.update_regras", entidade: "politica_reembolso", entidadeId: atual.id,
+          detalhes: `Regras editadas manualmente (${regras.regrasExtraidas.length} regras extraídas, ${regras.camposCustomizados.length} campos customizados).`,
+        });
       });
 
       return { ok: true, regras };
@@ -256,10 +264,14 @@ export const politicaRouter = createRouter({
       const db = getDb();
 
       const versao = await db.transaction(async (tx) => {
+        const atual = await bloquearPolitica(tx, politica.id, politica.empresaId);
+        // Repetir a ativação da mesma versão não cria uma versão sem alteração.
+        if (atual.status === "ativa") return atual.versao;
         const todas = await tx
           .select({ versao: politicasReembolso.versao })
           .from(politicasReembolso)
-          .where(eq(politicasReembolso.empresaId, politica.empresaId));
+          .where(eq(politicasReembolso.empresaId, atual.empresaId))
+          .for("update");
         const novaVersao = Math.max(0, ...todas.map((t) => t.versao)) + 1;
 
         await tx
@@ -267,8 +279,8 @@ export const politicaRouter = createRouter({
           .set({ status: "inativa" })
           .where(
             and(
-              eq(politicasReembolso.empresaId, politica.empresaId),
-              ne(politicasReembolso.id, politica.id),
+              eq(politicasReembolso.empresaId, atual.empresaId),
+              ne(politicasReembolso.id, atual.id),
               eq(politicasReembolso.status, "ativa"),
             ),
           );
@@ -277,19 +289,15 @@ export const politicaRouter = createRouter({
           .set({
             status: "ativa",
             versao: novaVersao,
-            regras: consolidarRegras(regrasPoliticaSchema.parse(politica.regras ?? {})),
+            regras: consolidarRegras(regrasPoliticaSchema.parse(atual.regras ?? {})),
           })
-          .where(eq(politicasReembolso.id, politica.id));
+          .where(and(eq(politicasReembolso.id, atual.id), eq(politicasReembolso.empresaId, atual.empresaId)));
+        await registrarLog(tx, {
+          usuarioId: ctx.usuario.id, empresaId: atual.empresaId,
+          acao: "politica.ativar", entidade: "politica_reembolso", entidadeId: atual.id,
+          detalhes: `Política ativada na versão ${novaVersao}; demais políticas da empresa inativadas.`,
+        });
         return novaVersao;
-      });
-
-      await registrarLog(db, {
-        usuarioId: ctx.usuario.id,
-        empresaId: politica.empresaId,
-        acao: "politica.ativar",
-        entidade: "politica_reembolso",
-        entidadeId: politica.id,
-        detalhes: `Política ativada na versão ${versao}; demais políticas da empresa inativadas.`,
       });
 
       return { ok: true, versao };
@@ -305,18 +313,15 @@ export const politicaRouter = createRouter({
       await assertAdminDaEmpresa(ctx, politica.empresaId);
       const db = getDb();
 
-      await db
-        .update(politicasReembolso)
-        .set({ status: "inativa" })
-        .where(eq(politicasReembolso.id, politica.id));
-
-      await registrarLog(db, {
-        usuarioId: ctx.usuario.id,
-        empresaId: politica.empresaId,
-        acao: "politica.desativar",
-        entidade: "politica_reembolso",
-        entidadeId: politica.id,
-        detalhes: "Política desativada; avaliação automática de despesas suspensa.",
+      await db.transaction(async tx => {
+        const atual = await bloquearPolitica(tx, politica.id, politica.empresaId);
+        await tx.update(politicasReembolso).set({ status: "inativa" })
+          .where(and(eq(politicasReembolso.id, atual.id), eq(politicasReembolso.empresaId, atual.empresaId)));
+        await registrarLog(tx, {
+          usuarioId: ctx.usuario.id, empresaId: atual.empresaId,
+          acao: "politica.desativar", entidade: "politica_reembolso", entidadeId: atual.id,
+          detalhes: "Política desativada; avaliação automática de despesas suspensa.",
+        });
       });
 
       return { ok: true };

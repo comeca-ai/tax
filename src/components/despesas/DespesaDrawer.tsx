@@ -162,7 +162,7 @@ export default function DespesaDrawer({ empresaId, despesaId, open, onOpenChange
       despesaId,
       tipo: tipoEvidencia,
       arquivoNome: arquivo.name,
-      arquivoMime: arquivo.type || undefined,
+      arquivoMime: arquivo.type || "application/octet-stream",
       arquivoBase64: base64,
       observacao: observacao.trim() || undefined,
     })

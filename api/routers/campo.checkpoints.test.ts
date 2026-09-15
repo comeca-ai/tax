@@ -48,6 +48,22 @@ describe("checkpoints por empresa", () => {
     ] });
   });
 
+  it("inclui a presença sem veículo antes de ela virar jornada", async () => {
+    const estado = novoEstadoCampo();
+    estado.presencas = [{ id: "presenca-1", pontos: [{
+      id: "p-presenca", tipo: "checkpoint", latitude: 0, longitude: 0,
+      ocorridoEm: "2026-09-13T11:00:00Z", recebidoEm: "2026-09-13T11:00:00Z", comandoId: "cmd-1", comandoEm: "2026-09-13T11:00:00Z",
+    }] }];
+    const rows = [{ colaboradorId: 9, usuarioId: 7, nome: "Ana", cargo: "Motorista", estado }];
+    const query = { from: () => query, leftJoin: () => query, where: () => query, orderBy: () => Promise.resolve(rows) };
+    mocks.db.mockReturnValue({ select: () => query });
+
+    await expect(caller().checkpoints({ empresaId: 42 })).resolves.toMatchObject({
+      totalCheckpoints: 1,
+      usuarios: [{ colaboradorId: 9, checkpoints: 1, jornadas: 1, ultimoCheckpointEm: "2026-09-13T11:00:00Z" }],
+    });
+  });
+
   it("não consulta dados quando a empresa não está autorizada", async () => {
     mocks.acesso.mockRejectedValue(new Error("forbidden"));
     await expect(caller().checkpoints({ empresaId: 99 })).rejects.toThrow("forbidden");

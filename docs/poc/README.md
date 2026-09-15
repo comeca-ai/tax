@@ -1,5 +1,8 @@
 # Roadmap da POC — campo e conciliação de combustível
 
+> **Lista vigente:** [Entregas atuais — dívidas e compromissos](ENTREGAS-ATUAIS-2026-09-15.md).
+> Este roadmap foi consolidado em 13/09 e permanece como planejamento histórico.
+
 Planejamento consolidado em 13/09/2026. Escopo acordado na conversa e na reunião
 de produto de 08/09/2026. Este documento organiza entregas; não declara
 funcionalidades futuras como implementadas.

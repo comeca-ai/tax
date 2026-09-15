@@ -1,7 +1,7 @@
 import { registrarDecisaoDespesa } from "../modules/reembolso/decisoes/registro";
 import { metadadosDespesasWhatsapp } from "../modules/reembolso/whatsapp/metadadosDespesa";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
 import {
@@ -13,8 +13,9 @@ import {
 } from "@db/schema";
 import { revisaoFilaInput, revisaoInput } from "@contracts/types";
 import { exigeMotivoDelegacao } from "@contracts/permissoes";
-import { papelRevisaoNaEmpresa, registrarLog } from "./_shared";
+import { papelRevisaoNaEmpresa, papelRevisaoNaEmpresaBloqueado, registrarLog } from "./_shared";
 import { notificarDecisaoWhatsapp } from "../modules/reembolso/revisao/notificacaoWhatsapp";
+import { fiscalVerificacoes } from "@db/fiscalSchema";
 
 /**
  * RF-05: fila de revisão humana — "Média confiança" e rebaixadas (RF-09).
@@ -80,8 +81,7 @@ export const revisaoRouter = createRouter({
   decidir: protectedProcedure
     .input(revisaoInput)
     .mutation(async ({ input, ctx }) => {
-      const { papel, aprovadorId, colaboradorDoUsuarioId } =
-        await papelRevisaoNaEmpresa(ctx, input.empresaId);
+      await papelRevisaoNaEmpresa(ctx, input.empresaId);
       const db = getDb();
       const rows = await db
         .select()
@@ -116,22 +116,16 @@ export const revisaoRouter = createRouter({
         }
       }
 
-      const delega = exigeMotivoDelegacao(papel);
-      if (delega && (!input.motivoDelegacao || input.motivoDelegacao.trim().length < 3)) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "Você não é o aprovador designado desta empresa — informe o motivo de decidir no lugar dele.",
-        });
-      }
-
       const novoStatus = input.decisao === "aprovar" ? "aprovada" : "rejeitada";
-      const statusCredito =
-        input.decisao === "aprovar" ? ("confirmado" as const) : ("rejeitado" as const);
 
       // Decisão, créditos, delegação e log são atômicos — delegação órfã ou
       // decisão sem log ficam impossíveis (padrão registroComEmpresa v1.9.2).
       await db.transaction(async (tx) => {
+        const { papel, aprovadorId, colaboradorDoUsuarioId } = await papelRevisaoNaEmpresaBloqueado(ctx, input.empresaId, tx);
+        const delega = exigeMotivoDelegacao(papel);
+        if (delega && (!input.motivoDelegacao || input.motivoDelegacao.trim().length < 3)) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Você não é o aprovador designado desta empresa — informe o motivo de decidir no lugar dele." });
+        }
         // Recondiciona ao status em_revisao: duas decisões intercaladas passam
         // ambas na checagem lá de cima (SELECT fora da tx), mas só a primeira
         // afeta linha aqui — a segunda aborta sem sobrescrever a decisão nem
@@ -139,7 +133,7 @@ export const revisaoRouter = createRouter({
         const [atualizacao] = await tx
           .update(despesas)
           .set({ status: novoStatus, motivoRevisao: input.justificativa })
-          .where(and(eq(despesas.id, despesa.id), eq(despesas.status, "em_revisao")));
+          .where(and(eq(despesas.id, despesa.id), eq(despesas.empresaId, input.empresaId), eq(despesas.status, "em_revisao")));
         if (atualizacao.affectedRows === 0) {
           const [atual] = await tx
             .select({ status: despesas.status })
@@ -151,10 +145,21 @@ export const revisaoRouter = createRouter({
             message: `Despesa não está em revisão (status atual: ${atual?.status ?? "desconhecido"}).`,
           });
         }
+        const [verificacao] = await tx.select({ resultado: fiscalVerificacoes.resultado })
+          .from(fiscalVerificacoes)
+          .where(and(eq(fiscalVerificacoes.empresaId, despesa.empresaId), eq(fiscalVerificacoes.notaFiscalId, despesa.notaFiscalId)))
+          .for("update");
+        const fiscal = verificacao?.resultado;
+        const fiscalConfirmado = fiscal?.solicitada && fiscal.estado === "autorizada"
+          && Boolean(fiscal.consultaId) && Number.isFinite(Date.parse(fiscal.verificadaEm ?? ""));
+        const statusCredito = input.decisao === "rejeitar" ? "rejeitado" as const
+          : fiscalConfirmado ? "confirmado" as const : "em_revisao" as const;
+        // A autorização de reembolso não certifica o documento nem remove
+        // uma vedação anterior do motor fiscal.
         await tx
           .update(creditosApurados)
           .set({ status: statusCredito })
-          .where(eq(creditosApurados.despesaId, despesa.id));
+          .where(and(eq(creditosApurados.despesaId, despesa.id), input.decisao === "aprovar" ? ne(creditosApurados.status, "rejeitado") : undefined));
 
         if (delega) {
           await tx.insert(delegacoesDecisao).values({
@@ -175,6 +180,14 @@ export const revisaoRouter = createRouter({
           entidade: "despesa",
           entidadeId: despesa.id,
           detalhes: input.justificativa,
+        });
+        await registrarLog(tx, {
+          usuarioId: ctx.usuario.id,
+          empresaId: despesa.empresaId,
+          acao: "revisao.creditos_fiscais",
+          entidade: "despesa",
+          entidadeId: despesa.id,
+          detalhes: JSON.stringify({ decisaoReembolso: input.decisao, statusCredito, verificacaoFiscal: fiscal?.estado ?? "nao_consultada", consultaId: fiscal?.consultaId ?? null, preservaCreditosVedados: input.decisao === "aprovar" }),
         });
         await registrarDecisaoDespesa(tx,{empresaId:despesa.empresaId,despesaId:despesa.id,origemDecisao:"humana",usuarioId:ctx.usuario.id,usuarioNome:ctx.usuario.nome,statusAplicado:novoStatus,motivo:input.justificativa,politicaId:null,politicaVersao:despesa.politicaVersaoAplicada,regrasAplicadas:[]});
         // A intenção de resposta só existe se a decisão efetivamente fizer commit.

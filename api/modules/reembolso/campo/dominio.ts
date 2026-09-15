@@ -142,10 +142,17 @@ export function metricasCampo(estado: EstadoCampo) {
   return { jornadas: estado.jornadas.length, jornadasIncompletas: estado.jornadas.filter(j => j.pontos.at(-1)?.tipo !== "check_out").length, documentos: estado.documentos.length, documentosRegulares: estado.documentos.filter(d => d.estado === "regular").length, pendenciasDocumentais: estado.conciliacoes.filter(c => c.estado === "documentacao_pendente").length, lembretesPendentes: estado.conciliacoes.filter(c => c.lembrete === "pendente").length };
 }
 
-/** Agregado determinístico para a visualização de checkpoints por colaborador. */
+/** Presenças contam antes do vínculo financeiro; eventos copiados mantêm o mesmo ID. */
 export function checkpointsDoUsuario(estado: EstadoCampo) {
-  const pontos = estado.jornadas.flatMap(j => j.pontos);
-  const checkpoints = pontos.filter(p => p.tipo === "checkpoint");
-  const ultimo = checkpoints.map(p => p.ocorridoEm).sort().at(-1) ?? null;
-  return { checkpoints: checkpoints.length, jornadas: estado.jornadas.length, ultimoCheckpointEm: ultimo };
+  const presencas = estado.presencas ?? [];
+  const pontos = new Map<string, Ponto>();
+  for (const ponto of [...presencas.flatMap(p => p.pontos), ...estado.jornadas.flatMap(j => j.pontos)]) {
+    if (!pontos.has(ponto.id)) pontos.set(ponto.id, ponto);
+  }
+  const checkpoints = [...pontos.values()].filter(p => p.tipo === "checkpoint");
+  const ultimo = checkpoints.reduce<Ponto | null>((atual, ponto) =>
+    !atual || Date.parse(ponto.ocorridoEm) > Date.parse(atual.ocorridoEm) ? ponto : atual, null);
+  const jornadasIds = new Set(estado.jornadas.map(j => j.id));
+  const presencasSemJornada = presencas.filter(p => !p.jornadaId || !jornadasIds.has(p.jornadaId));
+  return { checkpoints: checkpoints.length, jornadas: estado.jornadas.length + presencasSemJornada.length, ultimoCheckpointEm: ultimo?.ocorridoEm ?? null };
 }

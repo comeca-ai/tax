@@ -158,8 +158,16 @@ function lacuna(
 }
 
 /** Parâmetros do agente derivados das regras extraídas (ver regras no cabeçalho). */
-export function derivarParametros(regras: RegraExtraida[]): ParametrosDerivados {
-  const lacunas: LacunaPolitica[] = [];
+export function derivarParametros(entrada: RegraExtraida[]): ParametrosDerivados {
+  // Uma condição textual não é um predicado executável. Ignorá-la amplia o
+  // alcance de aprovações, vedações e exigências documentais (D-013 / D-024).
+  // Preserva a regra original para revisão e deriva efeitos só das demais.
+  const condicionais = entrada.filter(r => Boolean(r.condicao?.trim()));
+  const regras = entrada.filter(r => !r.condicao?.trim());
+  const lacunas: LacunaPolitica[] = condicionais.map(r => lacuna(
+    "condicao-nao-avaliada", r.categoria, [r.id],
+    `A regra "${curto(r.descricao, 110)}" depende da condição "${curto(r.condicao!.trim(), 180)}", que o sistema ainda não consegue verificar. Revise a evidência antes de decidir.`,
+  ));
 
   // 1. Limite da categoria: SÓ de regra que o gestor marcou com escopo "categoria".
   // Uma regra de escopo "item" descreve um sub-item ("Lavanderia em viagens — R$ 30/dia")

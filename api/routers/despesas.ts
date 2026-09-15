@@ -8,6 +8,7 @@ import { getDb } from "../queries/connection";
 import {
   creditosApurados,
   despesas,
+  empresas,
   evidenciasDocumentais,
   notasFiscais,
   politicasReembolso,
@@ -36,8 +37,10 @@ import { assertEmpresaAcesso, registrarLog } from "./_shared";
 import { fiscalDocumentos } from "@db/fiscalSchema";
 import { exigeRevisaoFiscal, ROTULOS_VERIFICACAO_FISCAL } from "@contracts/fiscal";
 import { identidadeFiscalDoUpload } from "../modules/fiscal/verificacao/documento";
+import { assertNotaSemDespesa, documentoJaRegistrado } from "../modules/fiscal/verificacao/duplicidade";
 import { lerResultadoFiscal, verificarFiscalAntesDaDecisao } from "../modules/fiscal/verificacao/service";
 import { despesaIdentificacaoRouter, identificarSolicitanteWeb } from "../modules/reembolso/identificacaoDespesa";
+import { validarComprovanteBase64 } from "../modules/reembolso/whatsapp/comprovante";
 
 export const despesasRouter = createRouter({
   identificacao: despesaIdentificacaoRouter,
@@ -50,6 +53,8 @@ export const despesasRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       await assertEmpresaAcesso(ctx, input.empresaId);
       const db = getDb();
+      const comprovante = validarComprovanteBase64(input);
+      if (!comprovante.ok) throw new TRPCError({ code: "BAD_REQUEST", message: comprovante.erro });
 
       const provider = getOcrProvider();
       const extracao = await provider.extrair({
@@ -62,6 +67,11 @@ export const despesasRouter = createRouter({
       const identidade = identidadeFiscalDoUpload(input.arquivoBase64, extracao.chaveAcesso);
       try {
         notaFiscalId = await db.transaction(async tx => {
+        await tx.select({ id: empresas.id }).from(empresas)
+          .where(eq(empresas.id, input.empresaId)).for("update");
+        if (await documentoJaRegistrado(tx, input.empresaId, identidade)) {
+          throw new TRPCError({ code: "CONFLICT", message: "Este comprovante já foi registrado na empresa." });
+        }
         const result = await tx.insert(notasFiscais).values({
           empresaId: input.empresaId,
           cnpjEmitente: extracao.cnpjEmitente,
@@ -84,9 +94,18 @@ export const despesasRouter = createRouter({
         });
         const id = Number(result[0].insertId);
         await tx.insert(fiscalDocumentos).values({ notaFiscalId: id, empresaId: input.empresaId, usuarioId: ctx.usuario.id, chave: identidade.chave, chaveEstado: identidade.chaveEstado, hash: identidade.hash });
+        await registrarLog(tx, {
+          usuarioId: ctx.usuario.id,
+          empresaId: input.empresaId,
+          acao: "nota.upload",
+          entidade: "nota_fiscal",
+          entidadeId: id,
+          detalhes: `OCR (${extracao.provedor}): confiança ${extracao.confiancaExtracao}; pendentes: ${extracao.camposPendentes.join(", ") || "nenhum"}`,
+        });
         return id;
         });
       } catch (err) {
+        if (err instanceof TRPCError && err.code === "CONFLICT") throw err;
         // Nunca vazar SQL/params para o cliente — mensagem amigável PT-BR
         console.error("[uploadNota] falha ao persistir nota fiscal", err instanceof Error ? err.name : "Error");
         throw new TRPCError({
@@ -95,15 +114,6 @@ export const despesasRouter = createRouter({
             "Não conseguimos salvar a nota fiscal. Verifique se o arquivo tem até 10 MB e tente novamente — se o erro persistir, fale com o suporte.",
         });
       }
-
-      await registrarLog(db, {
-        usuarioId: ctx.usuario.id,
-        empresaId: input.empresaId,
-        acao: "nota.upload",
-        entidade: "nota_fiscal",
-        entidadeId: notaFiscalId,
-        detalhes: `OCR (${extracao.provedor}): confiança ${extracao.confiancaExtracao}; pendentes: ${extracao.camposPendentes.join(", ") || "nenhum"}`,
-      });
 
       return { notaFiscalId, extracao };
     }),
@@ -153,19 +163,6 @@ export const despesasRouter = createRouter({
       }
 
       const verificacaoFiscal = await verificarFiscalAntesDaDecisao(ctx, input);
-
-      // Atualiza a nota com os campos confirmados pelo usuário
-      await db
-        .update(notasFiscais)
-        .set({
-          cnpjEmitente: input.cnpjEmitente ?? nota[0].cnpjEmitente,
-          cfop: input.cfop ?? nota[0].cfop,
-          ncm: input.ncm ?? nota[0].ncm,
-          cst: input.cst ?? nota[0].cst,
-          valor: input.valorNota,
-          dataFatoGerador: input.dataFatoGerador,
-        })
-        .where(eq(notasFiscais.id, input.notaFiscalId));
 
       // RF-07: regras vigentes na data do fato gerador
       const regrasRows = await db.select().from(regrasElegibilidade);
@@ -251,6 +248,17 @@ export const despesasRouter = createRouter({
       if (exigeRevisaoFiscal(verificacaoFiscal) && statusFinal !== "rejeitada") statusFinal = "em_revisao";
       const solicitante = await identificarSolicitanteWeb(ctx, input.empresaId, input);
       const despesaId = await db.transaction(async tx => {
+      await assertNotaSemDespesa(tx, input);
+      // A chamada que perder a disputa pela nota não pode alterar os campos
+      // usados pela despesa vencedora. Atualização e cálculo persistido são atômicos.
+      await tx.update(notasFiscais).set({
+        cnpjEmitente: input.cnpjEmitente ?? nota[0].cnpjEmitente,
+        cfop: input.cfop ?? nota[0].cfop,
+        ncm: input.ncm ?? nota[0].ncm,
+        cst: input.cst ?? nota[0].cst,
+        valor: input.valorNota,
+        dataFatoGerador: input.dataFatoGerador,
+      }).where(and(eq(notasFiscais.id, input.notaFiscalId), eq(notasFiscais.empresaId, input.empresaId)));
       const insertDespesa = await tx.insert(despesas).values({
         empresaId: input.empresaId,
         notaFiscalId: input.notaFiscalId,
@@ -491,6 +499,7 @@ export const despesasRouter = createRouter({
 
       const solicitante = await identificarSolicitanteWeb(ctx, input.empresaId);
       const despesaId = await db.transaction(async tx => {
+      await assertNotaSemDespesa(tx, input);
       const insert = await tx.insert(despesas).values({
         empresaId: input.empresaId,
         notaFiscalId: input.notaFiscalId,
@@ -689,6 +698,8 @@ export const despesasRouter = createRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Despesa não encontrada." });
       }
       await assertEmpresaAcesso(ctx, despesa.empresaId);
+      const comprovante = validarComprovanteBase64(input);
+      if (!comprovante.ok) throw new TRPCError({ code: "BAD_REQUEST", message: comprovante.erro });
 
       let id: number;
       try {

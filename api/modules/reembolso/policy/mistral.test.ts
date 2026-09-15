@@ -176,7 +176,12 @@ describe("mapearRuleset", () => {
         decisaoAutomatica: "nenhuma",
       },
     ]);
-    expect(regras.exigeEvidencia).toEqual(["combustivel"]);
+    // A condição é preservada para revisão, sem tornar a exigência universal.
+    expect(regras.exigeEvidencia).toEqual([]);
+    expect(regras.lacunas).toContainEqual(expect.objectContaining({
+      tipo: "condicao-nao-avaliada",
+      regraIds: ["combustivel-veiculo"],
+    }));
   });
 
   it("lixo parcial é saneado: tema/reembolsavel/unidade inválidos, valor negativo, moeda longa", () => {

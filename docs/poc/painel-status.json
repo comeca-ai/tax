@@ -1,46 +1,49 @@
 {
-  "updatedAt": "2026-09-14T14:16:46.756Z",
-  "deadline": "Prazo anterior de 13/09 às 18h não cumprido. Novo prazo informado pelo usuário: 14/09 às 10h; referência de Brasília proposta, ainda sem confirmação do fuso.",
+  "updatedAt": "2026-09-15T07:39:58.343292+00:00",
+  "deadline": "13/09 às 18h: descumprido; fuso original não confirmado. Sem nova data final assumida.",
   "summary": {
     "accepted": 0,
     "total": 12,
-    "unitPassed": 782,
-    "unitSkipped": 34,
-    "sqlPassed": 37,
+    "unitPassed": 959,
+    "unitSkipped": 55,
+    "sqlPassed": 58,
     "lint": "passed",
     "types": "passed",
-    "build": "passed"
+    "build": "passed",
+    "sqlSkipped": 0,
+    "checkpointsPassed": 8,
+    "browserSmokePassed": 8
   },
   "agents": [
     {
       "id": "root",
       "name": "Codex · root",
       "role": "Coordenação, integração, E2/E4, revisão de segurança e prestação de contas",
-      "phase": "Candidato publicado e conferido em HTTPS;5 verificações de interface aprovadas. Fila ativa comsaldo19/20. Aceite integral pendente."
+      "phase": "Responsável atual pela execução e prestação de contas."
     },
     {
       "id": "pilares_cadastro",
       "name": "Codex · pilares_cadastro",
       "role": "E1/E3/E6, parâmetros, memorial E11 e configuração Maps",
-      "phase": "Registro histórico da frente; correções locais consolidadas. Sem execução paralela ativa nesta retomada."
+      "phase": "Participação histórica; sem execução delegada nesta revisão."
     },
     {
       "id": "pilares_integridade",
       "name": "Codex · pilares_integridade",
       "role": "E7–E10, OCR, política no WhatsApp, duplicidade e revisão do canal",
-      "phase": "Registro histórico da frente; correções locais consolidadas. Sem execução paralela ativa nesta retomada."
+      "phase": "Participação histórica; sem execução delegada nesta revisão."
     },
     {
       "id": "pilares_interface",
       "name": "Codex · pilares_interface",
       "role": "Telas E3/E4/E11, evidências visuais e este painel",
-      "phase": "Registro histórico da frente; correções locais consolidadas. Sem execução paralela ativa nesta retomada."
+      "phase": "Participação histórica; sem execução delegada nesta revisão."
     },
     {
       "id": "verificacao_nfeio",
       "name": "Codex · verificação fiscal",
       "role": "Opção fiscal, identificação de colaborador/CC, orçamento e revisão cruzada",
-      "phase": "Código publicado; 12 testes SQL fiscais aprovados. Cupom real modelo65 não suportado; autenticidade não confirmada."
+      "phase": "Participação histórica; sem execução delegada nesta revisão."
     }
   ],
   "deliveries": [
@@ -52,9 +55,9 @@
         "pilares_integridade"
       ],
       "promised": "E1 Modo de operação por empresa   sem dependência\nTrês modos configuráveis por empresa: sombra (o agente decide e grava, não comunica nem altera status), assistido (decide e sugere; a pessoa confirma) e autônomo (decide e aplica). A decisão é sempre gravada; o modo governa apenas o efeito dela. Promover o modo é ato humano e auditado.\nHoje não existe: toda decisão automática já aplica efeito, e a PoC não tem como começar observando.",
-      "delivered": "Decisor comum; sombra por padrão; decisão e modo gravados; teste SQL dos três modos; configuração com trilha transacional",
-      "pending": "Demonstrar promoção/reversão e efeitos completos no canal real e nos demais caminhos de despesa",
-      "status": "partial",
+      "delivered": "Adiada no painel; alteração retirada do diff final em 5a24ece.",
+      "pending": "Retomada explícita dos modos e ensaios de promoção/reversão.",
+      "status": "deferred",
       "stages": [
         {
           "name": "Implementação",
@@ -62,7 +65,7 @@
         },
         {
           "name": "Testes locais",
-          "state": "done"
+          "state": "partial"
         },
         {
           "name": "Homologação real",
@@ -70,30 +73,32 @@
         },
         {
           "name": "Publicação do software",
-          "state": "pending"
+          "state": "partial"
         },
         {
           "name": "Aceite",
           "state": "pending"
         }
       ],
-      "evidence": "13 testes SQL dedicados passaram; 679 testes na suíte geral passaram (10 não executados). Evidência detalhada em relatorio.md. Testes de módulos não equivalem a todos os critérios da entrega.",
+      "evidence": "Matriz revista em 15/09; GitHub main 7f11af7 com CI aprovado. Registro local de c4b5e89: 885 testes aprovados e 39 ignorados. A suíte geral não encerra os critérios específicos desta entrega.",
       "acceptance": [
         "Veredito idêntico nos três modos para a mesma evidência, provado em teste",
         "Em sombra, a despesa mantém o status e a decisão fica registrada",
         "Empresa sem configuração é tratada como sombra, nunca como autônoma",
         "Troca de modo aparece na trilha com quem, quando, de qual para qual"
-      ]
+      ],
+      "responsible": "Codex",
+      "dueDate": "Prazo anterior descumprido; sem nova data final assumida"
     },
     {
       "id": "E2",
-      "title": "revisão e aprovador",
+      "title": "fila, aprovação e delegação",
       "ownerIds": [
         "root"
       ],
       "promised": "E2 Fila de revisão por empresa e Aprovador designado   sem dependência\nA fila de revisão passa a ser da empresa: filtra por empresa, reconhece o Analista e o Aprovador designados na configuração e registra delegação com motivo obrigatório quando quem decide não é o designado.\nHoje a fila devolve despesas de todas as empresas para qualquer conta com perfil de plataforma, e o Aprovador do cliente não acessa nada. É correção de vazamento entre clientes.",
-      "delivered": "Fila, designação e delegação existentes; validações por empresa",
-      "pending": "Homologar restrição de acesso e desligamento corrigidos localmente; prova completa API+banco e hierarquia",
+      "delivered": "Parcial. Há fila e designações; precedência entre superior, aprovador e analista não está comprovada.",
+      "pending": "Ensaio de perfis, delegação, auditoria e decisão persistida em homologação.",
       "status": "partial",
       "stages": [
         {
@@ -102,7 +107,7 @@
         },
         {
           "name": "Testes locais",
-          "state": "done"
+          "state": "partial"
         },
         {
           "name": "Homologação real",
@@ -110,31 +115,33 @@
         },
         {
           "name": "Publicação do software",
-          "state": "pending"
+          "state": "partial"
         },
         {
           "name": "Aceite",
           "state": "pending"
         }
       ],
-      "evidence": "13 testes SQL dedicados passaram; 679 testes na suíte geral passaram (10 não executados). Evidência detalhada em relatorio.md. Testes de módulos não equivalem a todos os critérios da entrega.",
+      "evidence": "Matriz revista em 15/09; GitHub main 7f11af7 com CI aprovado. Registro local de c4b5e89: 885 testes aprovados e 39 ignorados. A suíte geral não encerra os critérios específicos desta entrega.",
       "acceptance": [
         "Conta da empresa A não recebe nenhum item da empresa B — provado na API e no banco",
         "Aprovador designado acessa a fila da sua empresa sem perfil de plataforma",
         "Sem Aprovador designado, o administrador da empresa responde pela fila",
         "Decisão por quem não é o designado grava a delegação com motivo"
-      ]
+      ],
+      "responsible": "Codex",
+      "dueDate": "Prazo anterior descumprido; sem nova data final assumida"
     },
     {
       "id": "E3",
-      "title": "configuração",
+      "title": "parâmetros",
       "ownerIds": [
         "pilares_cadastro",
         "pilares_interface"
       ],
       "promised": "E3 Configuração da empresa em produto   habilita E1, E2, E11\nTarifa de reembolso por quilômetro e por UF, existência de vale refeição, existência de contrato corporativo de aplicativo de transporte, e a designação de Analista e Aprovador — editáveis pelo administrador, lidos pelo decisor, com alteração auditada.\nHoje são colunas no banco sem API e sem tela; a UF da tarifa não existe nem no banco.",
-      "delivered": "Interface/API com tarifas UF, benefícios, designados ativos; memorial usa tarifa explícita e política versionada",
-      "pending": "Consumo dos benefícios pelo decisor e prova integrada dos parâmetros da seção 2.5",
+      "delivered": "Parcial. Tarifas e parâmetros são persistidos; benefícios não têm efeito integrado comprovado no decisor.",
+      "pending": "Caso em que a edição de cada parâmetro altera a decisão correta.",
       "status": "partial",
       "stages": [
         {
@@ -143,7 +150,7 @@
         },
         {
           "name": "Testes locais",
-          "state": "done"
+          "state": "partial"
         },
         {
           "name": "Homologação real",
@@ -151,30 +158,32 @@
         },
         {
           "name": "Publicação do software",
-          "state": "pending"
+          "state": "partial"
         },
         {
           "name": "Aceite",
           "state": "pending"
         }
       ],
-      "evidence": "13 testes SQL dedicados passaram; 679 testes na suíte geral passaram (10 não executados). Evidência detalhada em relatorio.md. Testes de módulos não equivalem a todos os critérios da entrega.",
+      "evidence": "Matriz revista em 15/09; GitHub main 7f11af7 com CI aprovado. Registro local de c4b5e89: 885 testes aprovados e 39 ignorados. A suíte geral não encerra os critérios específicos desta entrega.",
       "acceptance": [
         "Os parâmetros da Seção 2.5 do checklist da PoC preenchidos pela tela, por empresa",
         "Decisor usa a tarifa da empresa, arredondada a duas casas antes de comparar com teto",
         "Designação só aceita pessoa da própria empresa — provado no banco"
-      ]
+      ],
+      "responsible": "Codex",
+      "dueDate": "Prazo anterior descumprido; sem nova data final assumida"
     },
     {
       "id": "E4",
-      "title": "veículo unificado",
+      "title": "veículo e combustível",
       "ownerIds": [
         "root",
         "pilares_interface"
       ],
       "promised": "E4 Cadastro de veículo unificado   depende de E3\nPlaca, RENAVAM, motorização, UF de licenciamento e quilometragem por litro declarada num só cadastro, vinculado à pessoa, alimentando a apuração de combustível.\nHoje os cinco campos estão partidos entre duas tabelas e nenhuma das duas tem tela ou endpoint.",
-      "delivered": "Nova API e tela: placa, RENAVAM, motorização, UF e km/L; FK composta e unicidade; teste SQL/API passou",
-      "pending": "Migrar/reconciliar cadastros legados e comprovar consumo fiscal/ponte km; aceite em homologação",
+      "delivered": "Parcial. Cadastro e validações existem.",
+      "pending": "Jornada, veículo, consumo, quilometragem e divergência maior que 15% demonstrados juntos.",
       "status": "partial",
       "stages": [
         {
@@ -183,7 +192,7 @@
         },
         {
           "name": "Testes locais",
-          "state": "done"
+          "state": "partial"
         },
         {
           "name": "Homologação real",
@@ -191,30 +200,32 @@
         },
         {
           "name": "Publicação do software",
-          "state": "pending"
+          "state": "partial"
         },
         {
           "name": "Aceite",
           "state": "pending"
         }
       ],
-      "evidence": "13 testes SQL dedicados passaram; 679 testes na suíte geral passaram (10 não executados). Evidência detalhada em relatorio.md. Testes de módulos não equivalem a todos os critérios da entrega.",
+      "evidence": "Matriz revista em 15/09; GitHub main 7f11af7 com CI aprovado. Registro local de c4b5e89: 885 testes aprovados e 39 ignorados. A suíte geral não encerra os critérios específicos desta entrega.",
       "acceptance": [
         "Os cinco campos exigidos pela Seção 2.6 do checklist gravados num só lugar",
         "Mesma placa duas vezes para a mesma pessoa é rejeitada",
         "Divergência de consumo acima de 15% rebaixa a confiança, como já prevê o motor"
-      ]
+      ],
+      "responsible": "Codex",
+      "dueDate": "Prazo anterior descumprido; sem nova data final assumida"
     },
     {
       "id": "E5",
-      "title": "equipe em lote/hierarquia",
+      "title": "equipe e hierarquia",
       "ownerIds": [
         "pilares_cadastro"
       ],
       "promised": "E5 Equipe em lote e hierarquia   sem dependência\nImportação da planilha que o RH já tem, com validação em lote e resumo antes de qualquer convite ser disparado; vínculo CLT, MEI ou PJ; e superior direto, que é quem recebe a revisão.\nHoje o cadastro é um a um, o vínculo só distingue pessoa física de jurídica, e superior direto não existe no modelo.",
-      "delivered": "Importação CSV UTF-8 em lote com prévia sem escrita, erros por linha, CLT/MEI/PJ, superior por matrícula com FK de empresa, confirmação assinada e convites opcionais explícitos. Candidato instalado em homologação.",
-      "pending": "Testar arquivo do usuário e confirmação na interface; convites reais dependem de credencial 360dialog válida. XLSX nativo não suportado; exportar CSV. Integração da hierarquia com revisão ainda exige prova.",
-      "status": "pending_acceptance",
+      "delivered": "Parcial. CSV com prévia e convites existem.",
+      "pending": "Importação, correção, convite, aceite e encaminhamento pelo superior em homologação.",
+      "status": "partial",
       "stages": [
         {
           "name": "Implementação",
@@ -222,7 +233,7 @@
         },
         {
           "name": "Testes locais",
-          "state": "done"
+          "state": "partial"
         },
         {
           "name": "Homologação real",
@@ -230,30 +241,32 @@
         },
         {
           "name": "Publicação do software",
-          "state": "pending"
+          "state": "partial"
         },
         {
           "name": "Aceite",
           "state": "pending"
         }
       ],
-      "evidence": "14 testes unitários novos e 4 casos SQL de E5 passaram; regressão completa e revisão de outro agente concluídas.",
+      "evidence": "Matriz revista em 15/09; GitHub main 7f11af7 com CI aprovado. Registro local de c4b5e89: 885 testes aprovados e 39 ignorados. A suíte geral não encerra os critérios específicos desta entrega.",
       "acceptance": [
         "Planilha com erros é validada e resumida sem gravar nada",
         "Convites saem só após confirmação explícita do administrador",
         "Telefone inválido e matrícula duplicada apontados linha a linha"
-      ]
+      ],
+      "responsible": "Codex",
+      "dueDate": "Prazo anterior descumprido; sem nova data final assumida"
     },
     {
       "id": "E6",
-      "title": "régua de sucesso",
+      "title": "métricas e pagamento",
       "ownerIds": [
         "pilares_cadastro",
         "pilares_interface"
       ],
       "promised": "E6 Régua de sucesso instrumentada   mede E1\nAs cinco dimensões da régua tornadas mensuráveis: adoção real da equipe, precisão das aprovações automáticas por auditoria em amostra, tempo entre envio e pagamento, e distribuição por faixa de confiança. Inclui o estado paga, com data e responsável, que hoje não existe.\nHoje nenhuma das cinco é mensurável. Sem esta entrega a PoC termina funcionando e sem resposta sobre o conceito.",
-      "delivered": "Pagamento manual idempotente com autoria e trilha; indicadores parciais de campo",
-      "pending": "Cinco dimensões por empresa/período, amostragem e representação completa do estado paga",
+      "delivered": "Incompleta.",
+      "pending": "Régua por empresa/período, amostra, tempo até pagamento e ato manual auditável.",
       "status": "partial",
       "stages": [
         {
@@ -262,7 +275,7 @@
         },
         {
           "name": "Testes locais",
-          "state": "done"
+          "state": "partial"
         },
         {
           "name": "Homologação real",
@@ -270,29 +283,31 @@
         },
         {
           "name": "Publicação do software",
-          "state": "pending"
+          "state": "partial"
         },
         {
           "name": "Aceite",
           "state": "pending"
         }
       ],
-      "evidence": "13 testes SQL dedicados passaram; 679 testes na suíte geral passaram (10 não executados). Evidência detalhada em relatorio.md. Testes de módulos não equivalem a todos os critérios da entrega.",
+      "evidence": "Matriz revista em 15/09; GitHub main 7f11af7 com CI aprovado. Registro local de c4b5e89: 885 testes aprovados e 39 ignorados. A suíte geral não encerra os critérios específicos desta entrega.",
       "acceptance": [
         "As cinco dimensões consultáveis por empresa e por período",
         "Despesa aprovada nunca vira paga sozinha; o ato é registrado na trilha",
         "Marcação de auditoria por amostra não altera status nem valor da despesa"
-      ]
+      ],
+      "responsible": "Codex",
+      "dueDate": "Prazo anterior descumprido; sem nova data final assumida"
     },
     {
       "id": "E7",
-      "title": "chave fiscal",
+      "title": "chave fiscal e comprovantes",
       "ownerIds": [
         "pilares_integridade"
       ],
       "promised": "E7 Chave de acesso da nota   pré-requisito de E8 e E9\nExtração, validação e persistência da chave de 44 dígitos da NF-e, a partir do documento enviado. É o identificador sem o qual não existe consulta ao fisco nem detecção confiável de duplicidade.\nHoje o modelo de notas não tem o campo. Nenhuma das duas entregas seguintes é possível antes desta.",
-      "delivered": "OCR e validação de chave; evidência sintética e importação documental de campo",
-      "pending": "DANFE/NFC-e reais e persistência universal independente de contexto de jornada/veículo",
+      "delivered": "Parcial. Extração XML/texto implementada; validação web reforçada em commit local.",
+      "pending": "Documento elegível real, chave persistida, qualidade de extração e validação estrutural dos arquivos. Conferir prefixo de XML não comprova XML fiscal válido.",
       "status": "partial",
       "stages": [
         {
@@ -301,7 +316,7 @@
         },
         {
           "name": "Testes locais",
-          "state": "done"
+          "state": "partial"
         },
         {
           "name": "Homologação real",
@@ -309,67 +324,30 @@
         },
         {
           "name": "Publicação do software",
-          "state": "pending"
+          "state": "partial"
         },
         {
           "name": "Aceite",
           "state": "pending"
         }
       ],
-      "evidence": "13 testes SQL dedicados passaram; 679 testes na suíte geral passaram (10 não executados). Evidência detalhada em relatorio.md. Testes de módulos não equivalem a todos os critérios da entrega.",
+      "evidence": "Matriz revista em 15/09; GitHub main 7f11af7 com CI aprovado. Registro local de c4b5e89: 885 testes aprovados e 39 ignorados. A suíte geral não encerra os critérios específicos desta entrega. Commit local c4b5e89; 12 testes focados de validação/deduplicação. A checagem de XML por prefixo não valida toda a estrutura fiscal.",
       "acceptance": [
         "Chave extraída corretamente de DANFE e de cupom NFC-e reais",
         "Chave malformada não é gravada e não bloqueia o envio"
-      ]
+      ],
+      "responsible": "Codex",
+      "dueDate": "Prazo anterior descumprido; sem nova data final assumida"
     },
     {
       "id": "E8",
-      "title": "consulta ao fisco",
+      "title": "consulta fiscal",
       "ownerIds": [
         "pilares_integridade"
       ],
       "promised": "E8 Consulta ao fisco em tempo real   depende de E7\nConsulta SEFAZ NF-e 4.0 no momento do envio, com cache, e o retorno anexado como evidência do dossiê. A indisponibilidade do fisco é estado explícito, nunca decisão implícita.",
-      "delivered": "Opção fiscal por empresa, painel e WhatsApp; reserva antes da rede, orçamento20, resultado por nota e decisão posterior; publicado em homologação.",
-      "pending": "Validar NF-e55 real e efeitos fiscais; modelo65 do teste não suportado. Aceite integrado pendente.",
-      "status": "not_delivered",
-      "stages": [
-        {
-          "name": "Implementação",
-          "state": "partial"
-        },
-        {
-          "name": "Testes locais",
-          "state": "partial"
-        },
-        {
-          "name": "Homologação real",
-          "state": "pending"
-        },
-        {
-          "name": "Publicação do software",
-          "state": "done"
-        },
-        {
-          "name": "Aceite",
-          "state": "pending"
-        }
-      ],
-      "evidence": "Candidato 1.14.0-rc.20260914t135904z; revisão em docs/poc/REVISAO-AJUSTES-2026-09-14.md. Publicação e testes não equivalem a aceite integral.",
-      "acceptance": [
-        "Nota inexistente ou cancelada é sinalizada e vai à revisão",
-        "Fisco fora do ar não aprova nem reprova — degrada de forma visível",
-        "Retorno da consulta fica anexado à despesa como evidência"
-      ]
-    },
-    {
-      "id": "E9",
-      "title": "integridade/antifraude",
-      "ownerIds": [
-        "pilares_integridade"
-      ],
-      "promised": "E9 Antifraude documental   depende de E7\nDuplicidade exata e semântica — a mesma nota reenviada, e o par quase idêntico — e detecção de imagem manipulada. Ambas produzem sinal, que leva à revisão humana; nenhuma reprova sozinha.",
-      "delivered": "Duplicata binária bloqueada antes da despesa WhatsApp; teste SQL real; índices de documento",
-      "pending": "Duplicata semântica, imagem manipulada, chave em arquivos distintos em todos os caminhos e taxa de falso positivo rotulada",
+      "delivered": "Parcial. Adaptador cobre NF-e modelo 55; NFC-e 65 e NFS-e permanecem fora do adaptador atual.",
+      "pending": "Consulta autorizada de documento suportado, protocolo/resultados auditáveis e regra para modelos fora de cobertura.",
       "status": "partial",
       "stages": [
         {
@@ -378,7 +356,7 @@
         },
         {
           "name": "Testes locais",
-          "state": "done"
+          "state": "partial"
         },
         {
           "name": "Homologação real",
@@ -386,30 +364,73 @@
         },
         {
           "name": "Publicação do software",
-          "state": "pending"
+          "state": "partial"
         },
         {
           "name": "Aceite",
           "state": "pending"
         }
       ],
-      "evidence": "13 testes SQL dedicados passaram; 679 testes na suíte geral passaram (10 não executados). Evidência detalhada em relatorio.md. Testes de módulos não equivalem a todos os critérios da entrega.",
+      "evidence": "Matriz revista em 15/09; GitHub main 7f11af7 com CI aprovado. Registro local de c4b5e89: 885 testes aprovados e 39 ignorados. A suíte geral não encerra os critérios específicos desta entrega.",
+      "acceptance": [
+        "Nota inexistente ou cancelada é sinalizada e vai à revisão",
+        "Fisco fora do ar não aprova nem reprova — degrada de forma visível",
+        "Retorno da consulta fica anexado à despesa como evidência"
+      ],
+      "responsible": "Codex",
+      "dueDate": "Prazo anterior descumprido; sem nova data final assumida"
+    },
+    {
+      "id": "E9",
+      "title": "integridade e duplicidade",
+      "ownerIds": [
+        "pilares_integridade"
+      ],
+      "promised": "E9 Antifraude documental   depende de E7\nDuplicidade exata e semântica — a mesma nota reenviada, e o par quase idêntico — e detecção de imagem manipulada. Ambas produzem sinal, que leva à revisão humana; nenhuma reprova sozinha.",
+      "delivered": "Parcial. Bloqueio por hash/chave existe localmente; validação web foi reforçada.",
+      "pending": "Concorrência, reenvio entre painel/WhatsApp, arquivos diferentes com a mesma chave, manipulação e conciliação de duplicados históricos.",
+      "status": "partial",
+      "stages": [
+        {
+          "name": "Implementação",
+          "state": "partial"
+        },
+        {
+          "name": "Testes locais",
+          "state": "partial"
+        },
+        {
+          "name": "Homologação real",
+          "state": "pending"
+        },
+        {
+          "name": "Publicação do software",
+          "state": "partial"
+        },
+        {
+          "name": "Aceite",
+          "state": "pending"
+        }
+      ],
+      "evidence": "Matriz revista em 15/09; GitHub main 7f11af7 com CI aprovado. Registro local de c4b5e89: 885 testes aprovados e 39 ignorados. A suíte geral não encerra os critérios específicos desta entrega. Commit local c4b5e89; 12 testes focados de validação/deduplicação. A checagem de XML por prefixo não valida toda a estrutura fiscal.",
       "acceptance": [
         "Reenvio da mesma nota é bloqueado antes de virar despesa",
         "Par quase idêntico é sinalizado e vai à revisão",
         "Taxa de falso positivo medida sobre amostra rotulada e declarada na entrega"
-      ]
+      ],
+      "responsible": "Codex",
+      "dueDate": "Prazo anterior descumprido; sem nova data final assumida"
     },
     {
       "id": "E10",
-      "title": "WhatsApp produtivo",
+      "title": "WhatsApp",
       "ownerIds": [
         "pilares_integridade",
         "root"
       ],
       "promised": "E10 WhatsApp produtivo   depende de número homologado\nAdapter da plataforma oficial atrás da abstração de transporte que já existe, recepção de mídia, e o ciclo completo na conversa: a pessoa manda a foto, o agente extrai, decide contra a política e responde citando a regra. Sem login, mas com identidade: número, convite, pessoa e empresa amarrados antes de aceitar qualquer despesa.\nHoje o agente só faz o onboarding e responde, ao final, que em breve será possível mandar despesas. O adapter existente é de provedor não-oficial.",
-      "delivered": "Recebimento real, despesa criada, confirmação curta entregue/lida; fila automática publicada, janela24h e idempotência testadas.",
-      "pending": "Concluir fotos aguardando saldo, amostra de documentos e modos; orçamento WhatsApp/OpenAI19/20.",
+      "delivered": "Parcial. Há registro anterior de recebimento e confirmação curta.",
+      "pending": "Foto, extração, decisão, resposta positiva/negativa e rastreio de entrada/saída em homologação.",
       "status": "partial",
       "stages": [
         {
@@ -418,7 +439,7 @@
         },
         {
           "name": "Testes locais",
-          "state": "done"
+          "state": "partial"
         },
         {
           "name": "Homologação real",
@@ -426,30 +447,32 @@
         },
         {
           "name": "Publicação do software",
-          "state": "done"
+          "state": "partial"
         },
         {
           "name": "Aceite",
           "state": "pending"
         }
       ],
-      "evidence": "Candidato 1.14.0-rc.20260914t135904z; revisão em docs/poc/REVISAO-AJUSTES-2026-09-14.md. Publicação e testes não equivalem a aceite integral.",
+      "evidence": "Matriz revista em 15/09; GitHub main 7f11af7 com CI aprovado. Registro local de c4b5e89: 885 testes aprovados e 39 ignorados. A suíte geral não encerra os critérios específicos desta entrega. Balanço de 14/09 registra recepção e confirmação curta entregue/lida; ensaio não repetido nesta revisão.",
       "acceptance": [
         "Foto enviada por número homologado vira decisão com regra citada, na conversa",
         "Número desconhecido não cria despesa em nenhuma circunstância",
         "Troca de provedor de transporte não altera decisão nem máquina de estados"
-      ]
+      ],
+      "responsible": "Codex",
+      "dueDate": "Prazo anterior descumprido; sem nova data final assumida"
     },
     {
       "id": "E11",
-      "title": "campo/quilometragem",
+      "title": "checkpoints e campo",
       "ownerIds": [
         "pilares_cadastro",
         "pilares_interface"
       ],
       "promised": "E11 Checkin de campo e quilometragem   depende de E3 e E10\nCheckin de posição pela conversa, reconstrução de trajeto por provedor de roteirização, e cálculo do reembolso por distância × tarifa da empresa, com o memorial auditável.\nA tabela de checkin existe e só armazena posição; o cálculo de trajeto está declarado no código como fase posterior.",
-      "delivered": "Pontos/IDs persistidos; opção automática apóscheckout, intervalo Maps e reserva/resultados duráveis; testes SQL de concorrência e cache passaram.",
-      "pending": "Empresa do piloto sem veículo cadastrado e sem configuração de campo às 14:16 UTC; nenhuma jornada registrada. Resta 1 chamada no limite WhatsApp/OpenAI. Faltam preparação, jornada real completa e validação Maps.",
+      "delivered": "Presenças sem jornada incluídas; oito cenários específicos de navegador aprovados localmente.",
+      "pending": "Publicação revisada, jornada real com Maps e aceite humano.",
       "status": "partial",
       "stages": [
         {
@@ -458,7 +481,7 @@
         },
         {
           "name": "Testes locais",
-          "state": "done"
+          "state": "partial"
         },
         {
           "name": "Homologação real",
@@ -466,39 +489,41 @@
         },
         {
           "name": "Publicação do software",
-          "state": "done"
+          "state": "partial"
         },
         {
           "name": "Aceite",
           "state": "pending"
         }
       ],
-      "evidence": "Candidato 1.14.0-rc.20260914t135904z; revisão em docs/poc/REVISAO-AJUSTES-2026-09-14.md. Publicação e testes não equivalem a aceite integral.",
+      "evidence": "Matriz revista em 15/09; GitHub main 7f11af7 com CI aprovado. Registro local de c4b5e89: 885 testes aprovados e 39 ignorados. A suíte geral não encerra os critérios específicos desta entrega. Commit local 0d743d0; 21 testes focados. Falta navegador específico e jornada real.",
       "acceptance": [
         "Trajeto do dia reconstruído a partir dos checkins registrados",
         "Valor confere com distância × tarifa da UF, arredondado a duas casas",
         "Quilometragem comercial e não comercial permanecem segregadas"
-      ]
+      ],
+      "responsible": "Codex",
+      "dueDate": "Prazo anterior descumprido; sem nova data final assumida"
     },
     {
       "id": "E12",
-      "title": "ensaio ponta a ponta",
+      "title": "ensaio integral",
       "ownerIds": [
         "root",
         "pilares_interface"
       ],
       "promised": "E12 Ensaio ponta a ponta   depende de E1 a E11\nRoteiro completo com dados reais de uma empresa, executado nos três modos de operação, integrando canal, cadastro, validação documental, motor fiscal e decisor — antes de qualquer exposição à Empresa Contratante.",
-      "delivered": "Suítes locais e navegador sintético com evidências",
-      "pending": "E1–E11 aceitas, dados autorizados de empresa, três modos, promoção/reversão e nenhum bloqueante",
+      "delivered": "Não entregue.",
+      "pending": "Executar E1–E11 aplicáveis com empresa piloto, registrar bloqueios, reversão e aceite humano.",
       "status": "not_delivered",
       "stages": [
         {
           "name": "Implementação",
-          "state": "partial"
+          "state": "pending"
         },
         {
           "name": "Testes locais",
-          "state": "partial"
+          "state": "pending"
         },
         {
           "name": "Homologação real",
@@ -513,12 +538,14 @@
           "state": "pending"
         }
       ],
-      "evidence": "13 testes SQL dedicados passaram; 679 testes na suíte geral passaram (10 não executados). Evidência detalhada em relatorio.md. Testes de módulos não equivalem a todos os critérios da entrega.",
+      "evidence": "Matriz revista em 15/09; GitHub main 7f11af7 com CI aprovado. Registro local de c4b5e89: 885 testes aprovados e 39 ignorados. A suíte geral não encerra os critérios específicos desta entrega.",
       "acceptance": [
         "Roteiro executado e registrado, com evidência por etapa",
         "Nenhum defeito bloqueante em aberto",
         "Promoção de sombra para assistido feita e revertida com sucesso"
-      ]
+      ],
+      "responsible": "Codex",
+      "dueDate": "Prazo anterior descumprido; sem nova data final assumida"
     }
   ],
   "security": [
@@ -527,84 +554,84 @@
       "title": "seed",
       "status": "corrected_local",
       "owner": "root",
-      "evidence": "Seed demo exige ambiente development/test, autorização e senha externa; contas antigas e histórico ainda exigem tratamento operacional. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
+      "evidence": "Registro anterior; sem revalidação operacional nesta revisão. Seed demo exige ambiente development/test, autorização e senha externa; contas antigas e histórico ainda exigem tratamento operacional. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
     },
     {
       "id": "S2",
       "title": "sessão",
       "status": "corrected_local",
       "owner": "root",
-      "evidence": "Sessão vinculada à credencial atual e revogação durável no logout; migração 0019 e validação do servidor pendentes. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
+      "evidence": "Registro anterior; sem revalidação operacional nesta revisão. Sessão vinculada à credencial atual e revogação durável no logout; migração 0019 e validação do servidor pendentes. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
     },
     {
       "id": "S3",
       "title": "tentativas",
       "status": "corrected_local",
       "owner": "root",
-      "evidence": "Limites de autenticação em banco com janela por identidade e ação; proteção no ambiente publicado ainda não comprovada. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
+      "evidence": "Registro anterior; sem revalidação operacional nesta revisão. Limites de autenticação em banco com janela por identidade e ação; proteção no ambiente publicado ainda não comprovada. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
     },
     {
       "id": "S4",
       "title": "segredo vazio",
       "status": "corrected_local",
       "owner": "root",
-      "evidence": "APP_SECRET ausente ou vazio é rejeitado em todos os ambientes; rotação operacional não comprovada. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
+      "evidence": "Registro anterior; sem revalidação operacional nesta revisão. APP_SECRET ausente ou vazio é rejeitado em todos os ambientes; rotação operacional não comprovada. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
     },
     {
       "id": "S5",
       "title": "token plataforma",
       "status": "corrected_local",
       "owner": "root",
-      "evidence": "Token de serviço vinculado a uma empresa, sem fallback global; configuração dos consumidores e homologação pendentes. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
+      "evidence": "Registro anterior; sem revalidação operacional nesta revisão. Token de serviço vinculado a uma empresa, sem fallback global; configuração dos consumidores e homologação pendentes. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
     },
     {
       "id": "S6",
       "title": "legados",
       "status": "corrected_local",
       "owner": "root",
-      "evidence": "Corrigido localmente. `boot.ts` responde 410 nos dois caminhos antigos. Não há comprovação de deploy dessa versão."
+      "evidence": "Registro anterior; sem revalidação operacional nesta revisão. Corrigido localmente. `boot.ts` responde 410 nos dois caminhos antigos. Não há comprovação de deploy dessa versão."
     },
     {
       "id": "S7",
       "title": "credenciais expostas",
       "status": "unverified",
       "owner": "root",
-      "evidence": "Pendente operacional. Revogação não comprovada. Busca inicial por alguns padrões no histórico local não prova ausência de vazamento e não verifica todos os tokens anteriores."
+      "evidence": "Registro anterior; sem revalidação operacional nesta revisão. Pendente operacional. Revogação não comprovada. Busca inicial por alguns padrões no histórico local não prova ausência de vazamento e não verifica todos os tokens anteriores."
     },
     {
       "id": "S8",
       "title": "webhook",
       "status": "corrected_local",
       "owner": "root",
-      "evidence": "Durabilidade/deduplicação corrigidas localmente. `dialog360.ts` grava transação antes do ACK; erro/timeout retorna 503. Isso não significa aceite externo completo."
+      "evidence": "Registro anterior; sem revalidação operacional nesta revisão. Durabilidade/deduplicação corrigidas localmente. `dialog360.ts` grava transação antes do ACK; erro/timeout retorna 503. Isso não significa aceite externo completo."
     },
     {
       "id": "S9",
       "title": "papéis/desligado",
       "status": "corrected_local",
       "owner": "root",
-      "evidence": "Revisor restrito à empresa e vínculo ativo; desligamento revoga acesso e designação. Homologação pendente. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
+      "evidence": "Registro anterior; sem revalidação operacional nesta revisão. Revisor restrito à empresa e vínculo ativo; desligamento revoga acesso e designação. Homologação pendente. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
     },
     {
       "id": "S10",
       "title": "reset em log",
       "status": "corrected_local",
       "owner": "root",
-      "evidence": "Links de reset e erros brutos do transporte foram removidos dos logs; implantação pendente. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
+      "evidence": "Registro anterior; sem revalidação operacional nesta revisão. Links de reset e erros brutos do transporte foram removidos dos logs; implantação pendente. Testes locais reexecutados em 14/09/2026; não comprova correção em produção."
     },
     {
       "id": "S11",
       "title": "terceiros/retenção",
       "status": "unverified",
       "owner": "root",
-      "evidence": "Não encerrado por esta revisão. Auditoria recebida aponta envio a provedores e retenção; não foi realizada avaliação jurídica ou inventário completo nesta rodada."
+      "evidence": "Registro anterior; sem revalidação operacional nesta revisão. Não encerrado por esta revisão. Auditoria recebida aponta envio a provedores e retenção; não foi realizada avaliação jurídica ou inventário completo nesta rodada."
     },
     {
       "id": "S12",
       "title": "upload",
-      "status": "unverified",
+      "status": "partial",
       "owner": "root",
-      "evidence": "Não revalidado integralmente. Divergência de limites/MIME informada pelo usuário permanece pendente de inspeção específica."
+      "evidence": "c4b5e89 reforça base64, tipo/prefixo e conteúdo obrigatório. Correção local; checagem XML superficial, evidências legadas e ensaio publicado pendentes."
     }
   ],
   "roadmap": [
@@ -1156,81 +1183,214 @@
   ],
   "timeline": [
     {
-      "time": "17:40 UTC",
-      "title": "Retomada e busca do cronograma",
-      "detail": "Roadmap de 17 entregas localizado; planilha K2 de 16 semanas não era o plano de integração do dia."
+      "time": "2026-09-15T07:39:58.343292+00:00",
+      "title": "Candidata integrada e validada localmente",
+      "detail": "959 gerais aprovados/55 ignorados; 58 SQL/zero ignorados, contagens sobrepostas. Oito checkpoints e oito smoke browser passaram com dados sintéticos. Tipos, lint e build passaram. CI, homologação e aceite não comprovados para a candidata."
     },
     {
-      "time": "17:45 UTC",
-      "title": "Primeira evidência local",
-      "detail": "646 testes, lint, tipos e build passaram; 11 testes SQL e 8 verificações de navegador passaram."
+      "time": "2026-09-15T06:35:08.997241+00:00",
+      "title": "GitHub consultado com autenticação",
+      "detail": "main 7f11af7; PR #54 integrada; CI Qualidade e Jampeiro aprovados. Quatro commits locais não resolvidos no remoto."
     },
     {
-      "time": "17:46 UTC",
-      "title": "Três agentes acionados",
-      "detail": "Frentes cadastro, integridade e interface confrontaram o escopo das 12 entregas K2."
+      "time": "2026-09-15T05:55:19Z",
+      "title": "Validação local registrada",
+      "detail": "885 testes aprovados e 39 ignorados em c4b5e89; banco real e provedores não repetidos."
     },
     {
-      "time": "17:52–17:59 UTC",
-      "title": "Integrações e correções",
-      "detail": "Tarifa UF, veículo unificado, memorial, decisor WhatsApp e bloqueio de duplicata. Falha na FK detectada em teste e corrigida."
-    },
-    {
-      "time": "18:00 UTC",
-      "title": "Marco de prazo conservador",
-      "detail": "13 testes SQL passaram. Aceite completo e publicação do software ainda não demonstrados."
-    },
-    {
-      "time": "Após 18:00 UTC",
-      "title": "Validação final e prestação de contas",
-      "detail": "679 testes passaram, 10 não executados; lint, tipos e build passaram. Painel registra 0/12 aceites completos."
-    },
-    {
-      "time": "Após publicação do painel",
-      "title": "Próxima rodada: segurança",
-      "detail": "Correções S1–S5, S9 e S10 distribuídas entre os agentes; validação final ainda pendente."
-    },
-    {
-      "time": "2026-09-14T01:18:41.961475+00:00",
-      "title": "Retomada e revalidação",
-      "detail": "731 testes passaram, 16 ignorados; lint, tipos e build passaram. Sete correções locais de segurança incorporadas ao balanço. Aceite completo permanece 0/12."
-    },
-    {
-      "time": "2026-09-14T01:43:15.513459+00:00",
-      "title": "Candidato publicado em homologação",
-      "detail": "1.14.0-rc.20260914t013756z instalado com backup, migrações, health e PID de produção preservado. Isolamento Linux/banco aplicado. Integrações externas ainda em configuração."
-    },
-    {
-      "time": "2026-09-14T02:01:09.992488+00:00",
-      "title": "Chaves aplicadas por workflow revisado",
-      "detail": "PR43 com CI aprovado e workflow34797596830 bem-sucedido. Maps, NFE.io e chave atual360dialog instalados; segredo do receptor criado. Worker desativado; diagnóstico real em andamento."
-    },
-    {
-      "time": "2026-09-14T12:02:11Z",
-      "title": "Acesso web e autenticação reconferidos",
-      "detail": "Cinco rotas/versão por HTTPS aprovadas e 13 verificações de login com limpeza concluída. Worker desligado, lista de telefones vazia e consulta fiscal desabilitada. Aceite integral permanece 0/12."
-    },
-    {
-      "time": "2026-09-14T14:11:27Z",
-      "title": "Ajustes publicados e interface conferida",
-      "detail": "Confirmação curta em fila, colaborador/CC, opção fiscal e intervaloMaps publicados.782 testesgerais,37 SQL (comsobreposição) e5 verificações HTTPS deinterface aprovados. Produção preservada; aceite0/12."
+      "time": "2026-09-15T05:53:12Z",
+      "title": "Checkpoints corrigidos localmente",
+      "detail": "0d743d0 inclui presenças sem jornada e evita contagem dupla do evento copiado; falta validação publicada."
     }
   ],
   "notes": [
-    "Check-in/check-out: código publicado e testes SQL aprovados, mas o piloto ainda não está pronto. Conferência às 14:16 UTC: sem veículo, sem configuração de campo e sem jornada registrada; saldo compartilhado de uma chamada.",
-    "Ajustes publicados em homologação: 1.14.0-rc.20260914t135904z. HTTPS e hash conferidos; cinco verificações de navegador aprovadas, com limpeza dos dados sintéticos.",
-    "Confirmação WhatsApp contém somente Comprovante Recebido!; fila automática separada do OCR, janela24h e limite persistido. Entrega e leitura confirmadas no teste real.",
-    "782 testes gerais aprovados, 34 não executados na suíte geral; 25 SQL de fluxo/Maps e12 fiscais aprovados. Contagens se sobrepõem.",
-    "Às14:05 UTC, saldo compartilhado WhatsApp/OpenAI:19/20. Ampliação solicitada, ainda sem autorização. Fotos com saldo insuficiente permanecem guardadas na fila.",
-    "Verificação fiscal opcional por empresa, apósOCR/antesdecisão. Adaptador atual cobre NF-e55; cupom real NFC-e65 não foi autenticado. Duplicidade de três entradas exige conciliação.",
-    "Publicação documental não é aceite. A etapa Publicação do software se refere ao candidato de homologação; produção estável preservada.",
-    "Os responsáveis identificados são agentes de IA; registros históricos não indicam execução paralela atual nem revisão humana.",
-    "Barras mostram etapas com evidência; as12 entregas K2 e17 do roadmap são visões relacionadas, sem soma de29 entregas.",
-    "Prestação de contas: docs/poc/LIBERACAO-E-COMPROMISSOS-2026-09-14.md. Aceite integral permanece0/12."
+    "Candidata 97180f5 enviada ao GitHub; correções de condições, versões e autoridade integradas. Nenhum deploy nem chamada paga nesta retomada. Aceite 0/12.",
+    "Histórico, não estado atual: Check-in/check-out: código publicado e testes SQL aprovados, mas o piloto ainda não está pronto. Conferência às 14:16 UTC: sem veículo, sem configuração de campo e sem jornada registrada; saldo compartilhado de uma chamada.",
+    "Histórico, não estado atual: Ajustes publicados em homologação: 1.14.0-rc.20260914t135904z. HTTPS e hash conferidos; cinco verificações de navegador aprovadas, com limpeza dos dados sintéticos.",
+    "Histórico, não estado atual: Confirmação WhatsApp contém somente Comprovante Recebido!; fila automática separada do OCR, janela24h e limite persistido. Entrega e leitura confirmadas no teste real.",
+    "Histórico, não estado atual: 782 testes gerais aprovados, 34 não executados na suíte geral; 25 SQL de fluxo/Maps e12 fiscais aprovados. Contagens se sobrepõem.",
+    "Histórico, não estado atual: Às14:05 UTC, saldo compartilhado WhatsApp/OpenAI:19/20. Ampliação solicitada, ainda sem autorização. Fotos com saldo insuficiente permanecem guardadas na fila.",
+    "Histórico, não estado atual: Verificação fiscal opcional por empresa, apósOCR/antesdecisão. Adaptador atual cobre NF-e55; cupom real NFC-e65 não foi autenticado. Duplicidade de três entradas exige conciliação.",
+    "Histórico, não estado atual: Publicação documental não é aceite. A etapa Publicação do software se refere ao candidato de homologação; produção estável preservada.",
+    "Histórico, não estado atual: Os responsáveis identificados são agentes de IA; registros históricos não indicam execução paralela atual nem revisão humana.",
+    "Histórico, não estado atual: Barras mostram etapas com evidência; as12 entregas K2 e17 do roadmap são visões relacionadas, sem soma de29 entregas.",
+    "Histórico, não estado atual: Prestação de contas: docs/poc/LIBERACAO-E-COMPROMISSOS-2026-09-14.md. Aceite integral permanece0/12."
   ],
   "validation": {
-    "sourceFingerprint": null,
-    "recordedAt": "2026-09-14T01:43:15.513459+00:00",
-    "note": "Candidato instalado em homologação: 745 testes passaram, 20 ignorados na suíte geral; 23 SQL passaram separadamente, com sobreposição. Lint/tipos/build e oito verificações de navegador passaram. Hash do bundle 200c49fa6e2ea76b0185d132530cf7babd0dbcf35b6e1c2cf8ca546731be5cc6."
+    "sourceFingerprint": "a648241049908c922a546e22352f7e58f6dea37aad96aafb7e5b3027bf46aad7",
+    "recordedAt": "2026-09-15T07:39:58.343292+00:00",
+    "testedCommit": "97180f5fdcf136e24e13eb1eec25d07715119771",
+    "associationMethod": "Testes executados sobre 26a0d25 com as duas alterações posteriormente registradas em 97180f5; nenhuma alteração de fonte após os testes. Fingerprint integral calculado na consolidação.",
+    "note": "959 gerais aprovados/55 ignorados; 58 SQL/zero ignorados, contagens sobrepostas. Oito checkpoints e oito smoke browser passaram com dados sintéticos. Tipos, lint e build passaram. CI, homologação e aceite não comprovados para a candidata."
+  },
+  "commitments": [
+    {
+      "order": 1,
+      "title": "Preparar publicação revisável sem o modo do painel adiado.",
+      "close": "Commits separados, árvore limpa e revisão do diff.",
+      "responsible": "Codex",
+      "date": "Sem nova data final assumida"
+    },
+    {
+      "order": 2,
+      "title": "Publicar checkpoints e validação de arquivos somente após CI.",
+      "close": "SHA/manifesto da homologação corresponde ao commit revisado.",
+      "responsible": "Codex",
+      "date": "Sem nova data final assumida"
+    },
+    {
+      "order": 3,
+      "title": "Executar os cenários específicos de checkpoints.",
+      "close": "Evidência de link direto, carregamento, erro/retry e troca de empresa.",
+      "responsible": "Codex",
+      "date": "Sem nova data final assumida"
+    },
+    {
+      "order": 4,
+      "title": "Fechar duplicidade e fiscal sem chamadas pagas não autorizadas.",
+      "close": "Testes de persistência/conflito e documento elegível para consulta.",
+      "responsible": "Codex",
+      "date": "Sem nova data final assumida"
+    },
+    {
+      "order": 5,
+      "title": "Atualizar o painel e esta matriz após cada versão.",
+      "close": "Fonte, commit, data de teste e limite de cada evidência são consistentes.",
+      "responsible": "Codex",
+      "date": "Sem nova data final assumida"
+    },
+    {
+      "order": 6,
+      "title": "Conduzir E12 quando os pré-requisitos estiverem homologados.",
+      "close": "Dossiê do piloto e aceite humano; sem isso, a POC segue parcial.",
+      "responsible": "Codex",
+      "date": "Sem nova data final assumida"
+    }
+  ],
+  "accountability": [
+    {
+      "failure": "Prometer integração completa e não cumprir o prazo",
+      "impact": "Piloto sem entrega integral no horário combinado",
+      "action": "Fechar as lacunas, publicar versão revisada e demonstrar o fluxo.",
+      "responsible": "Codex"
+    },
+    {
+      "failure": "Prometer mobilização e consolidação sem encerrar a entrega",
+      "impact": "Trabalho fragmentado e correções permanecendo locais",
+      "action": "Consolidar versão, testes, documentação e publicação.",
+      "responsible": "Codex"
+    },
+    {
+      "failure": "Chamar oito verificações gerais de testes de checkpoints",
+      "impact": "Evidência insuficiente apresentada como específica",
+      "action": "Executar link direto, carregamento, erro/retry e troca de empresa no navegador.",
+      "responsible": "Codex"
+    },
+    {
+      "failure": "Dizer que DNS era o único bloqueio",
+      "impact": "Problemas funcionais omitidos da conclusão",
+      "action": "Registrar separadamente limitação de ferramenta e falhas da aplicação.",
+      "responsible": "Codex"
+    },
+    {
+      "failure": "Deixar candidata com problemas fiscais, duplicidade e checkpoints",
+      "impact": "Estados incorretos ou divergentes e revisão adicional",
+      "action": "Validar as correções locais no banco e na versão publicada.",
+      "responsible": "Codex"
+    },
+    {
+      "failure": "Manter relatórios e contagens desatualizados",
+      "impact": "Dificuldade de identificar o que realmente está entregue",
+      "action": "Sincronizar a matriz e o painel com data, commit e fonte de cada prova.",
+      "responsible": "Codex"
+    }
+  ],
+  "github": {
+    "queriedAt": "2026-09-15T06:35:08.997241+00:00",
+    "repository": "comeca-ai/projeto_tribureembolsa",
+    "main": {
+      "sha": "7f11af74e0846e7c1868f9719366f5b5e6f3fbb6",
+      "protected": true,
+      "url": "https://github.com/comeca-ai/projeto_tribureembolsa/commit/7f11af74e0846e7c1868f9719366f5b5e6f3fbb6"
+    },
+    "runs": [
+      {
+        "id": 34911483744,
+        "name": "JhonemeJampeiro",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7f11af74e0846e7c1868f9719366f5b5e6f3fbb6",
+        "event": "push",
+        "html_url": "https://github.com/comeca-ai/projeto_tribureembolsa/actions/runs/34911483744",
+        "created_at": "2026-09-15T00:02:25Z"
+      },
+      {
+        "id": 34911483621,
+        "name": "Qualidade",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7f11af74e0846e7c1868f9719366f5b5e6f3fbb6",
+        "event": "push",
+        "html_url": "https://github.com/comeca-ai/projeto_tribureembolsa/actions/runs/34911483621",
+        "created_at": "2026-09-15T00:02:25Z"
+      }
+    ],
+    "localCommits": [
+      {
+        "sha": "edd342206d39aa7f9496b584a0f1bf1bc832f097",
+        "httpStatus": 422
+      },
+      {
+        "sha": "c4b5e8946a942844c12e0b36202be1be3767eae3",
+        "httpStatus": 422
+      },
+      {
+        "sha": "0d743d0c81fc91383393c405ad288325ada3fd19",
+        "httpStatus": 422
+      },
+      {
+        "sha": "698ccd892fb7102bf3a96d186f28b8b14e4982b2",
+        "httpStatus": 422
+      }
+    ],
+    "localBranchHttpStatus": 404,
+    "documents": [
+      {
+        "path": "docs/escopo-tecnico-fornecedor.md",
+        "blobSha": "392f8bc60f153792891c3247ab621658ccf5f4f9",
+        "url": "https://github.com/comeca-ai/projeto_tribureembolsa/blob/7f11af74e0846e7c1868f9719366f5b5e6f3fbb6/docs/escopo-tecnico-fornecedor.md"
+      },
+      {
+        "path": "docs/poc/PROMETIDO-ENTREGUE-2026-09-13.md",
+        "blobSha": "5569cf17c4cccdbf424c1c6374e16554ad7dbe56",
+        "url": "https://github.com/comeca-ai/projeto_tribureembolsa/blob/7f11af74e0846e7c1868f9719366f5b5e6f3fbb6/docs/poc/PROMETIDO-ENTREGUE-2026-09-13.md"
+      },
+      {
+        "path": "docs/poc/README.md",
+        "blobSha": "b874bafe5a7747565ba530af97333be3a064703f",
+        "url": "https://github.com/comeca-ai/projeto_tribureembolsa/blob/7f11af74e0846e7c1868f9719366f5b5e6f3fbb6/docs/poc/README.md"
+      },
+      {
+        "path": "docs/poc/REVISAO-ENTREGAS-2026-09-14.md",
+        "blobSha": "7ede16350440dafffe4126e704052eac0ffc5c9c",
+        "url": "https://github.com/comeca-ai/projeto_tribureembolsa/blob/7f11af74e0846e7c1868f9719366f5b5e6f3fbb6/docs/poc/REVISAO-ENTREGAS-2026-09-14.md"
+      }
+    ]
+  },
+  "governance": {
+    "queriedAt": "2026-09-15T06:39:34.587254+00:00",
+    "counts": {
+      "pullsExamined": 35,
+      "mergedExamined": 35,
+      "withoutFormalReview": 34,
+      "mergeUnder10Minutes": 23,
+      "branches": 29,
+      "nonMainBranches": 28
+    },
+    "requiredApprovals": 0,
+    "confirmed": "Dependabot sem npm; package.json ainda my-app; exclusão automática de branches desligada; nenhuma Release retornada; CODEOWNERS, SECURITY e LICENSE ausentes nos caminhos examinados.",
+    "updated": "O padrão atual é dialog360. A URL antiga e os padrões antigos de pasta/senha examinados não aparecem no README. A PR #41 já foi integrada com descrição preenchida.",
+    "unproven": "Revogação das credenciais antigas, secret scanning e push protection continuam sem comprovação nesta consulta. Auditoria periódica de duas horas ainda sem entrega comprovada.",
+    "responsible": "Codex"
   }
 }

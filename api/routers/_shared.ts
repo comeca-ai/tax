@@ -1,17 +1,46 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq, or } from "drizzle-orm";
+import { and, asc, eq, or } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import {
   colaboradores,
   empresas,
   empresasConfig,
   logAuditoria,
+  usuarios,
 } from "@db/schema";
 import { podeRevisarDespesas } from "@contracts/permissoes";
 import type { PapelRevisao } from "@contracts/types";
 import type { TrpcContext } from "../context";
 
 type Db = ReturnType<typeof getDb>;
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/** Autoridade para escrita: lê perfil, designação e vínculos sob os locks da decisão. */
+export async function papelRevisaoNaEmpresaBloqueado(ctx: TrpcContext, empresaId: number, tx: Tx) {
+  if (!ctx.usuario) throw new TRPCError({ code: "UNAUTHORIZED" });
+  const [empresa] = await tx.select().from(empresas).where(eq(empresas.id, empresaId)).for("update");
+  if (!empresa) throw new TRPCError({ code: "NOT_FOUND", message: "Empresa não encontrada." });
+  const [config] = await tx.select().from(empresasConfig).where(eq(empresasConfig.empresaId, empresaId)).for("update");
+  const [usuario] = await tx.select({ id: usuarios.id, perfil: usuarios.perfil }).from(usuarios).where(eq(usuarios.id, ctx.usuario.id)).for("update");
+  if (!usuario) throw new TRPCError({ code: "UNAUTHORIZED" });
+  const pessoas = await tx.select({ id: colaboradores.id, usuarioId: colaboradores.usuarioId, nome: colaboradores.nome, statusVinculo: colaboradores.statusVinculo })
+    .from(colaboradores).where(and(eq(colaboradores.empresaId, empresaId), or(eq(colaboradores.usuarioId, usuario.id), config?.aprovadorId ? eq(colaboradores.id, config.aprovadorId) : undefined)))
+    .orderBy(asc(colaboradores.id)).for("update");
+  const ativo = pessoas.find(p => p.usuarioId === usuario.id && p.statusVinculo === "ativo");
+  const designado = pessoas.find(p => p.id === config?.aprovadorId && p.statusVinculo === "ativo");
+  const papel: PapelRevisao = {
+    ehAprovadorDesignado: Boolean(ativo && designado && ativo.id === designado.id),
+    ehAnalistaDesignado: Boolean(ativo && ativo.id === config?.analistaId),
+    ehAdminDaEmpresa: empresa.usuarioId === usuario.id,
+    ehAdminDaPlataforma: usuario.perfil === "admin",
+    temAprovadorDesignado: Boolean(designado),
+    aprovadorDesignadoNome: designado?.nome ?? null,
+  };
+  if (!podeRevisarDespesas({ perfil: usuario.perfil, ...papel })) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Sua autorização de revisão não está mais vigente nesta empresa." });
+  }
+  return { empresa, papel, aprovadorId: designado?.id ?? null, colaboradorDoUsuarioId: ativo?.id ?? null };
+}
 
 /**
  * O usuário é colaborador ativo desta empresa? (v1.9.1)

@@ -220,8 +220,8 @@ export default function RevisaoDetalhe({
         despesaId: despesa.id,
         tipo: "documento_suporte",
         arquivoNome: arquivo.name,
-        arquivoMime: arquivo.type || undefined,
-        arquivoBase64: base64 || undefined,
+        arquivoMime: arquivo.type || "application/octet-stream",
+        arquivoBase64: base64,
         observacao: notas.trim() || undefined,
       });
     };

@@ -6,6 +6,23 @@ versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
 ## [Unreleased]
 
+### Integridade documental e checkpoints — candidato de 15/09/2026
+
+- Uploads web e WhatsApp validam base64, tamanho, assinatura do tipo de arquivo e
+  estrutura do subconjunto NF-e XML antes do OCR/persistência. DTD, entidades
+  desconhecidas e XML malformado são recusados; não há certificação de XSD,
+  assinatura digital ou situação fiscal.
+- Documento repetido por hash/chave na mesma empresa é bloqueado em transação;
+  uma criação concorrente perdedora não altera a nota da despesa vencedora.
+  Falha no log reverte nota e identidade, permitindo nova tentativa.
+- Aprovação humana de reembolso conserva créditos vedados e não confirma
+  créditos fiscais sem resultado fiscal autorizado rastreável.
+- Checkpoints incluem presenças sem veículo/jornada, deduplicam eventos copiados
+  e distinguem carregamento, erro e ausência de dados. A imagem vazia reserva
+  espaço para preservar a navegação por âncora.
+- A mudança local de modos no fluxo web foi separada do pacote, conforme
+  adiamento do usuário. A publicação e o aceite continuam condicionados à revisão.
+
 ### Correção do diagnóstico 360dialog
 
 - Documentado o cadastro atual verificado no GitHub: `API_KEY` e

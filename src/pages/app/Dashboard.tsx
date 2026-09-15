@@ -315,11 +315,12 @@ export default function Dashboard() {
   }, [despesasQ.error]);
   useEffect(() => {
     if (location.hash !== "#checkpoints") return;
+    if (carregandoEmpresa || empresaId === undefined || resumo.isLoading || despesasQ.isLoading || resumo.isError || despesasQ.isError) return;
     const frame = requestAnimationFrame(() => {
       document.getElementById("checkpoints")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     return () => cancelAnimationFrame(frame);
-  }, [location.hash]);
+  }, [location.hash, empresaId, carregandoEmpresa, resumo.isLoading, despesasQ.isLoading, resumo.isError, despesasQ.isError, checkpointsQ.isFetching]);
 
   // Count-up dos KPIs na primeira visualização (0 → valor real).
   const [animReady, setAnimReady] = useState(false);
@@ -517,7 +518,7 @@ export default function Dashboard() {
   // ── Estados de carregamento / sem empresa ──────────────────────────────────
   if (
     carregandoEmpresa ||
-    (empresaId !== undefined && resumo.isLoading && despesasQ.isLoading)
+    (empresaId !== undefined && (resumo.isLoading || despesasQ.isLoading))
   ) {
     return (
       <div className="flex flex-col gap-6">
@@ -551,7 +552,7 @@ export default function Dashboard() {
       >
         <OnboardingChecklist />
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-line bg-surface px-8 py-16 text-center">
-          <img src="/empty-despesas.svg" alt="" className="h-auto w-56" />
+          <img src="/empty-despesas.svg" alt="" width={480} height={360} className="h-auto w-56" />
           <div className="flex flex-col gap-1">
             <h1 className="font-display text-lg font-medium tracking-[-0.01em] text-text-900">
               Nenhuma empresa cadastrada
@@ -793,20 +794,20 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <section id="checkpoints" className="rounded-xl border border-line bg-surface p-5 shadow-card">
+      <section id="checkpoints" aria-busy={checkpointsQ.isFetching} className="scroll-mt-24 rounded-xl border border-line bg-surface p-5 shadow-card">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="flex items-center gap-2 font-display text-lg font-medium text-text-900"><MapPin className="h-4 w-4 text-brand-500" /> Checkpoints acumulados por usuário</h2>
-            <p className="mt-1 text-sm text-text-500">Total de checkpoints registrados nas jornadas da empresa selecionada.</p>
+            <p className="mt-1 text-sm text-text-500">Checkpoints das presenças e jornadas da empresa selecionada, desde o primeiro registro.</p>
           </div>
-          <span className="rounded-full bg-brand-500/10 px-3 py-1 font-mono text-sm font-semibold text-brand-500">{checkpointsQ.data?.totalCheckpoints ?? 0} total</span>
+          <span className="rounded-full bg-brand-500/10 px-3 py-1 font-mono text-sm font-semibold text-brand-500">{checkpointsQ.isFetching ? "Carregando…" : checkpointsQ.isError ? "Indisponível" : `${checkpointsQ.data?.totalCheckpoints ?? 0} total`}</span>
         </div>
-        {checkpointsQ.isError ? <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-[#EBD2A2] bg-[#FBF3E4] px-3 py-2 text-sm text-[#8A5A0E]"><span>Não foi possível carregar os checkpoints desta empresa.</span><button type="button" className="font-semibold underline" onClick={() => void checkpointsQ.refetch()}>Tentar novamente</button></div> : checkpointsQ.data?.usuarios.length ? <div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b border-line text-xs uppercase tracking-wide text-text-500"><th className="pb-2 pr-3">Usuário</th><th className="pb-2 pr-3">Cargo</th><th className="pb-2 pr-3">Jornadas</th><th className="pb-2 pr-3">Checkpoints</th><th className="pb-2">Último registro</th></tr></thead><tbody>{checkpointsQ.data.usuarios.map(usuario => <tr key={usuario.colaboradorId} className="border-b border-line/60 last:border-0"><td className="py-3 pr-3 font-medium">{usuario.nome}</td><td className="py-3 pr-3 text-text-500">{usuario.cargo ?? "Não informado"}</td><td className="py-3 pr-3 font-mono">{usuario.jornadas}</td><td className="py-3 pr-3 font-mono font-semibold text-brand-500">{usuario.checkpoints}</td><td className="py-3 text-text-500">{usuario.ultimoCheckpointEm ? new Date(usuario.ultimoCheckpointEm).toLocaleString("pt-BR") : "Nenhum"}</td></tr>)}</tbody></table></div> : <p className="mt-4 text-sm text-text-500">Nenhum checkpoint acumulado ainda.</p>}
+        {checkpointsQ.isFetching ? <p role="status" className="mt-4 text-sm text-text-500">Carregando checkpoints desta empresa…</p> : checkpointsQ.isError ? <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-[#EBD2A2] bg-[#FBF3E4] px-3 py-2 text-sm text-[#8A5A0E]"><span>Não foi possível carregar os checkpoints desta empresa.</span><button type="button" className="font-semibold underline" onClick={() => void checkpointsQ.refetch()}>Tentar novamente</button></div> : checkpointsQ.data?.usuarios.length ? <div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b border-line text-xs uppercase tracking-wide text-text-500"><th className="pb-2 pr-3">Usuário</th><th className="pb-2 pr-3">Cargo</th><th className="pb-2 pr-3">Presenças / jornadas</th><th className="pb-2 pr-3">Checkpoints</th><th className="pb-2">Último registro</th></tr></thead><tbody>{checkpointsQ.data.usuarios.map(usuario => <tr key={usuario.colaboradorId} className="border-b border-line/60 last:border-0"><td className="py-3 pr-3 font-medium">{usuario.nome}</td><td className="py-3 pr-3 text-text-500">{usuario.cargo ?? "Não informado"}</td><td className="py-3 pr-3 font-mono">{usuario.jornadas}</td><td className="py-3 pr-3 font-mono font-semibold text-brand-500">{usuario.checkpoints}</td><td className="py-3 text-text-500">{usuario.ultimoCheckpointEm ? new Date(usuario.ultimoCheckpointEm).toLocaleString("pt-BR") : "Nenhum"}</td></tr>)}</tbody></table></div> : <p className="mt-4 text-sm text-text-500">Nenhum checkpoint acumulado ainda.</p>}
       </section>
 
       {semDados ? (
         <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-line bg-surface px-8 py-16 text-center">
-          <img src="/empty-despesas.svg" alt="" className="h-auto w-56" />
+          <img src="/empty-despesas.svg" alt="" width={480} height={360} className="h-auto w-56" />
           <div className="flex flex-col gap-1">
             <h3 className="font-display text-lg font-medium tracking-[-0.01em] text-text-900">
               Nenhuma despesa processada ainda

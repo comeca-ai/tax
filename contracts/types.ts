@@ -116,8 +116,8 @@ export const evidenciaInput = z.object({
   despesaId: z.number().int().positive(),
   tipo: z.string().min(2).max(100),
   arquivoNome: z.string().min(1).max(255),
-  arquivoMime: z.string().max(100).optional(),
-  arquivoBase64: z.string().max(ARQUIVO_BASE64_MAX, ARQUIVO_BASE64_MSG).optional(),
+  arquivoMime: z.string().min(1).max(100),
+  arquivoBase64: z.string().min(1).max(ARQUIVO_BASE64_MAX, ARQUIVO_BASE64_MSG),
   observacao: z.string().max(2000).optional(),
 });
 
@@ -429,6 +429,7 @@ export type CategoriaRegraCitada = z.infer<typeof categoriaRegraCitadaSchema>;
 
 /** Ponto em que a política NÃO define e o agente, por isso, não decide (v1.8). */
 export const LACUNA_TIPOS = [
+  "condicao-nao-avaliada", // condição textual sem representação executável: não concede efeito automático
   "conflito-vedado-permissivo", // regra vedada de CATEGORIA convivendo com regra "sim", sem marcação
   "so-vedado-sem-marcacao", // só regra vedada na categoria, nenhuma marcada como "negar"
   "marcacao-sem-valor", // regra marcada "aprovar" sem valor monetário aplicável
