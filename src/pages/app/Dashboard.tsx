@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -273,6 +273,7 @@ function EvolucaoTooltip({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { activeCompany, isLoading: carregandoEmpresa } = useActiveCompany();
   const { user } = useAuth();
@@ -312,6 +313,13 @@ export default function Dashboard() {
   useEffect(() => {
     if (despesasQ.error) toast.error("Não foi possível carregar as despesas.");
   }, [despesasQ.error]);
+  useEffect(() => {
+    if (location.hash !== "#checkpoints") return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById("checkpoints")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [location.hash]);
 
   // Count-up dos KPIs na primeira visualização (0 → valor real).
   const [animReady, setAnimReady] = useState(false);
@@ -564,7 +572,7 @@ export default function Dashboard() {
     );
   }
 
-  if (resumo.isError || despesasQ.isError || checkpointsQ.isError) {
+  if (resumo.isError || despesasQ.isError) {
     return <QueryError titulo="Visão geral indisponível" onRetry={() => { void resumo.refetch(); void despesasQ.refetch(); void checkpointsQ.refetch(); }} />;
   }
 
@@ -793,7 +801,7 @@ export default function Dashboard() {
           </div>
           <span className="rounded-full bg-brand-500/10 px-3 py-1 font-mono text-sm font-semibold text-brand-500">{checkpointsQ.data?.totalCheckpoints ?? 0} total</span>
         </div>
-        {checkpointsQ.data?.usuarios.length ? <div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b border-line text-xs uppercase tracking-wide text-text-500"><th className="pb-2 pr-3">Usuário</th><th className="pb-2 pr-3">Cargo</th><th className="pb-2 pr-3">Jornadas</th><th className="pb-2 pr-3">Checkpoints</th><th className="pb-2">Último registro</th></tr></thead><tbody>{checkpointsQ.data.usuarios.map(usuario => <tr key={usuario.colaboradorId} className="border-b border-line/60 last:border-0"><td className="py-3 pr-3 font-medium">{usuario.nome}</td><td className="py-3 pr-3 text-text-500">{usuario.cargo ?? "Não informado"}</td><td className="py-3 pr-3 font-mono">{usuario.jornadas}</td><td className="py-3 pr-3 font-mono font-semibold text-brand-500">{usuario.checkpoints}</td><td className="py-3 text-text-500">{usuario.ultimoCheckpointEm ? new Date(usuario.ultimoCheckpointEm).toLocaleString("pt-BR") : "Nenhum"}</td></tr>)}</tbody></table></div> : <p className="mt-4 text-sm text-text-500">Nenhum checkpoint acumulado ainda.</p>}
+        {checkpointsQ.isError ? <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-[#EBD2A2] bg-[#FBF3E4] px-3 py-2 text-sm text-[#8A5A0E]"><span>Não foi possível carregar os checkpoints desta empresa.</span><button type="button" className="font-semibold underline" onClick={() => void checkpointsQ.refetch()}>Tentar novamente</button></div> : checkpointsQ.data?.usuarios.length ? <div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b border-line text-xs uppercase tracking-wide text-text-500"><th className="pb-2 pr-3">Usuário</th><th className="pb-2 pr-3">Cargo</th><th className="pb-2 pr-3">Jornadas</th><th className="pb-2 pr-3">Checkpoints</th><th className="pb-2">Último registro</th></tr></thead><tbody>{checkpointsQ.data.usuarios.map(usuario => <tr key={usuario.colaboradorId} className="border-b border-line/60 last:border-0"><td className="py-3 pr-3 font-medium">{usuario.nome}</td><td className="py-3 pr-3 text-text-500">{usuario.cargo ?? "Não informado"}</td><td className="py-3 pr-3 font-mono">{usuario.jornadas}</td><td className="py-3 pr-3 font-mono font-semibold text-brand-500">{usuario.checkpoints}</td><td className="py-3 text-text-500">{usuario.ultimoCheckpointEm ? new Date(usuario.ultimoCheckpointEm).toLocaleString("pt-BR") : "Nenhum"}</td></tr>)}</tbody></table></div> : <p className="mt-4 text-sm text-text-500">Nenhum checkpoint acumulado ainda.</p>}
       </section>
 
       {semDados ? (
