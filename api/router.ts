@@ -1,3 +1,4 @@
+import { metricasPocRouter } from "./routers/metricasPoc";
 import { createRouter, publicQuery } from "./middleware";
 import { equipeLoteRouter } from "./routers/equipeLote";
 import { authRouter } from "./routers/auth";
@@ -28,6 +29,7 @@ export const appRouter = createRouter({
   colaboradores: colaboradoresRouter,
   equipeLote: equipeLoteRouter,
   campo: campoRouter,
+  metricasPoc: metricasPocRouter,
   nfeio: nfeIoRouter,
   fiscal: fiscalRouter,
   veiculos: veiculosRouter,

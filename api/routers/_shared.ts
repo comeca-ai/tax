@@ -127,10 +127,34 @@ export async function assertAdminDaEmpresa(
   empresaId: number,
   mensagem = "Só o administrador da empresa pode alterar as regras e ativar a política de reembolso."
 ): Promise<typeof empresas.$inferSelect> {
-  const empresa = await assertEmpresaAcesso(ctx, empresaId);
-  const ehAdminDaPlataforma = ctx.usuario?.perfil === "admin";
+  if (!ctx.usuario) throw new TRPCError({ code: "UNAUTHORIZED" });
+  const [usuario] = await getDb().select({ perfil: usuarios.perfil }).from(usuarios)
+    .where(eq(usuarios.id, ctx.usuario.id)).limit(1);
+  if (!usuario) throw new TRPCError({ code: "UNAUTHORIZED" });
+  const empresa = await assertEmpresaAcesso({ ...ctx, usuario: { ...ctx.usuario, perfil: usuario.perfil } }, empresaId);
+  const ehAdminDaPlataforma = usuario.perfil === "admin";
   const ehAdminDaEmpresa = empresa.usuarioId === ctx.usuario?.id;
   if (!ehAdminDaPlataforma && !ehAdminDaEmpresa) {
+    throw new TRPCError({ code: "FORBIDDEN", message: mensagem });
+  }
+  return empresa;
+}
+
+/** Escrita administrativa: empresa -> usuário -> recurso, com autoridade persistida. */
+export async function assertAdminDaEmpresaBloqueado(
+  ctx: TrpcContext,
+  empresaId: number,
+  tx: Pick<Tx, "select">,
+  mensagem = "Sua autorização administrativa não está mais vigente nesta empresa.",
+): Promise<typeof empresas.$inferSelect> {
+  if (!ctx.usuario) throw new TRPCError({ code: "UNAUTHORIZED" });
+  const [empresa] = await tx.select().from(empresas)
+    .where(eq(empresas.id, empresaId)).for("update");
+  if (!empresa) throw new TRPCError({ code: "NOT_FOUND", message: "Empresa não encontrada." });
+  const [usuario] = await tx.select({ perfil: usuarios.perfil }).from(usuarios)
+    .where(eq(usuarios.id, ctx.usuario.id)).for("update");
+  if (!usuario) throw new TRPCError({ code: "UNAUTHORIZED" });
+  if (empresa.usuarioId !== ctx.usuario.id && usuario.perfil !== "admin") {
     throw new TRPCError({ code: "FORBIDDEN", message: mensagem });
   }
   return empresa;
@@ -178,10 +202,21 @@ export async function papelRevisaoNaEmpresa(
       message: "Autenticação necessária.",
     });
   }
-  // NOT_FOUND de empresa e FORBIDDEN de vínculo continuam do assert existente.
-  const empresa = await assertEmpresaAcesso(ctx, empresaId);
-
   const db = getDb();
+  // O contexto pode anteceder uma revogação de perfil. A fila também lê
+  // dados sensíveis: não reutiliza um privilégio global antigo da sessão.
+  const [usuarioAtual] = await db
+    .select({ perfil: usuarios.perfil })
+    .from(usuarios)
+    .where(eq(usuarios.id, ctx.usuario.id))
+    .limit(1);
+  if (!usuarioAtual) throw new TRPCError({ code: "UNAUTHORIZED" });
+  // NOT_FOUND de empresa e FORBIDDEN de vínculo continuam do assert existente.
+  const empresa = await assertEmpresaAcesso(
+    { ...ctx, usuario: { ...ctx.usuario, perfil: usuarioAtual.perfil } },
+    empresaId,
+  );
+
   const configRows = await db
     .select({
       aprovadorId: empresasConfig.aprovadorId,
@@ -231,14 +266,14 @@ export async function papelRevisaoNaEmpresa(
       colaboradorDoUsuarioId !== null &&
       config.analistaId === colaboradorDoUsuarioId,
     ehAdminDaEmpresa: empresa.usuarioId === ctx.usuario.id,
-    ehAdminDaPlataforma: ctx.usuario.perfil === "admin",
+    ehAdminDaPlataforma: usuarioAtual.perfil === "admin",
     temAprovadorDesignado: config.aprovadorId !== null,
     aprovadorDesignadoNome,
   };
 
   if (
     !podeRevisarDespesas({
-      perfil: ctx.usuario.perfil,
+      perfil: usuarioAtual.perfil,
       ehAdminDaEmpresa: papel.ehAdminDaEmpresa,
       ehAprovadorDesignado: papel.ehAprovadorDesignado,
       ehAnalistaDesignado: papel.ehAnalistaDesignado,

@@ -4,7 +4,7 @@ import { colaboradores, despesas, empresas, empresasConfig, politicasReembolso }
 import { pocConfiguracao, pocPagamentos } from "../../db/pocSchema";
 
 const mocks = vi.hoisted(() => ({ admin: vi.fn(), db: vi.fn(), log: vi.fn() }));
-vi.mock("./_shared", () => ({ assertAdminDaEmpresa: mocks.admin, registrarLog: mocks.log, ehAdminDeAlgumaEmpresa: vi.fn() }));
+vi.mock("./_shared", () => ({ assertAdminDaEmpresa: mocks.admin, assertAdminDaEmpresaBloqueado: mocks.admin, registrarLog: mocks.log, ehAdminDeAlgumaEmpresa: vi.fn() }));
 vi.mock("../queries/connection", () => ({ getDb: mocks.db }));
 import { campoRouter } from "./campo";
 const config = {

@@ -4,6 +4,7 @@ import { campoCustomizadoPoliticaSchema } from "@contracts/types";
 import PoliticaCamposStep, {
   ResumoCamposCustomizados,
 } from "./PoliticaCamposStep";
+import { alertasCamposCustomizados } from "./alertasCamposCustomizados";
 
 const campo = campoCustomizadoPoliticaSchema.parse({
   id: "cargo",
@@ -59,4 +60,22 @@ it("resume os campos salvos com evidência sem interpretar HTML vindo do documen
   expect(html).toContain("Opcional");
   expect(html).toContain("&lt;script&gt;");
   expect(html).not.toContain("<script>");
+});
+
+it("expõe fallback da IA e ausência de sugestões antes da aprovação humana", () => {
+  expect(
+    alertasCamposCustomizados(
+      {
+        provedor: "heuristico-local",
+        camposPendentes: [],
+        avisos: [
+          "OpenAI indisponível (HTTP 429): extração heurística usada como contingência.",
+        ],
+      },
+      0
+    )
+  ).toEqual([
+    "OpenAI indisponível (HTTP 429): extração heurística usada como contingência.",
+    expect.stringContaining("Nenhum campo customizado foi sugerido"),
+  ]);
 });

@@ -6,7 +6,7 @@ import { colaboradores, despesas, empresas, empresasConfig, politicasReembolso }
 import { pocCampo, pocPagamentos, pocConfiguracao } from "../../db/pocSchema";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { assertAdminDaEmpresa, assertEmpresaAcesso, registrarLog } from "./_shared";
+import { assertAdminDaEmpresa, assertAdminDaEmpresaBloqueado, assertEmpresaAcesso, registrarLog } from "./_shared";
 import type { TrpcContext } from "../context";
 import { atualizarConciliacoes, checkpointsDoUsuario, conciliar, metricasCampo, novoEstadoCampo } from "../modules/reembolso/campo/dominio";
 import { alterarCampo, eventoCampoSchema, registrarEventoCampo, vincularPresencaCampo } from "../modules/reembolso/campo/servico";
@@ -124,13 +124,14 @@ export const campoRouter = createRouter({
       return resultado;
     });
   }),
-  registrarPagamento: protectedProcedure.input(z.object({ despesaId: z.number().int().positive(), referencia: z.string().trim().min(3).max(128), pagoEm: z.string().datetime({ offset: true }) })).mutation(async ({ input, ctx }) => {
+  registrarPagamento: protectedProcedure.input(z.object({ empresaId: z.number().int().positive().optional(), despesaId: z.number().int().positive(), referencia: z.string().trim().min(3).max(128), pagoEm: z.string().datetime({ offset: true }) })).mutation(async ({ input, ctx }) => {
     const db = getDb();
     const [despesa] = await db.select().from(despesas).where(eq(despesas.id, input.despesaId)).limit(1);
-    if (!despesa) throw new TRPCError({ code: "NOT_FOUND" });
+    if (!despesa || (input.empresaId !== undefined && input.empresaId !== despesa.empresaId)) throw new TRPCError({ code: "NOT_FOUND" });
     await assertAdminDaEmpresa(ctx, despesa.empresaId);
     if (Date.parse(input.pagoEm) > Date.now()) throw new TRPCError({ code: "BAD_REQUEST", message: "Data futura inválida." });
     return db.transaction(async tx => {
+      await assertAdminDaEmpresaBloqueado(ctx, despesa.empresaId, tx);
       const [atual] = await tx.select().from(despesas).where(and(eq(despesas.id, despesa.id), eq(despesas.empresaId, despesa.empresaId))).for("update");
       if (atual?.status !== "aprovada") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A despesa precisa estar aprovada." });
       const [existente] = await tx.select().from(pocPagamentos).where(eq(pocPagamentos.despesaId, despesa.id));

@@ -21,6 +21,8 @@ coverage/
 .nyc_output/
 # Logs
 *.log
+*.ai-usage.jsonl
+*.ai-dashboard.json
 
 # Infra local de cada máquina — NÃO vai para o repositório:
 # override do compose é por servidor (portas, redes, variáveis locais);

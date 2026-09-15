@@ -16,7 +16,10 @@ import { criarRouterIdentificacaoWhatsapp } from "./modules/reembolso/whatsapp/i
 import { resolverColaboradoresPorTelefone } from "./modules/reembolso/whatsapp/identificacaoDb";
 import { exigirServicoAutenticado } from "./modules/reembolso/whatsapp/servicoAuth";
 import { iniciarWorkerMaps } from "./modules/reembolso/campo/calculoMaps";
-import { instalarLimiteChamadasPoc } from "./lib/pocConsultas";
+import {
+  iniciarDashboardIaOperacional,
+  instalarLimiteChamadasPoc,
+} from "./lib/pocConsultas";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -62,6 +65,7 @@ export default app;
 
 if (env.isProduction) {
   instalarLimiteChamadasPoc();
+  iniciarDashboardIaOperacional();
   // Callbacks padrão conectam conversa de campo, documentos e scanner serial de lembretes.
   iniciarWorkerWhatsapp();
   iniciarWorkerMaps();

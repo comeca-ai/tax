@@ -155,6 +155,13 @@
       "when": 1789392000000,
       "tag": "0022_poc_campo_empresa_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1789467062335,
+      "tag": "0023_metricas_poc_indices",
+      "breakpoints": true
     }
   ]
 }

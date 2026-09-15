@@ -46,6 +46,7 @@ import { cn } from "@/lib/utils";
 import { podeEditarPolitica, erroArquivoPolitica } from "@/components/painel/seguranca";
 import PoliticaSimulador from "@/components/politica/PoliticaSimulador";
 import PoliticaCamposStep from "@/components/politica/PoliticaCamposStep";
+import { alertasCamposCustomizados } from "@/components/politica/alertasCamposCustomizados";
 
 const PASSOS = [
   { numero: 1, rotulo: "Enviar documento" },
@@ -459,7 +460,10 @@ export default function Politica({ iniciarUpload = false }: { iniciarUpload?: bo
               <PoliticaCamposStep
                 campos={form.base.camposCustomizados}
                 onChange={camposCustomizados => setForm({ ...form, base: { ...form.base, camposCustomizados } })}
-                pendencias={extracao?.camposPendentes.filter(p => /campos customizados/i.test(p))}
+                pendencias={alertasCamposCustomizados(
+                  extracao,
+                  form.base.camposCustomizados.length
+                )}
                 salvando={updateRegras.isPending}
                 onVoltar={() => setStep(2)}
                 onSalvar={() => void salvarRegras()}

@@ -31,7 +31,10 @@ function caller(autenticado = true) {
 }
 
 describe("política: upload exige administração no servidor", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.unstubAllEnvs();
+  });
 
   it("barra sessão ausente antes de consultar autorização ou executar parser", async () => {
     await expect(caller(false).upload(input)).rejects.toMatchObject({ code: "UNAUTHORIZED" });
@@ -59,5 +62,27 @@ describe("política: upload exige administração no servidor", () => {
       arquivoNome: input.arquivoNome, mimeType: input.arquivoMime, base64: input.arquivoBase64,
     });
     expect(mocks.admin.mock.invocationCallOrder[0]).toBeLessThan(mocks.parser.mock.invocationCallOrder[0]!);
+  });
+
+  it("expõe configuração ausente do Arquiteto sem alterar o rascunho", async () => {
+    mocks.admin.mockResolvedValue({ id: 42 });
+    mocks.db.mockReturnValue({
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [
+              { id: 9, empresaId: 42, regras: { regrasExtraidas: [] } },
+            ],
+          }),
+        }),
+      }),
+    });
+    vi.stubEnv("OPENAI_API_KEY", "");
+    await expect(
+      caller().arquitetar({ id: 9, pedido: "Ajustar o limite de alimentação" })
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message: "O Arquiteto não está configurado corretamente nesta homologação.",
+    });
   });
 });

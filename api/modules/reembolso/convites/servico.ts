@@ -188,6 +188,10 @@ export async function enviarConviteColaboradorIdempotente(
       pessoa.email,
       await dominioAdministrador(tx, empresa.usuarioId)
     );
+    // O lock do colaborador acima serializa a criação da reserva. A outbox é
+    // atualizada depois do commit durante os envios; bloqueá-la aqui faz uma
+    // segunda requisição disputar com essa atualização e pode causar
+    // ER_CHECKREAD no MariaDB, mesmo sem nova emissão.
     let [row] = await tx
       .select()
       .from(whatsappOutbox)
@@ -197,7 +201,7 @@ export async function enviarConviteColaboradorIdempotente(
           eq(whatsappOutbox.chaveIdempotencia, chave)
         )
       )
-      .for("update");
+      .limit(1);
     if (row) {
       if (
         row.empresaId !== input.empresaId ||

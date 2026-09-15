@@ -242,8 +242,24 @@ describe("schema.ts — estruturas da Norma PoC", () => {
 
   it("veículos preservam campos fiscais e recebem vínculo E4 aditivo", () => {
     const c = getTableColumns(veiculos);
-    expect(Object.keys(c)).toEqual(expect.arrayContaining(["id", "empresaId", "placa", "renavam", "kmPorLitroDeclarado", "tarifaReembolsoKm", "descricao", "createdAt"]));
-    for (const campo of ["colaboradorId", "motorizacao", "ufLicenciamento"] as const) expect(c[campo].notNull).toBe(false);
+    expect(Object.keys(c)).toEqual(
+      expect.arrayContaining([
+        "id",
+        "empresaId",
+        "placa",
+        "renavam",
+        "kmPorLitroDeclarado",
+        "tarifaReembolsoKm",
+        "descricao",
+        "createdAt",
+      ])
+    );
+    for (const campo of [
+      "colaboradorId",
+      "motorizacao",
+      "ufLicenciamento",
+    ] as const)
+      expect(c[campo].notNull).toBe(false);
     expect(Object.keys(c)).toContain("kmPorLitroDeclarado");
     expect(Object.keys(getTableColumns(despesas))).toContain("veiculoId");
   });
@@ -635,10 +651,14 @@ describe("migração 0010 — SET NULL nas FKs do log_auditoria", () => {
 
   it("tem 10 statements: 2 blocos de guarda (SET/PREPARE/EXECUTE/DEALLOCATE) e 2 ADD CONSTRAINT", () => {
     expect(statements).toHaveLength(10);
-    expect(statements.filter(s => s.startsWith("SET @sql_fk_"))).toHaveLength(2);
+    expect(statements.filter(s => s.startsWith("SET @sql_fk_"))).toHaveLength(
+      2
+    );
     expect(statements.filter(s => s.startsWith("PREPARE "))).toHaveLength(2);
     expect(statements.filter(s => s.startsWith("EXECUTE "))).toHaveLength(2);
-    expect(statements.filter(s => s.startsWith("DEALLOCATE PREPARE "))).toHaveLength(2);
+    expect(
+      statements.filter(s => s.startsWith("DEALLOCATE PREPARE "))
+    ).toHaveLength(2);
     expect(statements.filter(s => /ADD CONSTRAINT/.test(s))).toHaveLength(2);
   });
 
@@ -696,16 +716,16 @@ describe("migração 0010 — SET NULL nas FKs do log_auditoria", () => {
     const posAddUsuario = statements.findIndex(s =>
       s.includes("ADD CONSTRAINT `log_auditoria_usuario_id_usuarios_id_fk`")
     );
-    const posDropUsuario = statements.findIndex(
-      s => s.startsWith("EXECUTE st_fk_usuario")
+    const posDropUsuario = statements.findIndex(s =>
+      s.startsWith("EXECUTE st_fk_usuario")
     );
     expect(posDropUsuario).toBeGreaterThanOrEqual(0);
     expect(posAddUsuario).toBeGreaterThan(posDropUsuario);
     const posAddEmpresa = statements.findIndex(s =>
       s.includes("ADD CONSTRAINT `log_auditoria_empresa_id_empresas_id_fk`")
     );
-    const posDropEmpresa = statements.findIndex(
-      s => s.startsWith("EXECUTE st_fk_empresa")
+    const posDropEmpresa = statements.findIndex(s =>
+      s.startsWith("EXECUTE st_fk_empresa")
     );
     expect(posDropEmpresa).toBeGreaterThanOrEqual(0);
     expect(posAddEmpresa).toBeGreaterThan(posDropEmpresa);
@@ -866,9 +886,9 @@ describe("migração 0011 — ficha do colaborador + checkins_campo", () => {
   });
 
   it("o rollback existe e NUNCA roda no boot (nome fora do glob 0*.sql)", () => {
-    expect(
-      existsSync(path.join(DIR, "rollback", "rollback_0011.sql"))
-    ).toBe(true);
+    expect(existsSync(path.join(DIR, "rollback", "rollback_0011.sql"))).toBe(
+      true
+    );
     expect(/^rollback_0011\.sql$/.test("rollback_0011.sql")).toBe(true);
   });
 
@@ -952,9 +972,9 @@ describe("migração 0012 — whatsapp_webhook_events", () => {
     const [, nome, corpo] =
       sql.match(/CREATE TABLE `([a-z_]+)` \(([\s\S]*?)\n\);/) ?? [];
     expect(nome).toBe("whatsapp_webhook_events");
-    const colunasNoSql = [
-      ...(corpo ?? "").matchAll(/^\t`([a-z_]+)`/gm),
-    ].map(m => m[1]);
+    const colunasNoSql = [...(corpo ?? "").matchAll(/^\t`([a-z_]+)`/gm)].map(
+      m => m[1]
+    );
     const colunasNoSchema = Object.values(
       getTableColumns(whatsappWebhookEvents)
     ).map(c => c.name);
@@ -998,19 +1018,26 @@ describe("migração 0013 — fila durável do WhatsApp", () => {
     .filter(Boolean);
 
   function colunasDaTabela(tabela: string) {
-    const [, corpo] = sql.match(new RegExp("CREATE TABLE `" + tabela + "` \\(([\\s\\S]*?)\\n\\);")) ?? [];
+    const [, corpo] =
+      sql.match(
+        new RegExp("CREATE TABLE `" + tabela + "` \\(([\\s\\S]*?)\\n\\);")
+      ) ?? [];
     return [...(corpo ?? "").matchAll(/^\t`([a-z_]+)`/gm)].map(m => m[1]);
   }
 
   it("tem exatamente uma migração 0013, aditiva", () => {
     expect(arquivos0013).toHaveLength(1);
-    expect(statements.filter(s => s.startsWith("CREATE TABLE"))).toHaveLength(2);
+    expect(statements.filter(s => s.startsWith("CREATE TABLE"))).toHaveLength(
+      2
+    );
     for (const statement of statements) {
       const semClausulasInofensivas = statement
         .replace(/ON UPDATE CURRENT_TIMESTAMP/g, "")
         .replace(/ON DELETE no action/g, "")
         .replace(/ON UPDATE no action/g, "");
-      expect(semClausulasInofensivas).not.toMatch(/\b(DROP|MODIFY|CHANGE|RENAME|TRUNCATE|DELETE|UPDATE)\b/i);
+      expect(semClausulasInofensivas).not.toMatch(
+        /\b(DROP|MODIFY|CHANGE|RENAME|TRUNCATE|DELETE|UPDATE)\b/i
+      );
     }
   });
 
@@ -1018,20 +1045,38 @@ describe("migração 0013 — fila durável do WhatsApp", () => {
     // As referências de empresa, colaborador e despesa entram na 0014; esta
     // guarda a fotografia histórica da CREATE TABLE da 0013, não do schema
     // mais novo.
-    expect(colunasDaTabela("whatsapp_inbox").sort()).toEqual([
-      "chave_idempotencia", "created_at", "id", "mensagem_id", "payload",
-      "processado_em", "processando_em", "provider", "proxima_tentativa_at",
-      "recebido_em", "status", "telefone", "tentativas", "tipo_evento",
-      "ultimo_erro", "updated_at",
-    ].sort());
+    expect(colunasDaTabela("whatsapp_inbox").sort()).toEqual(
+      [
+        "chave_idempotencia",
+        "created_at",
+        "id",
+        "mensagem_id",
+        "payload",
+        "processado_em",
+        "processando_em",
+        "provider",
+        "proxima_tentativa_at",
+        "recebido_em",
+        "status",
+        "telefone",
+        "tentativas",
+        "tipo_evento",
+        "ultimo_erro",
+        "updated_at",
+      ].sort()
+    );
     expect(colunasDaTabela("whatsapp_outbox").sort()).toEqual(
-      Object.values(getTableColumns(whatsappOutbox)).map(c => c.name).sort(),
+      Object.values(getTableColumns(whatsappOutbox))
+        .map(c => c.name)
+        .sort()
     );
   });
 
   it("protege a deduplicação e o vínculo empresa-colaborador da outbox", () => {
     expect(sql).toMatch(/UNIQUE\(`provider`,`chave_idempotencia`\)/);
-    expect(sql).toMatch(/FOREIGN KEY \(`empresa_id`,`colaborador_id`\) REFERENCES `colaboradores`\(`empresa_id`,`id`\)/);
+    expect(sql).toMatch(
+      /FOREIGN KEY \(`empresa_id`,`colaborador_id`\) REFERENCES `colaboradores`\(`empresa_id`,`id`\)/
+    );
     expect(sql).toMatch(/CREATE INDEX `whatsapp_inbox_processamento_idx`/);
     expect(sql).toMatch(/CREATE INDEX `whatsapp_outbox_processamento_idx`/);
   });
@@ -1039,7 +1084,9 @@ describe("migração 0013 — fila durável do WhatsApp", () => {
   it("commita snapshot e journal junto com a migração", () => {
     const tag = arquivos0013[0]!.replace(/\.sql$/, "");
     expect(existsSync(path.join(DIR, "meta", "0013_snapshot.json"))).toBe(true);
-    const journal = JSON.parse(readFileSync(path.join(DIR, "meta", "_journal.json"), "utf8")) as {
+    const journal = JSON.parse(
+      readFileSync(path.join(DIR, "meta", "_journal.json"), "utf8")
+    ) as {
       entries: { idx: number; tag: string }[];
     };
     expect(journal.entries.find(entry => entry.idx === 13)?.tag).toBe(tag);
@@ -1062,15 +1109,21 @@ describe("migração 0014 — mídia e referência idempotente de comprovante", 
       const semClausulasInofensivas = statement
         .replace(/ON DELETE no action/g, "")
         .replace(/ON UPDATE no action/g, "");
-      expect(semClausulasInofensivas).not.toMatch(/\b(DROP|MODIFY|CHANGE|RENAME|TRUNCATE|DELETE|UPDATE)\b/i);
+      expect(semClausulasInofensivas).not.toMatch(
+        /\b(DROP|MODIFY|CHANGE|RENAME|TRUNCATE|DELETE|UPDATE)\b/i
+      );
     }
   });
 
   it("guarda metadados de storage e liga o item da inbox à despesa correta", () => {
-    expect(sql).toMatch(/ALTER TABLE `notas_fiscais` ADD `arquivo_storage_provider`/);
+    expect(sql).toMatch(
+      /ALTER TABLE `notas_fiscais` ADD `arquivo_storage_provider`/
+    );
     expect(sql).toMatch(/ALTER TABLE `notas_fiscais` ADD `arquivo_checksum`/);
     expect(sql).toMatch(/ALTER TABLE `whatsapp_inbox` ADD `despesa_id`/);
-    expect(sql).toMatch(/FOREIGN KEY \(`empresa_id`,`colaborador_id`\) REFERENCES `colaboradores`\(`empresa_id`,`id`\)/);
+    expect(sql).toMatch(
+      /FOREIGN KEY \(`empresa_id`,`colaborador_id`\) REFERENCES `colaboradores`\(`empresa_id`,`id`\)/
+    );
     expect(sql).toMatch(/CREATE INDEX `whatsapp_inbox_despesa_idx`/);
   });
 
@@ -1078,11 +1131,51 @@ describe("migração 0014 — mídia e referência idempotente de comprovante", 
     expect(getTableColumns(notasFiscais).arquivoStorageProvider).toBeDefined();
     expect(getTableColumns(whatsappInbox).despesaId).toBeDefined();
     expect(existsSync(path.join(DIR, "meta", "0014_snapshot.json"))).toBe(true);
-    const journal = JSON.parse(readFileSync(path.join(DIR, "meta", "_journal.json"), "utf8")) as {
+    const journal = JSON.parse(
+      readFileSync(path.join(DIR, "meta", "_journal.json"), "utf8")
+    ) as {
       entries: { idx: number; tag: string }[];
     };
     expect(journal.entries.find(entry => entry.idx === 14)?.tag).toBe(
-      arquivos0014[0]!.replace(/\.sql$/, ""),
+      arquivos0014[0]!.replace(/\.sql$/, "")
+    );
+  });
+});
+
+describe("migração 0023 — índices das métricas da POC", () => {
+  const arquivo = "0023_metricas_poc_indices.sql";
+  const sql = semComentarios(readFileSync(path.join(DIR, arquivo), "utf8"));
+  const statements = sql
+    .split("--> statement-breakpoint")
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  it("adiciona somente os dois índices compostos das consultas", () => {
+    expect(statements).toEqual([
+      "CREATE INDEX `despesas_empresa_created_at_idx` ON `despesas` (`empresa_id`, `created_at`);",
+      "CREATE INDEX `log_auditoria_metricas_idx` ON `log_auditoria` (`empresa_id`, `entidade`, `acao`, `entidade_id`);",
+    ]);
+  });
+
+  it("está registrada uma única vez e como última migração", () => {
+    const journal = JSON.parse(
+      readFileSync(path.join(DIR, "meta", "_journal.json"), "utf8")
+    ) as { entries: { idx: number; tag: string }[] };
+    expect(
+      journal.entries
+        .filter(entry => entry.tag === arquivo.replace(/\.sql$/, ""))
+        .map(({ idx, tag }) => ({ idx, tag }))
+    ).toEqual([{ idx: 22, tag: "0023_metricas_poc_indices" }]);
+    expect(journal.entries.at(-1)?.tag).toBe("0023_metricas_poc_indices");
+    const snapshot = JSON.parse(
+      readFileSync(path.join(DIR, "meta", "0023_snapshot.json"), "utf8")
+    ) as { prevId: string; tables: Record<string, { indexes: object }> };
+    expect(snapshot.prevId).toBe("7fb8b7ea-ba1e-4b82-93e2-cd0438079549");
+    expect(snapshot.tables.despesas.indexes).toHaveProperty(
+      "despesas_empresa_created_at_idx"
+    );
+    expect(snapshot.tables.log_auditoria.indexes).toHaveProperty(
+      "log_auditoria_metricas_idx"
     );
   });
 });

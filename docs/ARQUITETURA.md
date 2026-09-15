@@ -1,5 +1,7 @@
 # reembolsa.ia — Arquitetura do redesenho (cérebro + duas superfícies)
 
+O uso de modelos é excepcional e segue a [política global de uso de IA](POLITICA-DE-USO-DE-IA.md). Operação de servidor, saúde, cron, filas, auditoria técnica, deploy e observabilidade usam somente mecanismos determinísticos e não consomem tokens.
+
 > Deriva de `docs/PRODUTO.md`. Status: **proposta** — norte para as próximas releases,
 > não descrição do sistema atual (v1.4.x). Marcas ✅/🟡/❌ indicam o que já existe.
 

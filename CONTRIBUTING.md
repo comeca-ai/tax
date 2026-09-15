@@ -10,6 +10,8 @@ entra por pull request (PR); não faça push direto nela.
 2. Crie uma branch a partir da `main` atualizada.
 3. Nunca versione `.env`, chaves de API, dumps de banco, uploads reais ou
    informações da infraestrutura de produção.
+4. Siga a [política de uso de IA](docs/POLITICA-DE-USO-DE-IA.md). Infraestrutura,
+   observabilidade, cron, testes e relatórios operacionais não podem consumir modelos.
 
 ## Convenção de branches
 

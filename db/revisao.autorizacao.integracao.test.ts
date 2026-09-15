@@ -88,4 +88,47 @@ describe.skipIf(!target)("revisão SQL revalida autoridade após pré-checagem",
     const logs = await db.select().from(logAuditoria).where(eq(logAuditoria.empresaId, empresa));
     expect(logs.some(log => log.acao === "despesa.decisao" && log.usuarioId === actor)).toBe(true);
   });
+  it("fila rejeita perfil global revogado mesmo com contexto admin antigo", async () => {
+    perfil = "admin";
+    await db.update(empresasConfig).set({ aprovadorId: null }).where(eq(empresasConfig.empresaId, empresa));
+    await expect(revisaoRouter.createCaller(ctx()).fila({ empresaId: empresa })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+  it("motivo de delegação não concede autoridade a pessoa sem designação", async () => {
+    await db.update(empresasConfig).set({ aprovadorId: substituto }).where(eq(empresasConfig.empresaId, empresa));
+    await expect(revisaoRouter.createCaller(ctx()).decidir({ ...input(), motivoDelegacao: "Sou substituto por iniciativa própria" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const [atual] = await db.select().from(despesas).where(eq(despesas.id, despesa));
+    expect(atual.status).toBe("em_revisao");
+    expect(await db.select().from(logAuditoria).where(eq(logAuditoria.empresaId, empresa))).toHaveLength(0);
+  });
+  it("designação de analista vigente permite fila mas decisão exige motivo quando há aprovador", async () => {
+    await db.update(empresasConfig).set({ aprovadorId: substituto, analistaId: pessoa }).where(eq(empresasConfig.empresaId, empresa));
+    await expect(revisaoRouter.createCaller(ctx()).fila({ empresaId: empresa })).resolves.toMatchObject({ papel: { ehAnalistaDesignado: true } });
+    await expect(revisaoRouter.createCaller(ctx()).decidir(input())).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    const [atual] = await db.select().from(despesas).where(eq(despesas.id, despesa));
+    expect(atual.status).toBe("em_revisao");
+  });
+  it("segunda decisão não sobrescreve a primeira nem acrescenta histórico falso", async () => {
+    await revisaoRouter.createCaller(ctx()).decidir(input());
+    const antes = await db.select().from(logAuditoria).where(eq(logAuditoria.empresaId, empresa));
+    await expect(revisaoRouter.createCaller(ctx()).decidir({ ...input(), decisao: "rejeitar" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    const [atual] = await db.select().from(despesas).where(eq(despesas.id, despesa));
+    expect(atual.status).toBe("aprovada");
+    expect(await db.select().from(logAuditoria).where(eq(logAuditoria.empresaId, empresa))).toEqual(antes);
+  });
+  it("revisor da empresa não lê fila nem decide despesa de outra empresa", async () => {
+    const [e] = await db.insert(empresas).values({ usuarioId: owner, razaoSocial: "Outra empresa sintética", cnpj: "99887766000156", cnaePrincipal: "6201501", regimeTributario: "simples_nacional", uf: "SP" });
+    const [n] = await db.insert(notasFiscais).values({ empresaId: e.insertId, origem: "manual" });
+    const [d] = await db.insert(despesas).values({ empresaId: e.insertId, notaFiscalId: n.insertId, status: "em_revisao", confianca: "alta" });
+    try {
+      await expect(revisaoRouter.createCaller(ctx()).fila({ empresaId: e.insertId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(revisaoRouter.createCaller(ctx()).decidir({ ...input(), despesaId: d.insertId })).rejects.toMatchObject({ code: "NOT_FOUND", message: "Despesa não encontrada." });
+      const [atual] = await db.select().from(despesas).where(eq(despesas.id, d.insertId));
+      expect(atual.status).toBe("em_revisao");
+      expect(await db.select().from(logAuditoria).where(eq(logAuditoria.empresaId, e.insertId))).toHaveLength(0);
+    } finally {
+      await db.delete(despesas).where(eq(despesas.id, d.insertId));
+      await db.delete(notasFiscais).where(eq(notasFiscais.id, n.insertId));
+      await db.delete(empresas).where(eq(empresas.id, e.insertId));
+    }
+  });
 });

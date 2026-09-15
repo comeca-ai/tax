@@ -30,3 +30,53 @@ Vincular PRs, testes relevantes e teste manual em homologação. Quando houver
 mudança de dados, autorização ou integração externa, anexar prova em banco/API
 e plano de reversão. Código mesclado, homologação e habilitação produtiva são
 estados distintos. Não fechar a issue apenas porque o PR foi aberto.
+
+## Implementação disponível para validação
+
+- `metricasPoc.resumo({ empresaId, inicio, fim })`: acesso administrativo à empresa;
+  datas ISO com fuso; coorte de despesas **criadas** no intervalo UTC `[inicio,fim)`.
+  Pagamentos e decisões posteriores à criação são considerados até a consulta.
+  Retorna denominador de despesas, revisão, pagamentos manuais, confiança declarada,
+  médias em milissegundos criação–decisão, criação–pagamento e decisão–pagamento.
+  Cada média informa denominador e quantidade sem dados ou com cronologia inválida.
+  Criação não é envio: a API explicita essa limitação e não inventa tempo de envio.
+- `metricasPoc.auditarAmostra({ empresaId, despesaId, conjunto, campo, previsto,
+  observado, evidencia })`: administrador registra avaliação binária com referência
+  ao conjunto de teste e à evidência examinada. Por exemplo, para manipulação,
+  `previsto` é a detecção avaliada e `observado` é o resultado da conferência humana.
+  Para OCR, o auditor precisa definir previamente a proposição binária por campo;
+  este contrato não calcula erro textual nem valida o protocolo do conjunto.
+  O ato insere `poc.auditoria_amostral` na trilha existente com usuário/data,
+  sem atualizar status ou valores. Reavaliações preservam todas as entradas;
+  a última por despesa/conjunto/campo compõe a matriz, sem inflar a amostra.
+- Matrizes separadas por conjunto/campo mostram VP, VN, FP, FN, denominador,
+  acurácia e precisão (`null` quando não há positivos previstos). Não extrapolam
+  para a população nem confundem confiança declarada com precisão.
+- `campo.registrarPagamento` já exige despesa aprovada, administrador, data não futura,
+  referência e autoria, com unicidade/idempotência e auditoria transacional.
+  Registro de pagamento é separado do status de aprovação; não dispara PIX.
+
+Aplicar `db/migrations/0023_metricas_poc_indices.sql` antes de habilitar o painel;
+a migração cria somente os índices compostos usados pelas consultas de despesas
+e auditoria e aceita reexecução pelo aplicador idempotente. Reversão funcional:
+retirar os dois endpoints e sua entrada no router, conservando os índices e os
+registros de auditoria já inseridos. Ainda faltam ensaio em
+banco/API de homologação, eventos de envio/adoção e conjunto/metas acordados com o
+piloto. Estas mudanças não encerram E6 nem comprovam aceite integral.
+
+### Caminho na interface
+
+Em **Relatórios**, selecione empresa e período. O painel **Métricas do piloto e
+registros** usa dias UTC completos, preservando o fim exclusivo da API. Exibe
+carregamento, falha com repetição, ausência de dados e denominadores. Os formulários
+registram avaliação binária com evidência e pagamento manual com referência/data
+no horário local do navegador, convertida para UTC antes do envio. O responsável
+é o usuário autenticado; a autoridade é revalidada no banco
+sob bloqueio antes da escrita. Trocar empresa/período reinicia os formulários.
+
+Verificação local: 18 testes unitários focais; 3 testes SQL/API em banco descartável
+e 5 cenários de navegador com API interceptada e dados sintéticos. A suíte
+`db/metricas.integracao.test.ts` só aceita `POC_TEST_DATABASE_URL` local com nome
+`reembolsa_poc_test_*`, sem DDL e com limpeza dos IDs criados. O navegador
+`tools/poc/metricas-browser.mjs` não inicia API nem acessa banco/provedores; grava
+o resultado fora do git. Esses ensaios não equivalem a homologação ou aceite.

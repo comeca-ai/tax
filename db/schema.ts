@@ -78,7 +78,9 @@ export const statusCreditoEnum = mysqlEnum("status", [
 export const usuarios = mysqlTable(
   "usuarios",
   {
-    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     email: varchar("email", { length: 255 }).notNull(),
     nome: varchar("nome", { length: 255 }).notNull(),
     senhaHash: varchar("senha_hash", { length: 255 }).notNull(),
@@ -93,7 +95,9 @@ export const usuarios = mysqlTable(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const empresas = mysqlTable("empresas", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true })
+    .autoincrement()
+    .primaryKey(),
   usuarioId: bigint("usuario_id", { mode: "number", unsigned: true })
     .notNull()
     .references(() => usuarios.id),
@@ -110,7 +114,9 @@ export const empresas = mysqlTable("empresas", {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const cnaesSecundarios = mysqlTable("cnaes_secundarios", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true })
+    .autoincrement()
+    .primaryKey(),
   empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
     .notNull()
     .references(() => empresas.id),
@@ -121,59 +127,75 @@ export const cnaesSecundarios = mysqlTable("cnaes_secundarios", {
 // 4. Veículos — RF-01 / RF-09
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const veiculos = mysqlTable("veiculos", {
-  colaboradorId: bigint("colaborador_id", { mode: "number", unsigned: true }),
-  motorizacao: mysqlEnum("motorizacao", ["combustao", "hibrido", "eletrico"]),
-  ufLicenciamento: varchar("uf_licenciamento", { length: 2 }),
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
-  empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
-    .notNull()
-    .references(() => empresas.id),
-  placa: varchar("placa", { length: 10 }).notNull(),
-  renavam: varchar("renavam", { length: 20 }),
-  kmPorLitroDeclarado: double("km_por_litro_declarado").notNull(),
-  tarifaReembolsoKm: double("tarifa_reembolso_km").notNull().default(0),
-  descricao: varchar("descricao", { length: 255 }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, t => [
-  uniqueIndex("veiculos_pessoa_placa_unique").on(t.colaboradorId, t.placa),
-  foreignKey({ name: "veiculos_pessoa_empresa_fk", columns: [t.empresaId, t.colaboradorId], foreignColumns: [colaboradores.empresaId, colaboradores.id] }),
-]);
+export const veiculos = mysqlTable(
+  "veiculos",
+  {
+    colaboradorId: bigint("colaborador_id", { mode: "number", unsigned: true }),
+    motorizacao: mysqlEnum("motorizacao", ["combustao", "hibrido", "eletrico"]),
+    ufLicenciamento: varchar("uf_licenciamento", { length: 2 }),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
+    empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => empresas.id),
+    placa: varchar("placa", { length: 10 }).notNull(),
+    renavam: varchar("renavam", { length: 20 }),
+    kmPorLitroDeclarado: double("km_por_litro_declarado").notNull(),
+    tarifaReembolsoKm: double("tarifa_reembolso_km").notNull().default(0),
+    descricao: varchar("descricao", { length: 255 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  t => [
+    uniqueIndex("veiculos_pessoa_placa_unique").on(t.colaboradorId, t.placa),
+    foreignKey({
+      name: "veiculos_pessoa_empresa_fk",
+      columns: [t.empresaId, t.colaboradorId],
+      foreignColumns: [colaboradores.empresaId, colaboradores.id],
+    }),
+  ]
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. Notas fiscais (ingestão / OCR) — RF-01
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const notasFiscais = mysqlTable("notas_fiscais", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
-  empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
-    .notNull()
-    .references(() => empresas.id),
-  cnpjEmitente: varchar("cnpj_emitente", { length: 18 }),
-  cfop: varchar("cfop", { length: 10 }),
-  ncm: varchar("ncm", { length: 10 }),
-  cst: varchar("cst", { length: 10 }),
-  valor: double("valor"),
-  dataFatoGerador: date("data_fato_gerador", { mode: "string" }),
-  // Extração automática (v1.7.0, D-014): o que o OCR/visão detectou — ninguém digita
-  categoriaSugerida: varchar("categoria_sugerida", { length: 20 }),
-  litros: double("litros"),
-  // Classificação do documento pela IA de visão (v1.8) — o decisor usa para negar comprovante não fiscal
-  tipoDocumento: varchar("tipo_documento", { length: 30 }),
-  confiancaTipo: varchar("confianca_tipo", { length: 10 }),
-  // Upload na plataforma: arquivo original guardado inline (MVP, sem storage externo)
-  arquivoNome: varchar("arquivo_nome", { length: 255 }),
-  arquivoMime: varchar("arquivo_mime", { length: 100 }),
-  arquivoBase64: mediumtext("arquivo_base64"),
-  // POC: o binário permanece no MySQL privado. Os metadados permitem migrar
-  // gradualmente para S3/R2 sem alterar a identidade da nota ou o histórico.
-  arquivoStorageProvider: varchar("arquivo_storage_provider", { length: 30 }),
-  arquivoStorageKey: varchar("arquivo_storage_key", { length: 500 }),
-  arquivoChecksum: varchar("arquivo_checksum", { length: 64 }),
-  arquivoTamanhoBytes: int("arquivo_tamanho_bytes"),
-  origem: mysqlEnum("origem", ["ocr", "manual"]).notNull().default("manual"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, t => [uniqueIndex("notas_fiscais_empresa_id_id_uq").on(t.empresaId, t.id)]);
+export const notasFiscais = mysqlTable(
+  "notas_fiscais",
+  {
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
+    empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => empresas.id),
+    cnpjEmitente: varchar("cnpj_emitente", { length: 18 }),
+    cfop: varchar("cfop", { length: 10 }),
+    ncm: varchar("ncm", { length: 10 }),
+    cst: varchar("cst", { length: 10 }),
+    valor: double("valor"),
+    dataFatoGerador: date("data_fato_gerador", { mode: "string" }),
+    // Extração automática (v1.7.0, D-014): o que o OCR/visão detectou — ninguém digita
+    categoriaSugerida: varchar("categoria_sugerida", { length: 20 }),
+    litros: double("litros"),
+    // Classificação do documento pela IA de visão (v1.8) — o decisor usa para negar comprovante não fiscal
+    tipoDocumento: varchar("tipo_documento", { length: 30 }),
+    confiancaTipo: varchar("confianca_tipo", { length: 10 }),
+    // Upload na plataforma: arquivo original guardado inline (MVP, sem storage externo)
+    arquivoNome: varchar("arquivo_nome", { length: 255 }),
+    arquivoMime: varchar("arquivo_mime", { length: 100 }),
+    arquivoBase64: mediumtext("arquivo_base64"),
+    // POC: o binário permanece no MySQL privado. Os metadados permitem migrar
+    // gradualmente para S3/R2 sem alterar a identidade da nota ou o histórico.
+    arquivoStorageProvider: varchar("arquivo_storage_provider", { length: 30 }),
+    arquivoStorageKey: varchar("arquivo_storage_key", { length: 500 }),
+    arquivoChecksum: varchar("arquivo_checksum", { length: 64 }),
+    arquivoTamanhoBytes: int("arquivo_tamanho_bytes"),
+    origem: mysqlEnum("origem", ["ocr", "manual"]).notNull().default("manual"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  t => [uniqueIndex("notas_fiscais_empresa_id_id_uq").on(t.empresaId, t.id)]
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 6. Despesas — RF-01/RF-02/RF-05
@@ -182,7 +204,9 @@ export const notasFiscais = mysqlTable("notas_fiscais", {
 export const despesas = mysqlTable(
   "despesas",
   {
-    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => empresas.id),
@@ -224,6 +248,7 @@ export const despesas = mysqlTable(
     // seja da MESMA empresa do registro. InnoDB exige que as colunas
     // referenciadas sejam o prefixo de um índice.
     index("despesas_empresa_id_id_idx").on(t.empresaId, t.id),
+    index("despesas_empresa_created_at_idx").on(t.empresaId, t.createdAt),
   ]
 );
 
@@ -232,7 +257,9 @@ export const despesas = mysqlTable(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const regrasElegibilidade = mysqlTable("regras_elegibilidade", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true })
+    .autoincrement()
+    .primaryKey(),
   // Padrão de CNAE: ex. "49.30-2", "49.2x", "41.x", "46.x", "*" (não mapeado)
   cnaePadrao: varchar("cnae_padrao", { length: 12 }).notNull(),
   categoria: categoriaDespesaEnum.notNull(),
@@ -253,7 +280,9 @@ export const regrasElegibilidade = mysqlTable("regras_elegibilidade", {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const creditosApurados = mysqlTable("creditos_apurados", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true })
+    .autoincrement()
+    .primaryKey(),
   despesaId: bigint("despesa_id", { mode: "number", unsigned: true })
     .notNull()
     .references(() => despesas.id),
@@ -271,7 +300,9 @@ export const creditosApurados = mysqlTable("creditos_apurados", {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const evidenciasDocumentais = mysqlTable("evidencias_documentais", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true })
+    .autoincrement()
+    .primaryKey(),
   despesaId: bigint("despesa_id", { mode: "number", unsigned: true })
     .notNull()
     .references(() => despesas.id),
@@ -290,23 +321,36 @@ export const evidenciasDocumentais = mysqlTable("evidencias_documentais", {
 // ON DELETE SET NULL nas duas FKs (v1.8, migração 0010): a exclusão real de
 // usuário/empresa zera os campos de referência e a LINHA sobrevive — a trilha
 // é append-only e não pode depender do cadastro continuar existindo.
-export const logAuditoria = mysqlTable("log_auditoria", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
-  usuarioId: bigint("usuario_id", {
-    mode: "number",
-    unsigned: true,
-  }).references(() => usuarios.id, { onDelete: "set null" }),
-  empresaId: bigint("empresa_id", {
-    mode: "number",
-    unsigned: true,
-  }).references(() => empresas.id, { onDelete: "set null" }),
-  acao: varchar("acao", { length: 100 }).notNull(),
-  entidade: varchar("entidade", { length: 100 }).notNull(),
-  entidadeId: bigint("entidade_id", { mode: "number", unsigned: true }),
-  detalhes: text("detalhes"),
-  regraVersao: varchar("regra_versao", { length: 20 }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const logAuditoria = mysqlTable(
+  "log_auditoria",
+  {
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
+    usuarioId: bigint("usuario_id", {
+      mode: "number",
+      unsigned: true,
+    }).references(() => usuarios.id, { onDelete: "set null" }),
+    empresaId: bigint("empresa_id", {
+      mode: "number",
+      unsigned: true,
+    }).references(() => empresas.id, { onDelete: "set null" }),
+    acao: varchar("acao", { length: 100 }).notNull(),
+    entidade: varchar("entidade", { length: 100 }).notNull(),
+    entidadeId: bigint("entidade_id", { mode: "number", unsigned: true }),
+    detalhes: text("detalhes"),
+    regraVersao: varchar("regra_versao", { length: 20 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  t => [
+    index("log_auditoria_metricas_idx").on(
+      t.empresaId,
+      t.entidade,
+      t.acao,
+      t.entidadeId
+    ),
+  ]
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 11. Políticas de reembolso (Agente de Política) — v1.1.0
@@ -314,7 +358,9 @@ export const logAuditoria = mysqlTable("log_auditoria", {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const politicasReembolso = mysqlTable("politicas_reembolso", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true })
+    .autoincrement()
+    .primaryKey(),
   empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
     .notNull()
     .references(() => empresas.id),
@@ -348,7 +394,9 @@ export const politicasReembolso = mysqlTable("politicas_reembolso", {
 export const convites = mysqlTable(
   "convites",
   {
-    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     email: varchar("email", { length: 255 }).notNull(),
     perfil: perfilEnum.notNull().default("cliente"),
     token: varchar("token", { length: 128 }).notNull(),
@@ -372,7 +420,9 @@ export const convites = mysqlTable(
 export const resetsSenha = mysqlTable(
   "resets_senha",
   {
-    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     email: varchar("email", { length: 255 }).notNull(),
     token: varchar("token", { length: 128 }).notNull(),
     expiresAt: timestamp("expires_at").notNull(),
@@ -429,7 +479,9 @@ export const statusVinculoEnum = mysqlEnum("status_vinculo", [
 export const colaboradores = mysqlTable(
   "colaboradores",
   {
-    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => empresas.id),
@@ -442,7 +494,10 @@ export const colaboradores = mysqlTable(
     telefone: varchar("telefone", { length: 20 }),
     matricula: varchar("matricula", { length: 50 }),
     tipoVinculo: mysqlEnum("tipo_vinculo", ["CLT", "MEI", "PJ"]),
-    superiorDiretoId: bigint("superior_direto_id", { mode: "number", unsigned: true }),
+    superiorDiretoId: bigint("superior_direto_id", {
+      mode: "number",
+      unsigned: true,
+    }),
     centroCusto: varchar("centro_custo", { length: 100 }),
     // Documento para pagamento (v1.8, migração 0011): coleta TARDIA, no
     // primeiro reembolso a pagar — ambos nullable de propósito, ninguém
@@ -468,7 +523,11 @@ export const colaboradores = mysqlTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   },
   t => [
-    foreignKey({ name: "colaboradores_superior_tenant_fk", columns: [t.empresaId, t.superiorDiretoId], foreignColumns: [t.empresaId, t.id] }),
+    foreignKey({
+      name: "colaboradores_superior_tenant_fk",
+      columns: [t.empresaId, t.superiorDiretoId],
+      foreignColumns: [t.empresaId, t.id],
+    }),
     uniqueIndex("colaboradores_empresa_telefone_unique").on(
       t.empresaId,
       t.telefone
@@ -495,7 +554,9 @@ export const colaboradores = mysqlTable(
 export const sessoesConversa = mysqlTable(
   "sessoes_conversa",
   {
-    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     telefone: varchar("telefone", { length: 20 }).notNull(),
     colaboradorId: bigint("colaborador_id", {
       mode: "number",
@@ -519,7 +580,9 @@ export const sessoesConversa = mysqlTable(
 export const declaracoesPerfil = mysqlTable(
   "declaracoes_perfil",
   {
-    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     colaboradorId: bigint("colaborador_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => colaboradores.id),
@@ -548,7 +611,9 @@ export const declaracoesPerfil = mysqlTable(
 export const empresasConfig = mysqlTable(
   "empresas_config",
   {
-    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => empresas.id),
@@ -598,7 +663,9 @@ export const empresasConfig = mysqlTable(
 export const veiculosColaborador = mysqlTable(
   "veiculos_colaborador",
   {
-    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     colaboradorId: bigint("colaborador_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => colaboradores.id),
@@ -635,7 +702,9 @@ export const veiculosColaborador = mysqlTable(
 export const delegacoesDecisao = mysqlTable(
   "delegacoes_decisao",
   {
-    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => empresas.id),
@@ -707,7 +776,9 @@ export const delegacoesDecisao = mysqlTable(
 export const checkinsCampo = mysqlTable(
   "checkins_campo",
   {
-    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => empresas.id),
@@ -727,7 +798,11 @@ export const checkinsCampo = mysqlTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   t => [
-    index("checkins_campo_colab_tempo_idx").on(t.empresaId, t.colaboradorId, t.registradoEm),
+    index("checkins_campo_colab_tempo_idx").on(
+      t.empresaId,
+      t.colaboradorId,
+      t.registradoEm
+    ),
     foreignKey({
       name: "checkins_campo_mesma_empresa_fk",
       columns: [t.empresaId, t.colaboradorId],
@@ -752,7 +827,9 @@ export const checkinsCampo = mysqlTable(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const whatsappWebhookEvents = mysqlTable("whatsapp_webhook_events", {
-  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true })
+    .autoincrement()
+    .primaryKey(),
   tipoEvento: varchar("tipo_evento", { length: 50 }).notNull(),
   statusEntrega: varchar("status_entrega", { length: 50 }),
   mensagemId: varchar("mensagem_id", { length: 128 }),
@@ -775,18 +852,26 @@ export const whatsappWebhookEvents = mysqlTable("whatsapp_webhook_events", {
 export const whatsappInbox = mysqlTable(
   "whatsapp_inbox",
   {
-    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     provider: varchar("provider", { length: 40 }).notNull(),
     chaveIdempotencia: varchar("chave_idempotencia", { length: 64 }).notNull(),
     tipoEvento: varchar("tipo_evento", { length: 50 }).notNull(),
     mensagemId: varchar("mensagem_id", { length: 128 }),
     telefone: varchar("telefone", { length: 20 }),
-    empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
-      .references(() => empresas.id),
-    colaboradorId: bigint("colaborador_id", { mode: "number", unsigned: true })
-      .references(() => colaboradores.id),
-    despesaId: bigint("despesa_id", { mode: "number", unsigned: true })
-      .references(() => despesas.id),
+    empresaId: bigint("empresa_id", {
+      mode: "number",
+      unsigned: true,
+    }).references(() => empresas.id),
+    colaboradorId: bigint("colaborador_id", {
+      mode: "number",
+      unsigned: true,
+    }).references(() => colaboradores.id),
+    despesaId: bigint("despesa_id", {
+      mode: "number",
+      unsigned: true,
+    }).references(() => despesas.id),
     payload: json("payload").notNull(),
     status: varchar("status", { length: 30 }).notNull().default("pendente"),
     tentativas: int("tentativas").notNull().default(0),
@@ -799,8 +884,14 @@ export const whatsappInbox = mysqlTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   },
   t => [
-    uniqueIndex("whatsapp_inbox_provider_chave_unique").on(t.provider, t.chaveIdempotencia),
-    index("whatsapp_inbox_processamento_idx").on(t.status, t.proximaTentativaAt),
+    uniqueIndex("whatsapp_inbox_provider_chave_unique").on(
+      t.provider,
+      t.chaveIdempotencia
+    ),
+    index("whatsapp_inbox_processamento_idx").on(
+      t.status,
+      t.proximaTentativaAt
+    ),
     index("whatsapp_inbox_mensagem_idx").on(t.provider, t.mensagemId),
     index("whatsapp_inbox_despesa_idx").on(t.despesaId),
     foreignKey({
@@ -808,13 +899,15 @@ export const whatsappInbox = mysqlTable(
       columns: [t.empresaId, t.colaboradorId],
       foreignColumns: [colaboradores.empresaId, colaboradores.id],
     }),
-  ],
+  ]
 );
 
 export const whatsappOutbox = mysqlTable(
   "whatsapp_outbox",
   {
-    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     provider: varchar("provider", { length: 40 }).notNull(),
     chaveIdempotencia: varchar("chave_idempotencia", { length: 64 }).notNull(),
     empresaId: bigint("empresa_id", { mode: "number", unsigned: true })
@@ -838,14 +931,23 @@ export const whatsappOutbox = mysqlTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   },
   t => [
-    uniqueIndex("whatsapp_outbox_provider_chave_unique").on(t.provider, t.chaveIdempotencia),
-    index("whatsapp_outbox_processamento_idx").on(t.status, t.proximaTentativaAt),
-    index("whatsapp_outbox_provider_mensagem_idx").on(t.provider, t.providerMensagemId),
+    uniqueIndex("whatsapp_outbox_provider_chave_unique").on(
+      t.provider,
+      t.chaveIdempotencia
+    ),
+    index("whatsapp_outbox_processamento_idx").on(
+      t.status,
+      t.proximaTentativaAt
+    ),
+    index("whatsapp_outbox_provider_mensagem_idx").on(
+      t.provider,
+      t.providerMensagemId
+    ),
     index("whatsapp_outbox_colaborador_idx").on(t.empresaId, t.colaboradorId),
     foreignKey({
       name: "whatsapp_outbox_empresa_colaborador_fk",
       columns: [t.empresaId, t.colaboradorId],
       foreignColumns: [colaboradores.empresaId, colaboradores.id],
     }),
-  ],
+  ]
 );

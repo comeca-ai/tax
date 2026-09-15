@@ -12,6 +12,7 @@ instruções dispersas na raiz do repositório.
 - [Revisão de hierarquia](poc/REVISAO-HIERARQUIA.md): lacunas atuais e regras derivadas da política.
 - [Produto](PRODUTO.md): escopo e linguagem de negócio.
 - [Arquitetura](ARQUITETURA.md): módulos e decisões técnicas.
+- [Política de uso de IA](POLITICA-DE-USO-DE-IA.md): onde modelos são permitidos e onde ferramentas determinísticas são obrigatórias.
 - [Mapa do repositório](MAPA-REPOS.md): onde cada parte do código vive.
 - [Como contribuir](../CONTRIBUTING.md): branches, PRs, testes e versões.
 
@@ -21,6 +22,7 @@ instruções dispersas na raiz do repositório.
 - [Política de release e deploy](POLITICA-DE-RELEASE-E-DEPLOY.md)
 - [Runbook de deploy](DEPLOY.md)
 - [Configuração de banco e e-mail](CONFIGURACAO-BANCO-E-EMAIL.md)
+- [Política de uso de IA](POLITICA-DE-USO-DE-IA.md)
 - [Validação da release em preparação](VALIDACAO-RELEASES.md)
 - [POC WhatsApp](whatsapp-poc/README.md): escopo, sequência de PRs e contrato inicial.
 

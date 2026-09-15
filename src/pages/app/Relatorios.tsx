@@ -1,3 +1,4 @@
+import MetricasPoc from "@/components/metricas/MetricasPoc"
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router"
 import { AnimatePresence, motion } from "framer-motion"
@@ -442,6 +443,7 @@ export default function Relatorios() {
 }`}</style>
 
       <div className="flex flex-col gap-6 print:hidden">
+        <MetricasPoc empresa={empresaRelatorio ?? undefined} de={de} ate={ate} />
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="font-display text-[28px] font-semibold tracking-[-0.02em] text-text-900">

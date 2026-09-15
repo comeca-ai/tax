@@ -1,11 +1,13 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { createRouter, protectedProcedure } from "../middleware";
 import { getDb } from "../queries/connection";
-import { empresas, politicasReembolso } from "@db/schema";
+import type { TrpcContext } from "../context";
+import { politicasReembolso } from "@db/schema";
 import {
   politicaTestarInput,
   politicaUpdateRegrasInput,
@@ -15,14 +17,26 @@ import {
 } from "@contracts/types";
 import { getPolicyParser } from "../modules/reembolso/policy/parser";
 import { consolidarRegras } from "../modules/reembolso/policy/derivar";
-import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "../modules/reembolso/policy/texto";
+import {
+  LIMITE_TEXTO_EXTRAIDO_BYTES,
+  truncarUtf8,
+} from "../modules/reembolso/policy/texto";
 import { avaliarDespesa } from "../modules/reembolso/policy/agent";
-import { arquitetarPolitica } from "../modules/reembolso/policy/arquiteto";
+import {
+  arquitetarPolitica,
+  ErroArquitetoPolitica,
+} from "../modules/reembolso/policy/arquiteto";
+import { ReservaConsultaPocIndisponivel } from "../lib/pocConsultas";
 import {
   POLITICA_ATIVA_IMUTAVEL,
   politicaEditavel,
 } from "../modules/reembolso/policy/versao";
-import { assertAdminDaEmpresa, assertEmpresaAcesso, registrarLog } from "./_shared";
+import {
+  assertAdminDaEmpresa,
+  assertAdminDaEmpresaBloqueado,
+  assertEmpresaAcesso,
+  registrarLog,
+} from "./_shared";
 
 /**
  * Agente de Política de Reembolso (v1.1.0) — CRUD da política por empresa
@@ -30,10 +44,60 @@ import { assertAdminDaEmpresa, assertEmpresaAcesso, registrarLog } from "./_shar
  * (garantido na transação de ativação).
  */
 
-const UPLOADS_DIR = path.join(process.env.UPLOADS_DIR ?? path.join(process.cwd(), "uploads"), "politicas");
+const UPLOADS_DIR = path.join(
+  process.env.UPLOADS_DIR ?? path.join(process.cwd(), "uploads"),
+  "politicas"
+);
 
 function nomeArquivoSeguro(nome: string): string {
   return nome.replace(/[^a-zA-Z0-9_.-]/g, "_").slice(-120);
+}
+
+async function removerArquivoSeExistir(arquivo: string): Promise<boolean> {
+  try {
+    await unlink(arquivo);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT";
+  }
+}
+
+async function guardarArquivoPolitica(input: {
+  empresaId: number;
+  arquivoNome: string;
+  arquivoBase64: string;
+}) {
+  try {
+    await mkdir(UPLOADS_DIR, { recursive: true });
+  } catch (error) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Não foi possível preparar o armazenamento da política.",
+      cause: error,
+    });
+  }
+  const nomeSeguro = `${input.empresaId}-${Date.now()}-${randomUUID()}-${nomeArquivoSeguro(input.arquivoNome)}`;
+  const absoluto = path.join(UPLOADS_DIR, nomeSeguro);
+  try {
+    await writeFile(absoluto, Buffer.from(input.arquivoBase64, "base64"));
+  } catch (error) {
+    if (!(await removerArquivoSeExistir(absoluto))) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Não foi possível armazenar o documento da política.",
+        cause: error,
+      });
+    }
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Não foi possível armazenar o documento da política.",
+      cause: error,
+    });
+  }
+  return {
+    absoluto,
+    relativo: path.join("uploads", "politicas", nomeSeguro),
+  };
 }
 
 async function buscarPoliticaOuFalhar(id: number) {
@@ -45,34 +109,97 @@ async function buscarPoliticaOuFalhar(id: number) {
     .limit(1);
   const politica = rows[0];
   if (!politica) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Política não encontrada." });
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Política não encontrada.",
+    });
   }
   return politica;
 }
 
-type Transacao = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+type Transacao = Parameters<
+  Parameters<ReturnType<typeof getDb>["transaction"]>[0]
+>[0];
 
 /** Mesma ordem de bloqueios em edição/ativação/desativação; versão é por empresa. */
-async function bloquearPolitica(tx: Transacao, id: number, empresaId: number) {
-  const [empresa] = await tx.select({ id: empresas.id }).from(empresas)
-    .where(eq(empresas.id, empresaId)).for("update");
-  if (!empresa) throw new TRPCError({ code: "NOT_FOUND", message: "Empresa não encontrada." });
-  const [politica] = await tx.select().from(politicasReembolso)
-    .where(and(eq(politicasReembolso.id, id), eq(politicasReembolso.empresaId, empresaId)))
+async function bloquearPolitica(
+  tx: Transacao,
+  id: number,
+  empresaId: number,
+  ctx: TrpcContext
+) {
+  await assertAdminDaEmpresaBloqueado(ctx, empresaId, tx);
+  const [politica] = await tx
+    .select()
+    .from(politicasReembolso)
+    .where(
+      and(
+        eq(politicasReembolso.id, id),
+        eq(politicasReembolso.empresaId, empresaId)
+      )
+    )
     .for("update");
-  if (!politica) throw new TRPCError({ code: "NOT_FOUND", message: "Política não encontrada." });
+  if (!politica)
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Política não encontrada.",
+    });
   return politica;
 }
 
 export const politicaRouter = createRouter({
   /** Gera um rascunho estruturado a partir de um pedido; não grava nem ativa. */
   arquitetar: protectedProcedure
-    .input(z.object({ id: z.number().int().positive(), pedido: z.string().trim().min(3).max(4_000) }))
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        pedido: z.string().trim().min(3).max(4_000),
+      })
+    )
     .mutation(async ({ input, ctx }) => {
       const politica = await buscarPoliticaOuFalhar(input.id);
       await assertAdminDaEmpresa(ctx, politica.empresaId);
-      const regrasAtuais = regrasPoliticaSchema.parse(politica.regras ?? {}).regrasExtraidas;
-      return arquitetarPolitica({ pedido: input.pedido, regrasAtuais });
+      const regrasAtuais = regrasPoliticaSchema.parse(
+        politica.regras ?? {}
+      ).regrasExtraidas;
+      try {
+        return await arquitetarPolitica({ pedido: input.pedido, regrasAtuais });
+      } catch (error) {
+        if (error instanceof ReservaConsultaPocIndisponivel)
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message:
+              "O limite compartilhado de consultas da POC foi atingido. Nenhuma nova chamada foi iniciada.",
+            cause: error,
+          });
+        if (error instanceof ErroArquitetoPolitica) {
+          const mensagens = {
+            configuracao:
+              "O Arquiteto não está configurado corretamente nesta homologação.",
+            limite:
+              "O provedor de IA recusou a chamada por limite de uso. Tente novamente após revisar a cota.",
+            timeout:
+              "O Arquiteto não concluiu o rascunho em 60 segundos. Nenhuma regra foi alterada.",
+            provedor:
+              "Os provedores de IA do Arquiteto estão indisponíveis neste momento. Nenhuma regra foi alterada.",
+            resposta:
+              "O provedor de IA devolveu um rascunho inválido. Nenhuma regra foi alterada.",
+          } as const;
+          throw new TRPCError({
+            code:
+              error.tipo === "limite"
+                ? "TOO_MANY_REQUESTS"
+                : error.tipo === "timeout"
+                  ? "TIMEOUT"
+                  : error.tipo === "configuracao"
+                    ? "PRECONDITION_FAILED"
+                    : "BAD_GATEWAY",
+            message: mensagens[error.tipo],
+            cause: error,
+          });
+        }
+        throw error;
+      }
     }),
   /**
    * Upload do documento da política → parser plugável extrai regras →
@@ -93,49 +220,59 @@ export const politicaRouter = createRouter({
         base64: input.arquivoBase64,
       });
 
-      // Persiste o arquivo original no disco (uploads/)
-      let arquivoPath: string | null = null;
+      // O parser pode demorar; confirme a autoridade novamente antes do I/O.
+      await assertAdminDaEmpresa(ctx, input.empresaId);
+      const arquivo = await guardarArquivoPolitica(input);
       try {
-        await mkdir(UPLOADS_DIR, { recursive: true });
-        const nomeSeguro = `${input.empresaId}-${Date.now()}-${nomeArquivoSeguro(input.arquivoNome)}`;
-        arquivoPath = path.join("uploads", "politicas", nomeSeguro);
-        await writeFile(
-          path.join(UPLOADS_DIR, nomeSeguro),
-          Buffer.from(input.arquivoBase64, "base64"),
-        );
-      } catch {
-        arquivoPath = null; // falha de I/O não bloqueia a extração
+        const politicaId = await db.transaction(async tx => {
+          await assertAdminDaEmpresaBloqueado(ctx, input.empresaId, tx);
+
+          const result = await tx.insert(politicasReembolso).values({
+            empresaId: input.empresaId,
+            arquivoNome: input.arquivoNome,
+            arquivoPath: arquivo.relativo,
+            // Trunca por bytes UTF-8: a coluna TEXT (65 535 B) nunca estoura,
+            // mesmo que um provider não trunque na extração.
+            textoExtraido:
+              extracao.textoExtraido === null
+                ? null
+                : truncarUtf8(
+                    extracao.textoExtraido,
+                    LIMITE_TEXTO_EXTRAIDO_BYTES
+                  ),
+            regras: extracao.regras,
+            status: "rascunho",
+            versao: 1,
+            confiancaExtracao: extracao.confiancaExtracao,
+            camposPendentes: extracao.camposPendentes,
+            createdById: ctx.usuario.id,
+          });
+          const politicaId = Number(result[0].insertId);
+
+          await registrarLog(tx, {
+            usuarioId: ctx.usuario.id,
+            empresaId: input.empresaId,
+            acao: "politica.upload",
+            entidade: "politica_reembolso",
+            entidadeId: politicaId,
+            detalhes: `Parser (${extracao.provedor}): confiança ${extracao.confiancaExtracao}; pendentes: ${extracao.camposPendentes.join(", ") || "nenhum"}`,
+          });
+
+          return politicaId;
+        });
+
+        return { politicaId, extracao };
+      } catch (error) {
+        if (!(await removerArquivoSeExistir(arquivo.absoluto))) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message:
+              "A política foi revertida, mas o arquivo exige reconciliação operacional.",
+            cause: error,
+          });
+        }
+        throw error;
       }
-
-      const result = await db.insert(politicasReembolso).values({
-        empresaId: input.empresaId,
-        arquivoNome: input.arquivoNome,
-        arquivoPath,
-        // Trunca por bytes UTF-8: a coluna TEXT (65 535 B) nunca estoura,
-        // mesmo que um provider não trunque na extração.
-        textoExtraido:
-          extracao.textoExtraido === null
-            ? null
-            : truncarUtf8(extracao.textoExtraido, LIMITE_TEXTO_EXTRAIDO_BYTES),
-        regras: extracao.regras,
-        status: "rascunho",
-        versao: 1,
-        confiancaExtracao: extracao.confiancaExtracao,
-        camposPendentes: extracao.camposPendentes,
-        createdById: ctx.usuario.id,
-      });
-      const politicaId = Number(result[0].insertId);
-
-      await registrarLog(db, {
-        usuarioId: ctx.usuario.id,
-        empresaId: input.empresaId,
-        acao: "politica.upload",
-        entidade: "politica_reembolso",
-        entidadeId: politicaId,
-        detalhes: `Parser (${extracao.provedor}): confiança ${extracao.confiancaExtracao}; pendentes: ${extracao.camposPendentes.join(", ") || "nenhum"}`,
-      });
-
-      return { politicaId, extracao };
     }),
 
   /** Lista políticas da empresa (sem textoExtraido). */
@@ -177,7 +314,9 @@ export const politicaRouter = createRouter({
       await assertEmpresaAcesso(ctx, politica.empresaId);
       return {
         ...politica,
-        regras: consolidarRegras(regrasPoliticaSchema.parse(politica.regras ?? {})),
+        regras: consolidarRegras(
+          regrasPoliticaSchema.parse(politica.regras ?? {})
+        ),
       };
     }),
 
@@ -193,28 +332,38 @@ export const politicaRouter = createRouter({
       await assertAdminDaEmpresa(ctx, politica.empresaId);
       const db = getDb();
 
-      const result = await db.insert(politicasReembolso).values({
-        empresaId: politica.empresaId,
-        arquivoNome: politica.arquivoNome,
-        arquivoPath: politica.arquivoPath,
-        textoExtraido: politica.textoExtraido,
-        regras: regrasPoliticaSchema.parse(politica.regras ?? {}),
-        status: "rascunho",
-        // Rascunho não tem versão: `ativar` atribui max(versao)+1 na ativação.
-        versao: 1,
-        confiancaExtracao: politica.confiancaExtracao,
-        camposPendentes: (politica.camposPendentes as string[] | null) ?? [],
-        createdById: ctx.usuario.id,
-      });
-      const politicaId = Number(result[0].insertId);
+      const politicaId = await db.transaction(async tx => {
+        const atual = await bloquearPolitica(
+          tx,
+          politica.id,
+          politica.empresaId,
+          ctx
+        );
+        const result = await tx.insert(politicasReembolso).values({
+          empresaId: atual.empresaId,
+          arquivoNome: atual.arquivoNome,
+          arquivoPath: atual.arquivoPath,
+          textoExtraido: atual.textoExtraido,
+          regras: regrasPoliticaSchema.parse(atual.regras ?? {}),
+          status: "rascunho",
+          // Rascunho não tem versão: `ativar` atribui max(versao)+1 na ativação.
+          versao: 1,
+          confiancaExtracao: atual.confiancaExtracao,
+          camposPendentes: (atual.camposPendentes as string[] | null) ?? [],
+          createdById: ctx.usuario.id,
+        });
+        const politicaId = Number(result[0].insertId);
 
-      await registrarLog(db, {
-        usuarioId: ctx.usuario.id,
-        empresaId: politica.empresaId,
-        acao: "politica.duplicar",
-        entidade: "politica_reembolso",
-        entidadeId: politicaId,
-        detalhes: `Rascunho criado a partir da política ${politica.id} (v${politica.versao}, ${politica.status}).`,
+        await registrarLog(tx, {
+          usuarioId: ctx.usuario.id,
+          empresaId: atual.empresaId,
+          acao: "politica.duplicar",
+          entidade: "politica_reembolso",
+          entidadeId: politicaId,
+          detalhes: `Rascunho criado a partir da política ${atual.id} (v${atual.versao}, ${atual.status}).`,
+        });
+
+        return politicaId;
       });
 
       return { politicaId };
@@ -234,16 +383,35 @@ export const politicaRouter = createRouter({
       const regras = consolidarRegras(input.regras, "edicao");
 
       await db.transaction(async tx => {
-        const atual = await bloquearPolitica(tx, politica.id, politica.empresaId);
+        const atual = await bloquearPolitica(
+          tx,
+          politica.id,
+          politica.empresaId,
+          ctx
+        );
         // Releitura sob bloqueio: a ativação pode ter ocorrido após a autorização.
         if (!politicaEditavel(atual.status)) {
-          throw new TRPCError({ code: "CONFLICT", message: POLITICA_ATIVA_IMUTAVEL });
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: POLITICA_ATIVA_IMUTAVEL,
+          });
         }
-        await tx.update(politicasReembolso).set({ regras, camposPendentes: [] })
-          .where(and(eq(politicasReembolso.id, atual.id), eq(politicasReembolso.empresaId, atual.empresaId), ne(politicasReembolso.status, "ativa")));
+        await tx
+          .update(politicasReembolso)
+          .set({ regras, camposPendentes: [] })
+          .where(
+            and(
+              eq(politicasReembolso.id, atual.id),
+              eq(politicasReembolso.empresaId, atual.empresaId),
+              ne(politicasReembolso.status, "ativa")
+            )
+          );
         await registrarLog(tx, {
-          usuarioId: ctx.usuario.id, empresaId: atual.empresaId,
-          acao: "politica.update_regras", entidade: "politica_reembolso", entidadeId: atual.id,
+          usuarioId: ctx.usuario.id,
+          empresaId: atual.empresaId,
+          acao: "politica.update_regras",
+          entidade: "politica_reembolso",
+          entidadeId: atual.id,
           detalhes: `Regras editadas manualmente (${regras.regrasExtraidas.length} regras extraídas, ${regras.camposCustomizados.length} campos customizados).`,
         });
       });
@@ -263,8 +431,13 @@ export const politicaRouter = createRouter({
       await assertAdminDaEmpresa(ctx, politica.empresaId);
       const db = getDb();
 
-      const versao = await db.transaction(async (tx) => {
-        const atual = await bloquearPolitica(tx, politica.id, politica.empresaId);
+      const versao = await db.transaction(async tx => {
+        const atual = await bloquearPolitica(
+          tx,
+          politica.id,
+          politica.empresaId,
+          ctx
+        );
         // Repetir a ativação da mesma versão não cria uma versão sem alteração.
         if (atual.status === "ativa") return atual.versao;
         const todas = await tx
@@ -272,7 +445,7 @@ export const politicaRouter = createRouter({
           .from(politicasReembolso)
           .where(eq(politicasReembolso.empresaId, atual.empresaId))
           .for("update");
-        const novaVersao = Math.max(0, ...todas.map((t) => t.versao)) + 1;
+        const novaVersao = Math.max(0, ...todas.map(t => t.versao)) + 1;
 
         await tx
           .update(politicasReembolso)
@@ -281,20 +454,30 @@ export const politicaRouter = createRouter({
             and(
               eq(politicasReembolso.empresaId, atual.empresaId),
               ne(politicasReembolso.id, atual.id),
-              eq(politicasReembolso.status, "ativa"),
-            ),
+              eq(politicasReembolso.status, "ativa")
+            )
           );
         await tx
           .update(politicasReembolso)
           .set({
             status: "ativa",
             versao: novaVersao,
-            regras: consolidarRegras(regrasPoliticaSchema.parse(atual.regras ?? {})),
+            regras: consolidarRegras(
+              regrasPoliticaSchema.parse(atual.regras ?? {})
+            ),
           })
-          .where(and(eq(politicasReembolso.id, atual.id), eq(politicasReembolso.empresaId, atual.empresaId)));
+          .where(
+            and(
+              eq(politicasReembolso.id, atual.id),
+              eq(politicasReembolso.empresaId, atual.empresaId)
+            )
+          );
         await registrarLog(tx, {
-          usuarioId: ctx.usuario.id, empresaId: atual.empresaId,
-          acao: "politica.ativar", entidade: "politica_reembolso", entidadeId: atual.id,
+          usuarioId: ctx.usuario.id,
+          empresaId: atual.empresaId,
+          acao: "politica.ativar",
+          entidade: "politica_reembolso",
+          entidadeId: atual.id,
           detalhes: `Política ativada na versão ${novaVersao}; demais políticas da empresa inativadas.`,
         });
         return novaVersao;
@@ -314,13 +497,29 @@ export const politicaRouter = createRouter({
       const db = getDb();
 
       await db.transaction(async tx => {
-        const atual = await bloquearPolitica(tx, politica.id, politica.empresaId);
-        await tx.update(politicasReembolso).set({ status: "inativa" })
-          .where(and(eq(politicasReembolso.id, atual.id), eq(politicasReembolso.empresaId, atual.empresaId)));
+        const atual = await bloquearPolitica(
+          tx,
+          politica.id,
+          politica.empresaId,
+          ctx
+        );
+        await tx
+          .update(politicasReembolso)
+          .set({ status: "inativa" })
+          .where(
+            and(
+              eq(politicasReembolso.id, atual.id),
+              eq(politicasReembolso.empresaId, atual.empresaId)
+            )
+          );
         await registrarLog(tx, {
-          usuarioId: ctx.usuario.id, empresaId: atual.empresaId,
-          acao: "politica.desativar", entidade: "politica_reembolso", entidadeId: atual.id,
-          detalhes: "Política desativada; avaliação automática de despesas suspensa.",
+          usuarioId: ctx.usuario.id,
+          empresaId: atual.empresaId,
+          acao: "politica.desativar",
+          entidade: "politica_reembolso",
+          entidadeId: atual.id,
+          detalhes:
+            "Política desativada; avaliação automática de despesas suspensa.",
         });
       });
 
@@ -339,8 +538,8 @@ export const politicaRouter = createRouter({
         .where(
           and(
             eq(politicasReembolso.empresaId, input.empresaId),
-            eq(politicasReembolso.status, "ativa"),
-          ),
+            eq(politicasReembolso.status, "ativa")
+          )
         )
         .orderBy(desc(politicasReembolso.versao))
         .limit(1);
@@ -349,7 +548,9 @@ export const politicaRouter = createRouter({
       // Consolidado: o card da política ativa e o motor precisam dizer a mesma coisa.
       return {
         ...politica,
-        regras: consolidarRegras(regrasPoliticaSchema.parse(politica.regras ?? {})),
+        regras: consolidarRegras(
+          regrasPoliticaSchema.parse(politica.regras ?? {})
+        ),
       };
     }),
 
@@ -372,7 +573,10 @@ export const politicaRouter = createRouter({
         const alvo = await buscarPoliticaOuFalhar(input.politicaId);
         await assertEmpresaAcesso(ctx, alvo.empresaId);
         if (alvo.empresaId !== input.empresaId) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Política não encontrada." });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Política não encontrada.",
+          });
         }
         politica = alvo;
       } else {
@@ -382,8 +586,8 @@ export const politicaRouter = createRouter({
           .where(
             and(
               eq(politicasReembolso.empresaId, input.empresaId),
-              eq(politicasReembolso.status, "ativa"),
-            ),
+              eq(politicasReembolso.status, "ativa")
+            )
           )
           .orderBy(desc(politicasReembolso.versao))
           .limit(1);
@@ -397,11 +601,13 @@ export const politicaRouter = createRouter({
         };
       }
 
-      const regras = consolidarRegras(regrasPoliticaSchema.parse(politica.regras ?? {}));
+      const regras = consolidarRegras(
+        regrasPoliticaSchema.parse(politica.regras ?? {})
+      );
       const resultado = avaliarDespesa(
         { categoria: input.categoria, valorNota: input.valorNota },
         regras,
-        { temEvidencia: input.temEvidencia },
+        { temEvidencia: input.temEvidencia }
       );
 
       return {
