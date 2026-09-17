@@ -4,6 +4,7 @@ import type { HttpBindings } from "@hono/node-server";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
 import { createContext } from "./context";
+import { logarErroInterno } from "./middleware";
 import { env } from "./lib/env";
 import { criarRouterWebhookDialog360 } from "./modules/reembolso/whatsapp/dialog360Router";
 import {
@@ -35,6 +36,7 @@ app.use("/api/trpc/*", async c => {
     req: c.req.raw,
     router: appRouter,
     createContext,
+    onError: logarErroInterno,
   });
 });
 // ── Health check (deploy/monitoramento) ─────────────────────────────────────

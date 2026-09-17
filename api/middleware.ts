@@ -19,6 +19,22 @@ const t = initTRPC.context<TrpcContext>().create({
   },
 });
 
+/**
+ * Registro server-side do que o errorFormatter esconde do navegador. Sem isto uma
+ * falha interna (ex.: diretório de upload não gravável) chega ao journal como
+ * silêncio e ao usuário como "Falha interna" — impossível de diagnosticar.
+ * Só INTERNAL_SERVER_ERROR: os demais códigos já carregam a mensagem na resposta.
+ */
+export function logarErroInterno(info: { error: TRPCError; path?: string; type?: string }) {
+  if (info.error.code !== "INTERNAL_SERVER_ERROR") return;
+  const causa = info.error.cause;
+  console.error(
+    `[trpc] falha interna em ${info.type ?? "?"} ${info.path ?? "?"}: ${info.error.message}`,
+    causa instanceof Error ? `| causa: ${causa.name}: ${causa.message}` : "",
+    info.error.stack?.split("\n").slice(1, 4).join(" ") ?? ""
+  );
+}
+
 export const createRouter = t.router;
 export const publicQuery = t.procedure;
 
