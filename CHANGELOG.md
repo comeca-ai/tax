@@ -6,6 +6,25 @@ versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
 ## [Unreleased]
 
+### Política — nova ordem de extração: PaddleOCR → Mistral OCR anotado → OpenRouter → OpenAI
+
+- O chat da Mistral saiu da cascata: o workspace tem cota de **OCR**, não de
+  chat (`/v1/chat/completions` responde 429 com `x-ratelimit-limit-req-minute:
+  0`). A leitura da política agora é, nesta ordem:
+  1. **PaddleOCR / texto nativo do PDF** — pré-passo local, grátis;
+  2. **com texto** → `OpenRouterPolicyParser` estrutura as regras (lista de
+     modelos começando em `openai/gpt-4o-mini`), depois OpenAI, depois heurístico;
+  3. **sem texto** → `MistralOcrAnotadoParser`: `POST /v1/ocr` com
+     `document_annotation_format` lê o documento **e** devolve o ruleset em JSON
+     numa chamada só — faturado como OCR, que é o que tem cota.
+- Medido no decreto real de 16 páginas: 18,6 s, 10 regras, confiança 0,98.
+- `ArquivoPolitica.original` guarda o binário quando o pré-passo troca o
+  arquivo por texto — o OCR anotado precisa do documento, não do texto.
+- `POLICY_PROVIDER` ganha `openrouter`, `mistral-ocr` e `mistral-chat`
+  (seleção explícita); `mistral`/`llm` seguem apontando para a cascata padrão.
+- O JSON Schema do ruleset saiu de `openai.ts` para `schemaRuleset.ts`: três
+  parsers o usam e a importação cruzada criaria ciclo.
+
 ### Comprovante — OCR local antes da IA de visão paga
 
 - O envio de despesa passa pelo mesmo pré-passo da política: texto nativo do
