@@ -28,6 +28,12 @@ function comoTexto(input: ArquivoPolitica, texto: string): ArquivoPolitica {
     arquivoNome: input.arquivoNome,
     mimeType: "text/plain",
     base64: Buffer.from(texto, "utf8").toString("base64"),
+    // Guarda o binário: o OCR anotado da Mistral precisa do documento, não do texto.
+    original: {
+      arquivoNome: input.arquivoNome,
+      mimeType: input.mimeType,
+      base64: input.base64,
+    },
   };
 }
 

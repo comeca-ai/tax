@@ -28,7 +28,7 @@ type Chamada = { host: string; path: string; auth: string | null; corpo: string 
 /** PDF "escaneado" para os testes: bytes que não são PDF → pdf-parse falha → sem texto nativo. */
 const ESCANEADO = { arquivoNome: "politica-escaneada.pdf", mimeType: "application/pdf", base64: "cGRmLWRlLXRlc3Rl" };
 
-const ENV = ["POLICY_PROVIDER", "MISTRAL_API_KEY", "OPENAI_API_KEY", "POLICY_OCR_URL", "POLICY_OCR_TOKEN", "POLICY_OCR_TIMEOUT_MS"] as const;
+const ENV = ["POLICY_PROVIDER", "MISTRAL_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "POLICY_OPENROUTER_MODELS", "POLICY_OCR_URL", "POLICY_OCR_TOKEN", "POLICY_OCR_TIMEOUT_MS"] as const;
 
 describe("pré-passo de texto no upload da política", () => {
   const fetchOriginal = globalThis.fetch;
@@ -44,9 +44,10 @@ describe("pré-passo de texto no upload da política", () => {
       const json = (status: number, corpo: unknown) =>
         ({ ok: status >= 200 && status < 300, status, json: async () => corpo, text: async () => JSON.stringify(corpo) }) as unknown as Response;
       if (u.host === "127.0.0.1:4191") return json(sidecar.status, sidecar.corpo);
-      if (u.host === "api.mistral.ai" && u.pathname === "/v1/ocr") return json(200, { pages: [{ markdown: "texto do OCR pago da Mistral" }] });
-      if (u.host === "api.mistral.ai" && u.pathname === "/v1/chat/completions")
-        return json(200, { choices: [{ message: { content: JSON.stringify(RULESET) }, finish_reason: "stop" }] });
+      if (u.host === "api.mistral.ai" && u.pathname === "/v1/ocr")
+        return json(200, { pages: [{ markdown: "texto do OCR pago da Mistral" }], document_annotation: JSON.stringify(RULESET) });
+      if (u.host === "openrouter.ai" && u.pathname === "/api/v1/chat/completions")
+        return json(200, { model: "openai/gpt-4o-mini", choices: [{ message: { content: JSON.stringify(RULESET) }, finish_reason: "stop" }] });
       throw new Error(`chamada inesperada: ${u.host}${u.pathname}`);
     }) as typeof globalThis.fetch;
   }
@@ -55,6 +56,8 @@ describe("pré-passo de texto no upload da política", () => {
     anterior = Object.fromEntries(ENV.map(k => [k, process.env[k]]));
     process.env.POLICY_PROVIDER = "mistral";
     process.env.MISTRAL_API_KEY = "chave-mistral";
+    process.env.OPENROUTER_API_KEY = "chave-openrouter";
+    delete process.env.POLICY_OPENROUTER_MODELS;
     delete process.env.OPENAI_API_KEY;
     process.env.POLICY_OCR_URL = SIDECAR;
     process.env.POLICY_OCR_TOKEN = TOKEN;
@@ -74,38 +77,42 @@ describe("pré-passo de texto no upload da política", () => {
 
   const rotas = () => chamadas.map(c => `${c.host}${c.path}`);
 
-  it("escaneado + sidecar no ar: OCR local, depois só o chat do Mistral — nenhum OCR pago", async () => {
+  it("escaneado + sidecar no ar: OCR local, depois só o chat barato — nenhum OCR pago", async () => {
     const r = await getPolicyParser().extract(ESCANEADO);
-    expect(rotas()).toEqual(["127.0.0.1:4191/ocr", "api.mistral.ai/v1/chat/completions"]);
+    expect(rotas()).toEqual(["127.0.0.1:4191/ocr", "openrouter.ai/api/v1/chat/completions"]);
     expect(chamadas[0].auth).toBe(`Bearer ${TOKEN}`);
     expect(JSON.parse(chamadas[0].corpo)).toEqual(ESCANEADO);
     // o texto do Paddle foi o que chegou ao LLM
     expect(chamadas[1].corpo).toContain("Alimentação: teto R$ 50 por dia");
-    expect(r.provedor).toMatch(/^mistral:/);
+    expect(r.provedor).toBe("openrouter:openai/gpt-4o-mini");
     expect(r.regras.limitesPorCategoria.alimentacao).toBe(50);
     expect(r.avisos[0]).toMatch(/^OCR local \(paddleocr 3\.7\.0, 2 página\(s\), 1\.2s\)/);
   });
 
-  it("sidecar fora (503): cai no OCR pago da Mistral e o aviso diz isso", async () => {
+  it("sidecar fora (503): OCR anotado da Mistral lê e estrutura numa chamada só", async () => {
     sidecar = { status: 503, corpo: { error: "servico_fechado" } };
     const r = await getPolicyParser().extract(ESCANEADO);
-    expect(rotas()).toEqual(["127.0.0.1:4191/ocr", "api.mistral.ai/v1/ocr", "api.mistral.ai/v1/chat/completions"]);
+    expect(rotas()).toEqual(["127.0.0.1:4191/ocr", "api.mistral.ai/v1/ocr"]);
+    // o pedido leva o JSON Schema: é o OCR que devolve as regras, sem passar pelo chat
+    expect(chamadas[1].corpo).toContain("document_annotation_format");
     expect(r.avisos[0]).toMatch(/^OCR local indisponível \(HTTP 503\): OCR do provedor de IA usado/);
-    expect(r.provedor).toMatch(/^mistral:/);
+    expect(r.provedor).toMatch(/^mistral-ocr:/);
+    expect(r.regras.limitesPorCategoria.alimentacao).toBe(50);
   });
 
   it("sidecar devolve texto vazio: tratado como falha, OCR pago assume", async () => {
     sidecar = { status: 200, corpo: { texto: "   ", paginas: [] } };
     const r = await getPolicyParser().extract(ESCANEADO);
-    expect(rotas()).toEqual(["127.0.0.1:4191/ocr", "api.mistral.ai/v1/ocr", "api.mistral.ai/v1/chat/completions"]);
+    expect(rotas()).toEqual(["127.0.0.1:4191/ocr", "api.mistral.ai/v1/ocr"]);
     expect(r.avisos[0]).toMatch(/OCR local indisponível \(texto vazio\)/);
   });
 
-  it("sem POLICY_OCR_URL: caminho de hoje, intocado (OCR pago → chat)", async () => {
+  it("sem OCR local configurado: OCR anotado da Mistral assume o documento", async () => {
     delete process.env.POLICY_OCR_URL;
     const r = await getPolicyParser().extract(ESCANEADO);
-    expect(rotas()).toEqual(["api.mistral.ai/v1/ocr", "api.mistral.ai/v1/chat/completions"]);
+    expect(rotas()).toEqual(["api.mistral.ai/v1/ocr"]);
     expect(r.avisos.some(a => /OCR local/.test(a))).toBe(false);
+    expect(r.provedor).toMatch(/^mistral-ocr:/);
   });
 
   it("PDF com texto nativo: zero OCR de qualquer tipo, direto ao chat", async () => {
@@ -115,7 +122,7 @@ describe("pré-passo de texto no upload da política", () => {
       mimeType: "application/pdf",
       base64: pdf.toString("base64"),
     });
-    expect(rotas()).toEqual(["api.mistral.ai/v1/chat/completions"]);
+    expect(rotas()).toEqual(["openrouter.ai/api/v1/chat/completions"]);
     expect(r.avisos[0]).toMatch(/^Texto nativo do PDF \(\d+ página\(s\)\); nenhum OCR foi necessário\./);
   });
 
@@ -125,7 +132,7 @@ describe("pré-passo de texto no upload da política", () => {
       mimeType: "text/plain",
       base64: Buffer.from("Alimentação: R$ 50 por dia").toString("base64"),
     });
-    expect(rotas()).toEqual(["api.mistral.ai/v1/chat/completions"]);
+    expect(rotas()).toEqual(["openrouter.ai/api/v1/chat/completions"]);
     expect(r.avisos.some(a => /OCR local|Texto nativo/.test(a))).toBe(false);
   });
 

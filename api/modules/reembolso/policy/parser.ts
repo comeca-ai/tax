@@ -2,8 +2,9 @@
 // tenta ler ./test/data quando module.parent é undefined (vitest/bundle ESM)
 // @ts-expect-error — pdf-parse v1 não tem tipos para o subpath da lib
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
-import { MistralPolicyParser } from "./mistral";
+import { MistralOcrAnotadoParser, MistralPolicyParser } from "./mistral";
 import { OpenAiPolicyParser } from "./openai";
+import { OpenRouterPolicyParser } from "./openrouter";
 import { prepararTexto } from "./ocr";
 import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
 import { extrairCamposCustomizadosLocais } from "./camposCustomizados";
@@ -19,8 +20,8 @@ import {
  * Mesmo padrão do OCR (api/ocr): contrato estável PolicyExtracao, provider
  * selecionado via env POLICY_PROVIDER (default "heuristico").
  *
- * POLICY_PROVIDER=mistral (ou o alias "llm") ativa a cascata
- * Mistral → OpenAI → heurístico. "openai" usa só OpenAI → heurístico.
+ * POLICY_PROVIDER=mistral (ou o alias "llm") ativa a cascata padrão
+ * OCR anotado da Mistral → OpenRouter → OpenAI → heurístico.
  *
  * CONTRATO ESTÁVEL: para trocar a extração por LLM (OpenAI/Gemini) depois,
  * basta implementar PolicyParser mantendo PolicyExtracao e registrar o
@@ -31,6 +32,13 @@ export type ArquivoPolitica = {
   arquivoNome: string;
   mimeType: string;
   base64: string;
+  /**
+   * Documento como veio do upload, quando o pré-passo (`ocr.ts`) já trocou este
+   * arquivo pelo texto lido. Só interessa a quem precisa do binário mesmo tendo
+   * texto — hoje, o OCR anotado da Mistral, que lê o PDF e devolve as regras em
+   * JSON pelo endpoint de OCR (o de chat está sem cota).
+   */
+  original?: { arquivoNome: string; mimeType: string; base64: string };
 };
 
 export interface PolicyParser {
@@ -382,21 +390,50 @@ export class LlmPolicyParser implements PolicyParser {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Cascata padrão: Mistral (1ª tentativa) → OpenAI (contingência) → heurístico.
+ * Cascata padrão (17/09/2026), na ordem decidida com o usuário:
+ *
+ *   ① PaddleOCR / texto nativo  — pré-passo em `ocr.ts`, grátis, lê o documento
+ *   ② OCR anotado da Mistral    — `/v1/ocr` com JSON Schema: o workspace tem
+ *                                 cota de OCR, mas não de chat (429, limite 0)
+ *   ③ OpenRouter                — chat com saldo; a lista começa no gpt-4o-mini
+ *   ④ OpenAI                    — Responses API (hoje sem crédito)
+ *   ⑤ heurístico                — sempre responde, nunca trava o upload
+ *
  * Cada elo só é construído quando o anterior falha ou está sem chave, então
- * nenhum provedor é cobrado à toa. Quem respondeu de fato fica em
- * `PolicyExtracao.provedor`.
+ * nenhum provedor é cobrado à toa. Quem respondeu fica em `PolicyExtracao.provedor`.
  */
-const cascataMistral = (): PolicyParser =>
-  new MistralPolicyParser(() => new OpenAiPolicyParser(() => new HeuristicPolicyParser()));
+const heuristico = (): PolicyParser => new HeuristicPolicyParser();
+const cascataOpenAi = (): PolicyParser => new OpenAiPolicyParser(heuristico);
+const cascataOpenRouter = (): PolicyParser => new OpenRouterPolicyParser(cascataOpenAi);
+
+/**
+ * O pré-passo já disse se conseguiu ler: `text/plain` = PaddleOCR (ou texto
+ * nativo) entregou. Com texto na mão, estruturar custa uma chamada de chat
+ * barata; sem texto, o documento ainda precisa ser LIDO, e aí entra o OCR
+ * anotado da Mistral, que lê e estrutura numa tacada só.
+ */
+const cascataPadrao = (): PolicyParser => ({
+  nome: "cascata",
+  extract(input) {
+    const temTextoLocal = (input.mimeType || "").toLowerCase().startsWith("text/");
+    const parser = temTextoLocal
+      ? cascataOpenRouter()
+      : new MistralOcrAnotadoParser(cascataOpenRouter);
+    return parser.extract(input);
+  },
+});
 
 const parsers: Record<string, () => PolicyParser> = {
-  heuristico: () => new HeuristicPolicyParser(),
-  // "llm" mantido como alias de "mistral" para não quebrar POLICY_PROVIDER=llm já em uso
-  llm: cascataMistral,
-  mistral: cascataMistral,
-  // seleção explícita de um provedor só: OpenAI sem passar pelo Mistral
-  openai: () => new OpenAiPolicyParser(() => new HeuristicPolicyParser()),
+  heuristico,
+  // "llm"/"mistral" mantidos como alias da cascata padrão (POLICY_PROVIDER já em uso)
+  llm: cascataPadrao,
+  mistral: cascataPadrao,
+  "mistral-ocr": cascataPadrao,
+  // seleções explícitas, pulando os elos anteriores
+  openrouter: cascataOpenRouter,
+  openai: cascataOpenAi,
+  // chat da Mistral (fora da cascata desde que o workspace ficou sem cota de chat)
+  "mistral-chat": () => new MistralPolicyParser(cascataOpenRouter),
 };
 
 /**

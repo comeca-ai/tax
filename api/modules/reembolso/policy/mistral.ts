@@ -17,6 +17,7 @@ import { consolidarRegras } from "./derivar";
 import { mapearCamposCustomizados } from "./camposCustomizados";
 import type { ArquivoPolitica, PolicyParser } from "./parser";
 import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
+import { SCHEMA_RULESET } from "./schemaRuleset";
 
 /**
  * Parser LLM da política de reembolso via Mistral (v1.6.0).
@@ -422,6 +423,112 @@ export class MistralPolicyParser implements PolicyParser {
           `Mistral indisponível (${motivo}): extração seguiu para ${resultado.provedor}.`,
         ],
       };
+    }
+  }
+}
+
+/**
+ * Parser da política pelo OCR **anotado** da Mistral (17/09/2026).
+ *
+ * `POST /v1/ocr` com `document_annotation_format` devolve o ruleset em JSON
+ * direto do documento — o mesmo mecanismo que o OCR de comprovante já usa
+ * (`fiscal/ocr/visao.ts`). Importa porque é faturado como OCR, e o workspace
+ * tem cota de OCR mas **não** de chat (`/v1/chat/completions` responde 429 com
+ * `x-ratelimit-limit-req-minute: 0`).
+ *
+ * Precisa do binário: quando o pré-passo já trocou o arquivo pelo texto, usa
+ * `input.original`. Medido no decreto real de 16 páginas: 18,6 s, 10 regras,
+ * confiança 0,98.
+ */
+export class MistralOcrAnotadoParser implements PolicyParser {
+  nome = "mistral-ocr-anotado";
+
+  private criarFallback?: () => PolicyParser;
+
+  constructor(criarFallback?: () => PolicyParser) {
+    this.criarFallback = criarFallback;
+  }
+
+  private async comFallback(input: ArquivoPolitica, motivo: string): Promise<PolicyExtracao> {
+    if (!this.criarFallback) throw new Error(motivo);
+    const resultado = await this.criarFallback().extract(input);
+    return {
+      ...resultado,
+      avisos: [...resultado.avisos, `${motivo}: extração seguiu para ${resultado.provedor}.`],
+    };
+  }
+
+  async extract(input: ArquivoPolitica): Promise<PolicyExtracao> {
+    const apiKey = process.env.MISTRAL_API_KEY;
+    if (!apiKey) return this.comFallback(input, "MISTRAL_API_KEY ausente");
+
+    const documento = input.original ?? input;
+    const mime = (documento.mimeType || "application/pdf").toLowerCase();
+    if (mime.startsWith("text/")) {
+      // OCR anotado lê documento, não texto solto: sem binário não há o que fazer.
+      return this.comFallback(input, "OCR anotado da Mistral exige o documento original");
+    }
+
+    const modelo = process.env.MISTRAL_OCR_MODEL ?? "mistral-ocr-latest";
+    const dataUri = `data:${mime};base64,${documento.base64}`;
+    const doc = mime.startsWith("image/")
+      ? { type: "image_url", image_url: dataUri }
+      : { type: "document_url", document_url: dataUri };
+
+    try {
+      const resposta = await comTimeout(
+        (signal) =>
+          fetch("https://api.mistral.ai/v1/ocr", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({
+              model: modelo,
+              document: doc,
+              include_image_base64: false,
+              document_annotation_format: {
+                type: "json_schema",
+                json_schema: { name: "politica_reembolso", schema: SCHEMA_RULESET, strict: true },
+              },
+            }),
+            signal,
+          }),
+        240_000
+      );
+      if (!resposta.ok) {
+        const corpo = await resposta.text().catch(() => "");
+        throw new Error(`HTTP ${resposta.status}: ${corpo.slice(0, 160)}`);
+      }
+      const dados = (await resposta.json()) as {
+        document_annotation?: unknown;
+        pages?: { markdown?: string }[];
+      };
+      const bruta = dados.document_annotation;
+      const ruleset = (
+        typeof bruta === "string"
+          ? JSON.parse(bruta.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""))
+          : bruta
+      ) as RulesetLLM | null;
+      if (!ruleset || typeof ruleset !== "object") throw new Error("resposta sem document_annotation");
+
+      // O texto do documento vem junto: aproveite para o painel de conferência.
+      const texto = (dados.pages ?? []).map((p) => p.markdown ?? "").join("\n\n").trim();
+      const bruto = ruleset.qualidade_extracao?.confianca;
+      const confianca = typeof bruto === "number" ? Math.max(0, Math.min(1, bruto)) : 0;
+      const { regras, camposPendentes, resumo } = mapearRuleset(ruleset);
+      const textoLocal = (input.mimeType || "").toLowerCase().startsWith("text/")
+        ? Buffer.from(input.base64, "base64").toString("utf8")
+        : "";
+      return {
+        textoExtraido: truncarUtf8(texto || textoLocal, LIMITE_TEXTO_EXTRAIDO_BYTES) || null,
+        regras,
+        confiancaExtracao: confianca >= 0.85 ? "alta" : confianca >= 0.7 ? "media" : "baixa",
+        camposPendentes,
+        provedor: `mistral-ocr:${modelo}`,
+        avisos: [resumo.replace(/\n/g, " · "), ...avisosQualidade(ruleset.qualidade_extracao)],
+      };
+    } catch (erro) {
+      const motivo = erro instanceof Error ? erro.message : String(erro);
+      return this.comFallback(input, `OCR anotado da Mistral indisponível (${motivo})`);
     }
   }
 }
