@@ -9,13 +9,15 @@ versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 ### Comprovante — OCR local antes da IA de visão paga
 
 - O envio de despesa passa pelo mesmo pré-passo da política: texto nativo do
-  PDF → PaddleOCR local (`lib/ocrLocal`, compartilhada pelos dois fluxos) →
-  IA de visão paga. Se o heurístico fechar a nota com o texto local
-  (emitente, valor, data, categoria — e, em combustível, destinatário, chave
-  e litros), nenhuma chamada paga acontece; faltando qualquer um, a IA de
-  visão assume e o aviso diz o que faltou.
-- `cfop`/`ncm`/`cst` de propósito não entram nesse corte: cupom fiscal não os
-  traz, e exigi-los mandaria toda nota à IA paga.
+  PDF → PaddleOCR local (`lib/ocrLocal`, compartilhada pelos dois fluxos).
+  Quando o local lê o documento, a leitura é dele: o heurístico tira
+  emitente, valor, data, categoria (e, em combustível, destinatário, chave e
+  litros); o que faltar vai para revisão manual com aviso. A IA de visão paga
+  é **fallback só quando o local não entrega texto** (sidecar fora, imagem
+  ilegível, serviço desligado). `OCR_LOCAL_COMPLEMENTAR_IA=true` religa o
+  comportamento de consultar a IA quando falta campo essencial.
+- `cfop`/`ncm`/`cst` de propósito não contam como essenciais: cupom fiscal não
+  os traz.
 - Env novas, com as `POLICY_OCR_*` aceitas como alias: `OCR_LOCAL_URL`,
   `OCR_LOCAL_TOKEN`, `OCR_LOCAL_TIMEOUT_MS`. Sem URL, comportamento idêntico
   ao anterior nos dois fluxos.

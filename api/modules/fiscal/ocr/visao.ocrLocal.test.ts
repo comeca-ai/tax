@@ -28,7 +28,7 @@ const CUPOM_COMPLETO = [
 /** Sem CNPJ nem data: o heurístico não fecha, a IA de visão precisa entrar. */
 const CUPOM_ILEGIVEL = "RESTAURANTE TESTE\nconsumo no local\nvalor total: R$ 87,40";
 
-const ENV = ["OCR_LOCAL_URL", "OCR_LOCAL_TOKEN", "POLICY_OCR_URL", "MISTRAL_API_KEY", "OPENAI_API_KEY"] as const;
+const ENV = ["OCR_LOCAL_URL", "OCR_LOCAL_TOKEN", "OCR_LOCAL_COMPLEMENTAR_IA", "POLICY_OCR_URL", "MISTRAL_API_KEY", "OPENAI_API_KEY"] as const;
 
 describe("comprovante: OCR local antes da IA paga", () => {
   const fetchOriginal = globalThis.fetch;
@@ -76,16 +76,31 @@ describe("comprovante: OCR local antes da IA paga", () => {
     expect(extracao.avisos[0]).toContain("OCR local (paddleocr");
   });
 
-  it("texto local incompleto: IA de visão assume e o aviso diz o que faltou", async () => {
+  it("texto local incompleto: fica com o Paddle, vai para revisão, IA não é consultada", async () => {
     process.env.OCR_LOCAL_URL = SIDECAR;
+    process.env.MISTRAL_API_KEY = "chave-que-nao-deve-ser-usada";
     textoDoSidecar = CUPOM_ILEGIVEL;
 
     const extracao = await provider().extrair(ESCANEADO);
 
-    // Sem chave de IA: cascata paga nem é tentada, mas o aviso local sobrevive.
+    expect(chamadas).toEqual(["127.0.0.1:4190"]);
+    expect(extracao.provedor).toBe("heuristico-local:paddle");
+    expect(extracao.valor).toBe(87.4);
+    expect(extracao.camposPendentes).toContain("cnpjEmitente");
+    expect(extracao.avisos[1]).toContain("IA de visão não consultada");
+    expect(extracao.avisos[1]).toContain("cnpjEmitente");
+  });
+
+  it("OCR_LOCAL_COMPLEMENTAR_IA=true: com campo essencial faltando, a IA de visão ainda entra", async () => {
+    process.env.OCR_LOCAL_URL = SIDECAR;
+    process.env.OCR_LOCAL_COMPLEMENTAR_IA = "true";
+    textoDoSidecar = CUPOM_ILEGIVEL;
+
+    const extracao = await provider().extrair(ESCANEADO);
+
+    // Sem chave de IA a cascata paga nem é tentada, mas o caminho é o da IA.
     expect(chamadas).toEqual(["127.0.0.1:4190"]);
     expect(extracao.avisos[0]).toContain("Faltaram campos essenciais");
-    expect(extracao.avisos[0]).toContain("cnpjEmitente");
     expect(extracao.avisos.at(-1)).toContain("IA de visão indisponível");
   });
 

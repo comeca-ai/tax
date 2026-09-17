@@ -369,10 +369,6 @@ function faltamParaDecidir(extracao: OcrExtracao): string[] {
   return faltam;
 }
 
-function suficienteParaDecidir(extracao: OcrExtracao): boolean {
-  return faltamParaDecidir(extracao).length === 0;
-}
-
 export class VisaoOcrProvider implements OcrProvider {
   nome = "visao-ia";
 
@@ -394,10 +390,13 @@ export class VisaoOcrProvider implements OcrProvider {
       return this.fallbackTexto.extrair(arquivo);
     }
 
-    // Leitura local antes da IA paga (mesmo pré-passo da política): texto nativo
-    // do PDF → PaddleOCR. Só vale a viagem quando o heurístico fecha a nota
-    // inteira com esse texto; faltando qualquer campo, a IA de visão assume —
-    // decidir com comprovante meio lido sairia mais caro que a chamada (D-014).
+    // O OCR é o local (texto nativo do PDF → PaddleOCR, mesmo pré-passo da
+    // política). Quando ele lê o documento, a leitura é dele: o heurístico tira
+    // os campos e o que faltar vai para revisão manual — nenhuma IA paga entra
+    // (decisão de 17/09/2026). A IA de visão é fallback só quando o local NÃO
+    // entrega texto (sidecar fora, foto ilegível, serviço desligado).
+    // OCR_LOCAL_COMPLEMENTAR_IA=true religa o comportamento antigo: com campo
+    // essencial faltando no texto local, a IA de visão ainda é consultada.
     const avisosLocais: string[] = [];
     const local = await extrairTextoLocal({
       nome: arquivo.arquivoNome,
@@ -411,15 +410,23 @@ export class VisaoOcrProvider implements OcrProvider {
         arquivoMime: "text/plain",
         arquivoBase64: Buffer.from(local.texto.texto, "utf8").toString("base64"),
       });
-      if (suficienteParaDecidir(extracao)) {
+      const faltam = faltamParaDecidir(extracao);
+      const complementarComIa = process.env.OCR_LOCAL_COMPLEMENTAR_IA === "true";
+      if (faltam.length === 0 || !complementarComIa) {
         return {
           ...extracao,
           provedor: `${extracao.provedor}:${local.texto.origem}`,
-          avisos: [local.texto.aviso, ...extracao.avisos],
+          avisos: [
+            local.texto.aviso,
+            ...(faltam.length
+              ? [`Campos essenciais não lidos (${faltam.join(", ")}): confirmar na revisão; IA de visão não consultada.`]
+              : []),
+            ...extracao.avisos,
+          ],
         };
       }
       avisosLocais.push(
-        `${local.texto.aviso} Faltaram campos essenciais (${faltamParaDecidir(extracao).join(", ")}): IA de visão consultada.`
+        `${local.texto.aviso} Faltaram campos essenciais (${faltam.join(", ")}): IA de visão consultada.`
       );
     }
 
