@@ -21,7 +21,6 @@ import {
   TEMAS_POLITICA,
   UNIDADES_LIMITE,
   type CategoriaDespesa,
-  type ConfiancaExtracao,
   type DecisaoAutomaticaRegra,
   type RegraExtraida,
   type ReembolsavelRegra,
@@ -68,7 +67,6 @@ interface PoliticaRegrasStepProps {
   camposPendentes: string[]
   editados: Set<string>
   onEditou: (campo: string) => void
-  confiancaExtracao: ConfiancaExtracao
   provedor: string
   avisos: string[]
   textoExtraido: string | null
@@ -203,7 +201,6 @@ export default function PoliticaRegrasStep({
   camposPendentes,
   editados,
   onEditou,
-  confiancaExtracao,
   provedor,
   avisos,
   textoExtraido,
@@ -310,7 +307,6 @@ export default function PoliticaRegrasStep({
   const painelTexto = (
     <PoliticaTextoExtraido
       texto={textoExtraido}
-      confiancaExtracao={confiancaExtracao}
       provedor={provedor}
       avisos={avisos}
       camposPendentesQtd={camposPendentes.length}

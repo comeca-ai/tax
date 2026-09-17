@@ -440,7 +440,6 @@ export default function Politica({ iniciarUpload = false }: { iniciarUpload?: bo
                 camposPendentes={extracao.camposPendentes}
                 editados={editados}
                 onEditou={onEditou}
-                confiancaExtracao={extracao.confiancaExtracao}
                 provedor={extracao.provedor}
                 avisos={extracao.avisos}
                 textoExtraido={extracao.textoExtraido}

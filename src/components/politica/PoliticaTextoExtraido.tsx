@@ -1,32 +1,26 @@
-import { motion } from "framer-motion"
 import { CircleAlert, FileSearch } from "lucide-react"
-import type { ConfiancaExtracao } from "@contracts/types"
-import { CONFIANCA_EXTRACAO_LABELS } from "@contracts/types"
 import { cn } from "@/lib/utils"
 
 interface PoliticaTextoExtraidoProps {
   texto: string | null
-  confiancaExtracao: ConfiancaExtracao
   provedor: string
   avisos: string[]
   camposPendentesQtd: number
   className?: string
 }
 
-const DOT_CONFIANCA: Record<ConfiancaExtracao, string> = {
-  alta: "bg-conf-alta-dot",
-  media: "bg-conf-media-dot",
-  baixa: "bg-conf-vedado-dot",
-}
-
 /**
- * Painel do passo 2 do wizard: texto lido do documento (OCR/decodificação),
- * confiança da extração e avisos do parser. Markdown do OCR é exibido como
- * texto puro — o objetivo é o gestor conferir o que foi lido, não formatar.
+ * Painel do passo 2 do wizard: texto lido do documento (OCR/decodificação) e
+ * avisos do parser. Markdown do OCR é exibido como texto puro — o objetivo é o
+ * gestor conferir o que foi lido, não formatar.
+ *
+ * A confiança da extração (17/09/2026) NÃO aparece mais aqui: continua sendo
+ * calculada pelo parser e gravada em `politicas_reembolso.confianca_extracao`,
+ * mas o selo "Extração baixa" dizia ao gestor o que ele já vê no texto e nos
+ * avisos, e assustava sem indicar ação. Uso segue sendo interno/auditoria.
  */
 export default function PoliticaTextoExtraido({
   texto,
-  confiancaExtracao,
   provedor,
   avisos,
   camposPendentesQtd,
@@ -36,20 +30,9 @@ export default function PoliticaTextoExtraido({
 
   return (
     <div className={cn("flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-card", className)}>
-      {/* Cabeçalho + confiança da extração */}
       <div className="flex flex-col gap-2">
         <h3 className="text-[13px] font-semibold text-text-900">Texto lido do documento</h3>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="flex items-center gap-2 text-[12px] font-medium text-text-900">
-            <motion.span
-              initial={{ scale: 1.4 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.4 }}
-              title={`Confiança da extração: ${CONFIANCA_EXTRACAO_LABELS[confiancaExtracao]}`}
-              className={cn("h-2.5 w-2.5 rounded-full", DOT_CONFIANCA[confiancaExtracao])}
-            />
-            Extração {CONFIANCA_EXTRACAO_LABELS[confiancaExtracao].toLowerCase()}
-          </span>
           <span className="inline-flex items-center rounded-md border border-line bg-paper px-2 py-0.5 font-mono text-[10px] tracking-[0.02em] text-text-500">
             parser {provedor}
           </span>
