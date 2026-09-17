@@ -6,6 +6,23 @@ versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
 ## [Unreleased]
 
+### Política — cascata de provedores (Mistral → OpenAI → heurístico)
+
+- `POLICY_PROVIDER=mistral` (e o alias `llm`) agora encadeia OpenAI como
+  contingência antes do heurístico. Antes, uma falha do Mistral caía direto no
+  heurístico, que não lê PDF escaneado — em homologação isso aparecia como
+  "OCR da política parou" sem erro visível. `POLICY_PROVIDER=openai` segue
+  usando só OpenAI → heurístico.
+- Os avisos de contingência do Mistral passam a nomear o provedor que de fato
+  extraiu (`PolicyExtracao.provedor`) em vez de afirmar "heurística". A
+  confiança da extração deixa de ser rebaixada para `baixa` pelo elo que
+  falhou: ela pertence a quem produziu as regras.
+- Impacto: só o caminho de extração no upload da política; sem migração, sem
+  mudança de contrato tRPC. Custo: uma falha do Mistral passa a poder cobrar
+  uma chamada OpenAI quando `OPENAI_API_KEY` estiver no ambiente.
+- Rollback: voltar à tag anterior, ou, sem redeploy, remover `OPENAI_API_KEY`
+  do ambiente (o elo OpenAI é pulado e o comportamento volta ao anterior).
+
 ### Integridade documental e checkpoints — candidato de 15/09/2026
 
 - Uploads web e WhatsApp validam base64, tamanho, assinatura do tipo de arquivo e

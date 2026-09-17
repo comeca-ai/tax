@@ -18,6 +18,9 @@ import {
  * Mesmo padrão do OCR (api/ocr): contrato estável PolicyExtracao, provider
  * selecionado via env POLICY_PROVIDER (default "heuristico").
  *
+ * POLICY_PROVIDER=mistral (ou o alias "llm") ativa a cascata
+ * Mistral → OpenAI → heurístico. "openai" usa só OpenAI → heurístico.
+ *
  * CONTRATO ESTÁVEL: para trocar a extração por LLM (OpenAI/Gemini) depois,
  * basta implementar PolicyParser mantendo PolicyExtracao e registrar o
  * provider em `parsers` abaixo — nenhum consumidor (router/agente) muda.
@@ -370,11 +373,21 @@ export class LlmPolicyParser implements PolicyParser {
 // Seleção do parser (plugável, mesmo padrão do OCR)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Cascata padrão: Mistral (1ª tentativa) → OpenAI (contingência) → heurístico.
+ * Cada elo só é construído quando o anterior falha ou está sem chave, então
+ * nenhum provedor é cobrado à toa. Quem respondeu de fato fica em
+ * `PolicyExtracao.provedor`.
+ */
+const cascataMistral = (): PolicyParser =>
+  new MistralPolicyParser(() => new OpenAiPolicyParser(() => new HeuristicPolicyParser()));
+
 const parsers: Record<string, () => PolicyParser> = {
   heuristico: () => new HeuristicPolicyParser(),
   // "llm" mantido como alias de "mistral" para não quebrar POLICY_PROVIDER=llm já em uso
-  llm: () => new MistralPolicyParser(() => new HeuristicPolicyParser()),
-  mistral: () => new MistralPolicyParser(() => new HeuristicPolicyParser()),
+  llm: cascataMistral,
+  mistral: cascataMistral,
+  // seleção explícita de um provedor só: OpenAI sem passar pelo Mistral
   openai: () => new OpenAiPolicyParser(() => new HeuristicPolicyParser()),
 };
 

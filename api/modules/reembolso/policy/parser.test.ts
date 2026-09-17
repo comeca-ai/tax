@@ -177,3 +177,69 @@ describe("OpenAiPolicyParser", () => {
     }
   });
 });
+
+describe("cascata Mistral → OpenAI → heurístico (POLICY_PROVIDER=mistral)", () => {
+  it("Mistral fora do ar cai no OpenAI, preservando provedor e confiança de quem extraiu", async () => {
+    const fetchOriginal = globalThis.fetch;
+    const anterior = {
+      provider: process.env.POLICY_PROVIDER,
+      mistral: process.env.MISTRAL_API_KEY,
+      openai: process.env.OPENAI_API_KEY,
+      modelo: process.env.POLICY_OPENAI_MODEL,
+    };
+    process.env.POLICY_PROVIDER = "mistral";
+    process.env.MISTRAL_API_KEY = "chave-mistral";
+    process.env.OPENAI_API_KEY = "chave-openai";
+    process.env.POLICY_OPENAI_MODEL = "modelo-de-teste";
+
+    const hosts: string[] = [];
+    globalThis.fetch = (async (url: string | URL) => {
+      const alvo = String(url);
+      hosts.push(new URL(alvo).host);
+      if (alvo.includes("mistral.ai")) throw new Error("503 indisponível");
+      return {
+        ok: true,
+        json: async () => ({
+          output_text: JSON.stringify({
+            politica: { titulo: "Viagens", vigencia: null, moeda_padrao: "BRL" },
+            qualidade_extracao: { legivel: true, confianca: 0.9, paginas_com_problema: [], observacoes: "" },
+            regras: [{
+              id: "almoco", tema: "alimentacao", categoria: "alimentacao", alcance: "categoria",
+              descricao: "Almoço até R$ 50", condicao: null, reembolsavel: "sim", valor_limite: 50,
+              moeda: "BRL", unidade_limite: "dia", exige_comprovante: true,
+            }],
+            ambiguidades: [],
+          }),
+        }),
+      } as unknown as Response;
+    }) as typeof globalThis.fetch;
+
+    try {
+      const resultado = await getPolicyParser().extract({
+        arquivoNome: "politica.pdf",
+        mimeType: "application/pdf",
+        base64: "cGRmLWRlLXRlc3Rl",
+      });
+      // tentou o Mistral primeiro e só então o OpenAI
+      expect(hosts[0]).toContain("mistral.ai");
+      expect(hosts.some(h => h.includes("openai.com"))).toBe(true);
+      // quem respondeu foi o OpenAI — e a confiança dele não foi rebaixada
+      expect(resultado.provedor).toBe("openai:modelo-de-teste");
+      expect(resultado.confiancaExtracao).toBe("alta");
+      expect(resultado.regras.limitesPorCategoria.alimentacao).toBe(50);
+      // o aviso nomeia o destino real, não "heurística"
+      expect(resultado.avisos.some(a => /Mistral indisponível.*openai:modelo-de-teste/.test(a))).toBe(true);
+    } finally {
+      globalThis.fetch = fetchOriginal;
+      for (const [chave, valor] of [
+        ["POLICY_PROVIDER", anterior.provider],
+        ["MISTRAL_API_KEY", anterior.mistral],
+        ["OPENAI_API_KEY", anterior.openai],
+        ["POLICY_OPENAI_MODEL", anterior.modelo],
+      ] as const) {
+        if (valor === undefined) delete process.env[chave];
+        else process.env[chave] = valor;
+      }
+    }
+  });
+});

@@ -382,7 +382,10 @@ export class MistralPolicyParser implements PolicyParser {
         const resultado = await this.criarFallback().extract(input);
         return {
           ...resultado,
-          avisos: [...resultado.avisos, "MISTRAL_API_KEY ausente: extração heurística usada no lugar do LLM."],
+          avisos: [
+            ...resultado.avisos,
+            `MISTRAL_API_KEY ausente: extração seguiu para ${resultado.provedor}.`,
+          ],
         };
       }
       throw new Error("POLICY_PROVIDER=mistral sem MISTRAL_API_KEY configurada.");
@@ -410,10 +413,14 @@ export class MistralPolicyParser implements PolicyParser {
       if (!this.criarFallback) throw erro;
       const resultado = await this.criarFallback().extract(input);
       const motivo = erro instanceof Error ? erro.message : String(erro);
+      // A confiança pertence a quem produziu as regras: se o próximo elo da
+      // cascata (OpenAI) extraiu com confiança alta, rebaixar aqui seria mentir.
       return {
         ...resultado,
-        confiancaExtracao: "baixa",
-        avisos: [...resultado.avisos, `LLM indisponível (${motivo}): extração heurística usada como contingência.`],
+        avisos: [
+          ...resultado.avisos,
+          `Mistral indisponível (${motivo}): extração seguiu para ${resultado.provedor}.`,
+        ],
       };
     }
   }
