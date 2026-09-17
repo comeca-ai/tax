@@ -6,6 +6,63 @@ versionamento semântico (SemVer): `MAJOR.MINOR.PATCH`.
 
 ## [Unreleased]
 
+### Comprovante — OCR local antes da IA de visão paga
+
+- O envio de despesa passa pelo mesmo pré-passo da política: texto nativo do
+  PDF → PaddleOCR local (`lib/ocrLocal`, compartilhada pelos dois fluxos) →
+  IA de visão paga. Se o heurístico fechar a nota com o texto local
+  (emitente, valor, data, categoria — e, em combustível, destinatário, chave
+  e litros), nenhuma chamada paga acontece; faltando qualquer um, a IA de
+  visão assume e o aviso diz o que faltou.
+- `cfop`/`ncm`/`cst` de propósito não entram nesse corte: cupom fiscal não os
+  traz, e exigi-los mandaria toda nota à IA paga.
+- Env novas, com as `POLICY_OCR_*` aceitas como alias: `OCR_LOCAL_URL`,
+  `OCR_LOCAL_TOKEN`, `OCR_LOCAL_TIMEOUT_MS`. Sem URL, comportamento idêntico
+  ao anterior nos dois fluxos.
+
+### Política — campos customizados saem do caminho obrigatório
+
+- O assistente de política volta a ter 3 passos: enviar documento → revisar
+  regras (que agora salva) → simular e ativar. O passo "Campos customizados"
+  foi desligado: cargos, funções e particularidades ainda não são coletados
+  por colaborador nem lidos pelo agente (D-024/POC-17), então revisá-los não
+  mudava decisão nenhuma e alongava o fluxo crítico.
+- Nada é perdido: os campos extraídos do documento continuam sendo salvos com
+  as regras e continuam no resumo (somente leitura). `PoliticaCamposStep`
+  segue no repositório com seus testes — religar é voltar a renderizá-lo.
+
+### Arquiteto — lista ordenada de modelos no OpenRouter
+
+- `POLICY_OPENROUTER_MODELS` (lista separada por vírgula) vira o `models` do
+  OpenRouter, que faz o fallback na própria chamada; `provedor` registra o
+  modelo que de fato respondeu. Sem a lista, `POLICY_OPENROUTER_MODEL` segue
+  valendo. Motivo: o default `openrouter/free` sorteia um modelo gratuito
+  qualquer — para um rascunho de regras, modelo barato serve, roleta não.
+
+### API — falhas internas passam a ser logadas no servidor
+
+- `onError` do tRPC (`api/boot.ts` → `logarErroInterno`) grava no journal
+  procedure, mensagem, `cause` e o topo do stack de todo
+  `INTERNAL_SERVER_ERROR`. A resposta ao navegador continua a mesma ("Falha
+  interna"). Motivo: em homologação um `UPLOADS_DIR` não gravável derrubou o
+  upload da política por três dias sem uma linha de log.
+
+### Política — OCR local com PaddleOCR (microserviço)
+
+- Novo pré-passo de texto no upload da política, antes de qualquer LLM:
+  texto nativo do PDF (`pdf-parse`, grátis) → OCR local (`services/paddle-ocr`,
+  PaddleOCR self-hosted, Apache 2.0) → OCR pago do provedor só se o serviço
+  local estiver fora. O Paddle nunca é importado pelo app: é HTTP interno com
+  token (`POLICY_OCR_URL`, `POLICY_OCR_TOKEN`), no mesmo padrão de
+  `services/jhonemejampeiro`.
+- Impacto: PDF com camada de texto deixa de ir ao OCR pago da Mistral;
+  escaneado/foto vai ao serviço local. Sem `POLICY_OCR_URL` o comportamento é
+  idêntico ao anterior. Sem migração, sem mudança de contrato tRPC. Serviço
+  novo em Python/CPU (~2 GB de imagem, `MemoryMax=3G`): perfil `ocr` no
+  compose e unidade systemd em `services/paddle-ocr/deploy/`.
+- Rollback: remover `POLICY_OCR_URL` do ambiente (pré-passo desligado, sem
+  redeploy) ou voltar à tag anterior.
+
 ### Política — cascata de provedores (Mistral → OpenAI → heurístico)
 
 - `POLICY_PROVIDER=mistral` (e o alias `llm`) agora encadeia OpenAI como
