@@ -21,6 +21,7 @@ afterEach(() => {
   delete process.env.OPENROUTER_API_KEY;
   delete process.env.POLICY_OPENAI_MODEL;
   delete process.env.POLICY_OPENROUTER_MODEL;
+  delete process.env.POLICY_OPENROUTER_MODELS;
   delete process.env.POLICY_ARCHITECT_MAX_OUTPUT_TOKENS;
   delete process.env.POLICY_OPENROUTER_MAX_OUTPUT_TOKENS;
 });
@@ -59,6 +60,22 @@ describe("Arquiteto de Política", () => {
       provider: { require_parameters: true, data_collection: "deny" },
       response_format: { type: "json_schema", json_schema: { strict: true } },
     });
+  });
+
+  it("envia a lista ordenada de modelos ao OpenRouter e registra quem respondeu", async () => {
+    process.env.OPENROUTER_API_KEY = "synthetic-openrouter-key";
+    process.env.POLICY_OPENROUTER_MODELS = "openai/gpt-4o-mini, google/gemini-2.5-flash-lite,,openrouter/free";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      model: "google/gemini-2.5-flash-lite",
+      choices: [{ message: { content: JSON.stringify(rascunho) } }],
+    }), { status: 200 })));
+
+    const result = await arquitetarPolitica({ pedido: "Aumentar para 150", regrasAtuais: [regra] });
+
+    const requisicao = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body));
+    expect(requisicao.model).toBe("openai/gpt-4o-mini");
+    expect(requisicao.models).toEqual(["openai/gpt-4o-mini", "google/gemini-2.5-flash-lite", "openrouter/free"]);
+    expect(result.modelo).toBe("openrouter:google/gemini-2.5-flash-lite");
   });
 
   it("aciona OpenRouter depois de falha da OpenAI", async () => {

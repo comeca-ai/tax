@@ -170,15 +170,30 @@ async function chamarOpenAi(pedido: string, regrasAtuais: RegraExtraida[], apiKe
   }
 }
 
+/**
+ * Ordem de modelos no OpenRouter. `POLICY_OPENROUTER_MODELS` (lista separada por
+ * vírgula) vira o `models` do OpenRouter, que faz o fallback nativo na própria
+ * chamada: se o primeiro falhar ou não aceitar os parâmetros, ele tenta o
+ * próximo. Sem a lista, vale o `POLICY_OPENROUTER_MODEL` único de antes.
+ */
+function modelosOpenRouter(): string[] {
+  const lista = (process.env.POLICY_OPENROUTER_MODELS ?? "")
+    .split(",")
+    .map(item => item.trim())
+    .filter(Boolean);
+  return lista.length ? lista : [process.env.POLICY_OPENROUTER_MODEL ?? "openrouter/free"];
+}
+
 async function chamarOpenRouter(pedido: string, regrasAtuais: RegraExtraida[], apiKey: string) {
-  const modelo = process.env.POLICY_OPENROUTER_MODEL ?? "openrouter/free";
+  const modelos = modelosOpenRouter();
   let resposta: Response;
   try {
     resposta = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: modelo,
+        model: modelos[0],
+        ...(modelos.length > 1 ? { models: modelos } : {}),
         temperature: 0.1,
         max_tokens: maxTokens("POLICY_OPENROUTER_MAX_OUTPUT_TOKENS", MAX_TOKENS_OPENROUTER_PADRAO),
         response_format: { type: "json_schema", json_schema: { name: "arquiteto_politica", strict: true, schema: OUTPUT_SCHEMA } },
@@ -195,7 +210,11 @@ async function chamarOpenRouter(pedido: string, regrasAtuais: RegraExtraida[], a
   }
   if (!resposta.ok) throw erroHttp("OpenRouter", resposta.status);
   try {
-    return montarResultado(textoRespostaOpenRouter(await resposta.json()), `openrouter:${modelo}`);
+    const dados: unknown = await resposta.json();
+    // Com fallback, quem respondeu pode não ser o primeiro da lista: o OpenRouter diz em `model`.
+    const respondido = (dados as { model?: unknown }).model;
+    const modelo = typeof respondido === "string" && respondido ? respondido : modelos[0];
+    return montarResultado(textoRespostaOpenRouter(dados), `openrouter:${modelo}`);
   } catch (error) {
     if (error instanceof ErroArquitetoPolitica) throw error;
     throw erroChamada("OpenRouter", error);
