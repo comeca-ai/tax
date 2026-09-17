@@ -29,6 +29,10 @@ instruções dispersas na raiz do repositório.
 ## Decisões e histórico
 
 - [Decisões técnicas](DECISOES.md)
+- [O que pode melhorar](O-QUE-PODE-MELHORAR.md): uma frase por item, por área
+- [Visão da POC — o que falta para terminar](VISAO-POC-2026-09-17.md): resumo em linguagem simples
+- [Pauta de melhorias — 17/09/2026](PAUTA-DE-MELHORIAS-2026-09-17.md): lista única e viva de tudo o que está aberto, por ordem de execução
+- [Sugestões de CEO — 17/09/2026](SUGESTOES-CEO-2026-09-17.md): direção proposta para a POC, pendente de aceite
 - [Linha do tempo](LINHA-DO-TEMPO.md)
 - [Migração para o repositório oficial](MIGRACAO-NOVO-REPOSITORIO.md)
 - [Auditoria inicial](auditoria/)
