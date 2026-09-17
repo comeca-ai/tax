@@ -1,4 +1,5 @@
 import { TIPOS_DOCUMENTO, type CategoriaDespesa, type OcrExtracao, type TipoDocumento } from "@contracts/types";
+import { extrairTextoLocal } from "../../../lib/ocrLocal";
 import type { ArquivoNota, OcrProvider } from "./index";
 
 /**
@@ -6,6 +7,9 @@ import type { ArquivoNota, OcrProvider } from "./index";
  *
  * Estratégia:
  *  - XML/texto continua no heurístico (rápido e grátis).
+ *  - Imagem/PDF: leitura local primeiro (texto nativo do PDF → PaddleOCR, via
+ *    `lib/ocrLocal`). Se o heurístico fechar a nota com esse texto, nenhuma IA
+ *    paga é chamada; faltando campo, segue para a IA de visão com o aviso.
  *  - Imagem/PDF escaneado vai para IA de visão. Por padrão, Mistral OCR é
  *    tentado primeiro; OCR_VISION_PROVIDER=openai prioriza OpenAI.
  *  - NUNCA lança erro para cima: se nada conseguiu ler, devolve extração
@@ -346,6 +350,29 @@ async function chamarOpenAI(arquivo: ArquivoNota): Promise<ExtracaoIA> {
   return normalizarExtracaoIA(extraiJsonDaResposta(textoRespostaOpenAI(await res.json())));
 }
 
+/**
+ * O que a decisão exige do documento — os MESMOS campos que a IA de visão
+ * cobra de si mesma mais abaixo. `cfop`/`ncm`/`cst` ficam de fora de propósito:
+ * cupom fiscal não os traz, e exigi-los mandaria toda nota à IA paga.
+ */
+function faltamParaDecidir(extracao: OcrExtracao): string[] {
+  const faltam: string[] = [];
+  if (!extracao.cnpjEmitente) faltam.push("cnpjEmitente");
+  if (extracao.valor == null) faltam.push("valor");
+  if (!extracao.dataFatoGerador) faltam.push("dataFatoGerador");
+  if (!extracao.categoriaSugerida) faltam.push("categoria");
+  if (extracao.categoriaSugerida === "combustivel") {
+    if (!extracao.cnpjDestinatario) faltam.push("cnpjDestinatario");
+    if (!extracao.chaveAcesso) faltam.push("chaveAcesso");
+    if (extracao.litros == null) faltam.push("litros");
+  }
+  return faltam;
+}
+
+function suficienteParaDecidir(extracao: OcrExtracao): boolean {
+  return faltamParaDecidir(extracao).length === 0;
+}
+
 export class VisaoOcrProvider implements OcrProvider {
   nome = "visao-ia";
 
@@ -365,6 +392,35 @@ export class VisaoOcrProvider implements OcrProvider {
     // XML/texto: heurístico resolve de graça
     if (isXml || !ehImagemOuPdf) {
       return this.fallbackTexto.extrair(arquivo);
+    }
+
+    // Leitura local antes da IA paga (mesmo pré-passo da política): texto nativo
+    // do PDF → PaddleOCR. Só vale a viagem quando o heurístico fecha a nota
+    // inteira com esse texto; faltando qualquer campo, a IA de visão assume —
+    // decidir com comprovante meio lido sairia mais caro que a chamada (D-014).
+    const avisosLocais: string[] = [];
+    const local = await extrairTextoLocal({
+      nome: arquivo.arquivoNome,
+      mimeType: arquivo.arquivoMime,
+      base64: arquivo.arquivoBase64,
+    });
+    avisosLocais.push(...local.avisos);
+    if (local.texto) {
+      const extracao = await this.fallbackTexto.extrair({
+        arquivoNome: arquivo.arquivoNome,
+        arquivoMime: "text/plain",
+        arquivoBase64: Buffer.from(local.texto.texto, "utf8").toString("base64"),
+      });
+      if (suficienteParaDecidir(extracao)) {
+        return {
+          ...extracao,
+          provedor: `${extracao.provedor}:${local.texto.origem}`,
+          avisos: [local.texto.aviso, ...extracao.avisos],
+        };
+      }
+      avisosLocais.push(
+        `${local.texto.aviso} Faltaram campos essenciais (${faltamParaDecidir(extracao).join(", ")}): IA de visão consultada.`
+      );
     }
 
     const tentativasPadrao: { nome: string; fn: () => Promise<ExtracaoIA> }[] = [
@@ -389,7 +445,7 @@ export class VisaoOcrProvider implements OcrProvider {
           if (!ia.chaveAcesso) pendentes.push("chaveAcesso");
           if (ia.litros === null) pendentes.push("litros");
         }
-        const avisos: string[] = [];
+        const avisos: string[] = [...avisosLocais];
         if (ia.consumidorIdentificado === false) {
           avisos.push("Consumidor NÃO identificado no documento (sem CPF/CNPJ).");
         }
@@ -433,6 +489,7 @@ export class VisaoOcrProvider implements OcrProvider {
       camposPendentes: ["cnpjEmitente", "valor", "dataFatoGerador", "categoria"],
       provedor: this.nome,
       avisos: [
+        ...avisosLocais,
         `IA de visão indisponível (${erros.join("; ") || "sem chave configurada"}) — enviada para revisão manual.`,
       ],
       tipoDocumento: null,
