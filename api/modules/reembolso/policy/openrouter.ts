@@ -33,12 +33,20 @@ const TIMEOUT_MS = 240_000;
 /** A API recusa `models` com mais de 3 itens ("must have 3 items or fewer"). */
 export const MAX_MODELOS_OPENROUTER = 3;
 
+/**
+ * Modelos da OpenAI, faturados pelo OpenRouter (17/09/2026): são os que
+ * respondem bem à extração da política com JSON Schema estrito. Do melhor
+ * custo-benefício ao mais forte; `gpt-5-mini` ficou de fora porque recusa os
+ * parâmetros exigidos (`require_parameters` + temperatura).
+ */
+const MODELOS_PADRAO = ["openai/gpt-4.1-mini", "openai/gpt-4o-mini", "openai/gpt-4.1"];
+
 export function modelosPolitica(): string[] {
   const lista = (process.env.POLICY_OPENROUTER_MODELS ?? "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-  return (lista.length ? lista : ["openai/gpt-4o-mini"]).slice(0, MAX_MODELOS_OPENROUTER);
+  return (lista.length ? lista : MODELOS_PADRAO).slice(0, MAX_MODELOS_OPENROUTER);
 }
 
 function maxTokens(): number {
