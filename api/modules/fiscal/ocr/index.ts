@@ -56,6 +56,9 @@ function parseData(valor: string | null): string | null {
   // dd/mm/yyyy
   const br = valor.match(/(\d{2})\/(\d{2})\/(\d{4})/);
   if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  // dd/mm/yy (cupom/ticket impresso): século 21
+  const curto = valor.match(/(\d{2})\/(\d{2})\/(\d{2})(?!\d)/);
+  if (curto) return `20${curto[3]}-${curto[2]}-${curto[1]}`;
   return null;
 }
 
@@ -170,15 +173,21 @@ export class HeuristicOcrProvider implements OcrProvider {
       cfop = primeiro(texto, [/CFOP[:\s]*(\d{4})/i]);
       ncm = primeiro(texto, [/NCM[:\s]*([\d.]{8,10})/i]);
       cst = primeiro(texto, [/CST[:\s]*(\d{2,3})/i, /CSOSN[:\s]*(\d{3})/i]);
+      // Texto de OCR (Paddle) vem uma linha por elemento: rótulo numa linha,
+      // número na seguinte ("Valor a pagar R$" / "904,00"). `\s*` já atravessa
+      // a quebra; os padrões de cupom NFC-e ("a pagar", "… BRL") são os que a
+      // IA de visão lia e o heurístico deixava passar.
       valor = parseNumero(
         primeiro(texto, [
-          /valor\s+(?:total|da nota)[:\s]*R?\$?\s*([\d.,]+)/i,
+          /valor\s+(?:total|da nota|a\s+pagar|pago)[:\s]*R?\$?\s*([\d.,]+)/i,
           /total[:\s]*R\$\s*([\d.,]+)/i,
+          /valor[:\s]*([\d.]+,\d{2})\s*BRL/i,
         ]),
       );
       dataFato = parseData(
         primeiro(texto, [
-          /(?:data\s+(?:de\s+)?emiss[ãa]o)[:\s]*(\d{2}\/\d{2}\/\d{4})/i,
+          /(?:data\s+(?:de\s+)?emiss[ãa]o)[:\s]*(\d{2}\/\d{2}\/\d{2,4})/i,
+          /(?:^|\b)(?:data|dt\.?(?:\s+\w+)?)[:\s]*(\d{2}\/\d{2}\/\d{2,4})/im,
           /(\d{2}\/\d{2}\/\d{4})/,
         ]),
       );
