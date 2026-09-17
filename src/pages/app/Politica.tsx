@@ -45,14 +45,10 @@ import {
 import { cn } from "@/lib/utils";
 import { podeEditarPolitica, erroArquivoPolitica } from "@/components/painel/seguranca";
 import PoliticaSimulador from "@/components/politica/PoliticaSimulador";
-import PoliticaCamposStep from "@/components/politica/PoliticaCamposStep";
-import { alertasCamposCustomizados } from "@/components/politica/alertasCamposCustomizados";
-
 const PASSOS = [
   { numero: 1, rotulo: "Enviar documento" },
   { numero: 2, rotulo: "Revisar regras" },
-  { numero: 3, rotulo: "Campos customizados" },
-  { numero: 4, rotulo: "Simular e ativar" },
+  { numero: 3, rotulo: "Simular e ativar" },
 ] as const;
 
 function StepIndicator({ step }: { step: number }) {
@@ -110,7 +106,7 @@ export default function Politica({ iniciarUpload = false }: { iniciarUpload?: bo
   const podeDecidir = podeEditarPolitica(user, activeCompany);
 
   const [modo, setModo] = useState<"status" | "wizard">(iniciarUpload ? "wizard" : "status");
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [upload, setUpload] = useState<PoliticaUploadItem | null>(null);
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
   const [politicaId, setPoliticaId] = useState<number | null>(null);
@@ -232,7 +228,7 @@ export default function Politica({ iniciarUpload = false }: { iniciarUpload?: bo
           "Elas só passam a valer quando você ativar a política. Simule o agente abaixo antes.",
       });
       setForm(formFromRegras(res.regras));
-      setStep(4);
+      setStep(3);
     } catch (erro) {
       toast.error("Falha ao salvar as regras", {
         description: erro instanceof Error ? erro.message : undefined,
@@ -450,30 +446,20 @@ export default function Politica({ iniciarUpload = false }: { iniciarUpload?: bo
                 textoExtraido={extracao.textoExtraido}
                 salvando={updateRegras.isPending}
                 onVoltar={() => setStep(1)}
-                onSalvar={() => setStep(3)}
-              />
-            </motion.div>
-          )}
-
-          {step === 3 && politicaId !== null && form && (
-            <motion.div key="politica-campos" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }}>
-              <PoliticaCamposStep
-                campos={form.base.camposCustomizados}
-                onChange={camposCustomizados => setForm({ ...form, base: { ...form.base, camposCustomizados } })}
-                pendencias={alertasCamposCustomizados(
-                  extracao,
-                  form.base.camposCustomizados.length
-                )}
-                salvando={updateRegras.isPending}
-                onVoltar={() => setStep(2)}
                 onSalvar={() => void salvarRegras()}
               />
             </motion.div>
           )}
 
-          {step === 4 && politicaId !== null && (
+          {/* Passo "Campos customizados" (PoliticaCamposStep) saiu do caminho obrigatório:
+              cargos, funções e particularidades ainda não são coletados por colaborador
+              nem lidos pelo agente (D-024/POC-17), então revisá-los não muda decisão
+              nenhuma. Os campos extraídos continuam sendo salvos com as regras e
+              aparecem no resumo. Religar = voltar a renderizar o componente aqui. */}
+
+          {step === 3 && politicaId !== null && (
             <motion.div
-              key="politica-passo-4"
+              key="politica-passo-3"
               initial={{ opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -40 }}
@@ -515,10 +501,10 @@ export default function Politica({ iniciarUpload = false }: { iniciarUpload?: bo
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <button
                   type="button"
-                  onClick={() => setStep(3)}
+                  onClick={() => setStep(2)}
                   className="inline-flex h-11 items-center gap-2 rounded-[10px] px-4 text-[13px] font-semibold text-text-500 transition hover:bg-paper hover:text-text-900"
                 >
-                  ← Voltar aos campos customizados
+                  ← Voltar às regras
                 </button>
                 <button
                   type="button"

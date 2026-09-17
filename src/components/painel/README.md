@@ -14,8 +14,7 @@ As telas permanecem conectadas aos contratos existentes:
 | Detalhe | Painel de revisão e drawer de despesas existentes; nenhum ID de exemplo |
 | Norma | Política ativa e histórico consultados por empresa |
 | Enviar documento | `/app/politica/nova`, upload real e extração no servidor |
-| Revisar regras | Revisão local antes de conferir campos customizados |
-| Campos customizados | Cargos, funções e particularidades; salva regras e definições no rascunho |
+| Revisar regras | Revisão local; salva regras e campos extraídos no rascunho |
 | Simular e ativar | `politica.testar` com ID do rascunho, depois ativação explícita |
 
 O seletor de empresa sincroniza todas as instâncias e abas. A troca remonta o

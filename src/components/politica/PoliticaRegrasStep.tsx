@@ -778,7 +778,7 @@ export default function PoliticaRegrasStep({
               )}
             >
               <Save className="h-4 w-4" />
-              {salvando ? "Salvando…" : "Revisar campos customizados →"}
+              {salvando ? "Salvando…" : "Salvar e simular →"}
             </button>
           </div>
         </div>
