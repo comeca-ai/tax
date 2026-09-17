@@ -91,13 +91,13 @@ Código em `/opt/paddle-ocr/current`, venv em `/opt/paddle-ocr/venv`, segredo em
 `/etc/paddle-ocr/runtime.env` (só `PADDLE_OCR_TOKEN`), modelos em
 `/var/lib/paddle-ocr` (StateDirectory). `ExecStartPre` baixa/valida os modelos
 antes de abrir a porta — a primeira requisição nunca espera download. Ouve em
-`127.0.0.1:4190`; o app aponta `POLICY_OCR_URL=http://127.0.0.1:4190`.
+`127.0.0.1:4191`; o app aponta `POLICY_OCR_URL=http://127.0.0.1:4191`.
 
 **Docker (stack compose):** perfil opt-in, imagem ~2 GB.
 
 ```sh
 docker compose --profile ocr up -d --build
-# .env do app: POLICY_OCR_URL=http://paddle-ocr:4190  POLICY_OCR_TOKEN=<mesmo token>
+# .env do app: POLICY_OCR_URL=http://paddle-ocr:4191  POLICY_OCR_TOKEN=<mesmo token>
 ```
 
 Segue `docs/POLITICA-DE-RELEASE-E-DEPLOY.md`: PR, CI, homologação, tag.

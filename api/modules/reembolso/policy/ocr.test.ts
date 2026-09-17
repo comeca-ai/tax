@@ -9,7 +9,7 @@ import { prepararTexto } from "./ocr";
  * aconteceram — o dinheiro está aí, não no texto devolvido.
  */
 
-const SIDECAR = "http://127.0.0.1:4190";
+const SIDECAR = "http://127.0.0.1:4191";
 const TOKEN = "token-do-sidecar";
 
 const RULESET = {
@@ -43,7 +43,7 @@ describe("pré-passo de texto no upload da política", () => {
       chamadas.push({ host: u.host, path: u.pathname, auth: headers.get("authorization"), corpo: String(init?.body ?? "") });
       const json = (status: number, corpo: unknown) =>
         ({ ok: status >= 200 && status < 300, status, json: async () => corpo, text: async () => JSON.stringify(corpo) }) as unknown as Response;
-      if (u.host === "127.0.0.1:4190") return json(sidecar.status, sidecar.corpo);
+      if (u.host === "127.0.0.1:4191") return json(sidecar.status, sidecar.corpo);
       if (u.host === "api.mistral.ai" && u.pathname === "/v1/ocr") return json(200, { pages: [{ markdown: "texto do OCR pago da Mistral" }] });
       if (u.host === "api.mistral.ai" && u.pathname === "/v1/chat/completions")
         return json(200, { choices: [{ message: { content: JSON.stringify(RULESET) }, finish_reason: "stop" }] });
@@ -76,7 +76,7 @@ describe("pré-passo de texto no upload da política", () => {
 
   it("escaneado + sidecar no ar: OCR local, depois só o chat do Mistral — nenhum OCR pago", async () => {
     const r = await getPolicyParser().extract(ESCANEADO);
-    expect(rotas()).toEqual(["127.0.0.1:4190/ocr", "api.mistral.ai/v1/chat/completions"]);
+    expect(rotas()).toEqual(["127.0.0.1:4191/ocr", "api.mistral.ai/v1/chat/completions"]);
     expect(chamadas[0].auth).toBe(`Bearer ${TOKEN}`);
     expect(JSON.parse(chamadas[0].corpo)).toEqual(ESCANEADO);
     // o texto do Paddle foi o que chegou ao LLM
@@ -89,7 +89,7 @@ describe("pré-passo de texto no upload da política", () => {
   it("sidecar fora (503): cai no OCR pago da Mistral e o aviso diz isso", async () => {
     sidecar = { status: 503, corpo: { error: "servico_fechado" } };
     const r = await getPolicyParser().extract(ESCANEADO);
-    expect(rotas()).toEqual(["127.0.0.1:4190/ocr", "api.mistral.ai/v1/ocr", "api.mistral.ai/v1/chat/completions"]);
+    expect(rotas()).toEqual(["127.0.0.1:4191/ocr", "api.mistral.ai/v1/ocr", "api.mistral.ai/v1/chat/completions"]);
     expect(r.avisos[0]).toMatch(/^OCR local indisponível \(HTTP 503\): OCR do provedor de IA usado/);
     expect(r.provedor).toMatch(/^mistral:/);
   });
@@ -97,7 +97,7 @@ describe("pré-passo de texto no upload da política", () => {
   it("sidecar devolve texto vazio: tratado como falha, OCR pago assume", async () => {
     sidecar = { status: 200, corpo: { texto: "   ", paginas: [] } };
     const r = await getPolicyParser().extract(ESCANEADO);
-    expect(rotas()).toEqual(["127.0.0.1:4190/ocr", "api.mistral.ai/v1/ocr", "api.mistral.ai/v1/chat/completions"]);
+    expect(rotas()).toEqual(["127.0.0.1:4191/ocr", "api.mistral.ai/v1/ocr", "api.mistral.ai/v1/chat/completions"]);
     expect(r.avisos[0]).toMatch(/OCR local indisponível \(texto vazio\)/);
   });
 

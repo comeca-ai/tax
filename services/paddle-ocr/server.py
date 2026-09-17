@@ -19,7 +19,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = os.environ.get("PADDLE_OCR_HOST", "127.0.0.1")
-PORT = int(os.environ.get("PADDLE_OCR_PORT", "4190"))
+PORT = int(os.environ.get("PADDLE_OCR_PORT", "4191"))
 TOKEN = os.environ.get("PADDLE_OCR_TOKEN", "")
 LANG = os.environ.get("PADDLE_OCR_LANG", "pt")
 DPI = int(os.environ.get("PADDLE_OCR_DPI", "200"))

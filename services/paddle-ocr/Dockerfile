@@ -25,16 +25,16 @@ ARG PADDLE_OCR_LANG=pt
 # Dentro da rede do compose o serviço precisa ouvir em todas as interfaces do
 # container; a porta NÃO é publicada no host (ver docker-compose.yml).
 ENV PADDLE_OCR_HOST=0.0.0.0 \
-    PADDLE_OCR_PORT=4190 \
+    PADDLE_OCR_PORT=4191 \
     PADDLE_OCR_LANG=${PADDLE_OCR_LANG}
 
 # Warm-up: baixa e valida os modelos dentro da imagem, com a MESMA configuração
 # do runtime (server.MotorPaddle é a única fonte de verdade dos parâmetros).
 RUN python -c "import server; server.MotorPaddle()"
 
-EXPOSE 4190
+EXPOSE 4191
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
-  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4190/health', timeout=4).status == 200 else 1)"
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4191/health', timeout=4).status == 200 else 1)"
 
 CMD ["python", "server.py"]

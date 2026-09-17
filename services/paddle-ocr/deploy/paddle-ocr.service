@@ -14,7 +14,7 @@ Environment=HOME=/var/lib/paddle-ocr
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=1
 Environment=PADDLE_OCR_HOST=127.0.0.1
-Environment=PADDLE_OCR_PORT=4190
+Environment=PADDLE_OCR_PORT=4191
 EnvironmentFile=/etc/paddle-ocr/runtime.env
 # Baixa/valida os modelos ANTES de abrir a porta, com a mesma configuração do
 # runtime (server.MotorPaddle). Idempotente; rápido quando já em cache.

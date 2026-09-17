@@ -7,7 +7,7 @@ import { VisaoOcrProvider } from "./visao";
  * Cada teste afirma QUAIS chamadas externas aconteceram — o dinheiro está aí.
  */
 
-const SIDECAR = "http://127.0.0.1:4190";
+const SIDECAR = "http://127.0.0.1:4191";
 
 /** Bytes que não são PDF: pdf-parse falha → sem texto nativo → sidecar decide. */
 const ESCANEADO = {
@@ -69,7 +69,7 @@ describe("comprovante: OCR local antes da IA paga", () => {
 
     const extracao = await provider().extrair(ESCANEADO);
 
-    expect(chamadas).toEqual(["127.0.0.1:4190"]);
+    expect(chamadas).toEqual(["127.0.0.1:4191"]);
     expect(extracao.valor).toBe(87.4);
     expect(extracao.dataFatoGerador).toBe("2026-09-13");
     expect(extracao.provedor).toBe("heuristico-local:paddle");
@@ -83,7 +83,7 @@ describe("comprovante: OCR local antes da IA paga", () => {
 
     const extracao = await provider().extrair(ESCANEADO);
 
-    expect(chamadas).toEqual(["127.0.0.1:4190"]);
+    expect(chamadas).toEqual(["127.0.0.1:4191"]);
     expect(extracao.provedor).toBe("heuristico-local:paddle");
     expect(extracao.valor).toBe(87.4);
     expect(extracao.camposPendentes).toContain("cnpjEmitente");
@@ -99,7 +99,7 @@ describe("comprovante: OCR local antes da IA paga", () => {
     const extracao = await provider().extrair(ESCANEADO);
 
     // Sem chave de IA a cascata paga nem é tentada, mas o caminho é o da IA.
-    expect(chamadas).toEqual(["127.0.0.1:4190"]);
+    expect(chamadas).toEqual(["127.0.0.1:4191"]);
     expect(extracao.avisos[0]).toContain("Faltaram campos essenciais");
     expect(extracao.avisos.at(-1)).toContain("IA de visão indisponível");
   });
@@ -110,7 +110,7 @@ describe("comprovante: OCR local antes da IA paga", () => {
 
     const extracao = await provider().extrair(ESCANEADO);
 
-    expect(chamadas).toEqual(["127.0.0.1:4190"]);
+    expect(chamadas).toEqual(["127.0.0.1:4191"]);
     expect(extracao.avisos[0]).toContain("OCR local indisponível (HTTP 503)");
   });
 

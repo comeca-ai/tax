@@ -76,7 +76,7 @@ services:
       OCR_OPENAI_MODEL: ${OCR_OPENAI_MODEL:-gpt-4o-mini}
       # OCR local (v1.14): microserviço PaddleOCR, perfil `ocr`. Política e comprovante.
       # Vazio = desligado (o parser usa o OCR pago do provedor). Com o perfil
-      # ativo, defina OCR_LOCAL_URL=http://paddle-ocr:4190 no .env. Vale para a
+      # ativo, defina OCR_LOCAL_URL=http://paddle-ocr:4191 no .env. Vale para a
       # política e para o comprovante fiscal (mesmo pré-passo).
       OCR_LOCAL_URL: ${OCR_LOCAL_URL:-}
       OCR_LOCAL_TOKEN: ${OCR_LOCAL_TOKEN:-}
