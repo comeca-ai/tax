@@ -74,9 +74,30 @@ services:
       OCR_PROVIDER: ${OCR_PROVIDER:-heuristico}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OCR_OPENAI_MODEL: ${OCR_OPENAI_MODEL:-gpt-4o-mini}
+      # OCR local da política (v1.14): microserviço PaddleOCR, perfil `ocr`.
+      # Vazio = desligado (o parser usa o OCR pago do provedor). Com o perfil
+      # ativo, defina POLICY_OCR_URL=http://paddle-ocr:4190 no .env.
+      POLICY_OCR_URL: ${POLICY_OCR_URL:-}
+      POLICY_OCR_TOKEN: ${POLICY_OCR_TOKEN:-}
+      POLICY_OCR_TIMEOUT_MS: ${POLICY_OCR_TIMEOUT_MS:-120000}
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - tax-net
+
+  # OCR local da política. Opt-in: `docker compose --profile ocr up -d --build`.
+  # Imagem ~2 GB (PaddlePaddle CPU + modelos); quem não usa não constrói.
+  # Sem `ports`: só o tax-app fala com ele, pela rede interna, com token.
+  paddle-ocr:
+    build: ./services/paddle-ocr
+    profiles: ["ocr"]
+    restart: unless-stopped
+    environment:
+      PADDLE_OCR_TOKEN: ${POLICY_OCR_TOKEN:-}
+      PADDLE_OCR_LANG: ${PADDLE_OCR_LANG:-pt}
+      PADDLE_OCR_DPI: ${PADDLE_OCR_DPI:-200}
+    mem_limit: 3g
     networks:
       - tax-net
 

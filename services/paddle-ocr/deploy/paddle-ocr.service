@@ -1,0 +1,45 @@
+[Unit]
+Description=PaddleOCR microservice (politica de reembolso)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=paddle-ocr
+Group=paddle-ocr
+WorkingDirectory=/opt/paddle-ocr/current
+# HOME aponta para o StateDirectory: é onde o PaddleX guarda os modelos
+# (~/.paddlex/official_models). Persistem entre releases.
+Environment=HOME=/var/lib/paddle-ocr
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=1
+Environment=PADDLE_OCR_HOST=127.0.0.1
+Environment=PADDLE_OCR_PORT=4190
+EnvironmentFile=/etc/paddle-ocr/runtime.env
+# Baixa/valida os modelos ANTES de abrir a porta, com a mesma configuração do
+# runtime (server.MotorPaddle). Idempotente; rápido quando já em cache.
+ExecStartPre=/opt/paddle-ocr/venv/bin/python -c "import server; server.MotorPaddle()"
+ExecStart=/opt/paddle-ocr/venv/bin/python /opt/paddle-ocr/current/server.py
+TimeoutStartSec=600
+StateDirectory=paddle-ocr
+StateDirectoryMode=0700
+UMask=0077
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+# Pico medido de 3,5 GB (PI-004, 200 DPI) — bem acima dos 256M do Jampeiro.
+MemoryMax=4G
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

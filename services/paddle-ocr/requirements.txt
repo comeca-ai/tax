@@ -1,0 +1,6 @@
+# Versões validadas em 17/09/2026 (Python 3.12, CPU). paddlepaddle do PyPI é CPU-only.
+# 3.2.0 de propósito: no 3.3.1 o oneDNN quebra na inferência e o OCR fica 12× mais lento
+# (ver server.py). Reavaliar ao subir a versão.
+paddlepaddle==3.2.0
+paddleocr==3.7.0
+pymupdf==1.28.2

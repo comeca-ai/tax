@@ -4,6 +4,7 @@
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { MistralPolicyParser } from "./mistral";
 import { OpenAiPolicyParser } from "./openai";
+import { prepararTexto } from "./ocr";
 import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
 import { extrairCamposCustomizadosLocais } from "./camposCustomizados";
 import {
@@ -391,8 +392,24 @@ const parsers: Record<string, () => PolicyParser> = {
   openai: () => new OpenAiPolicyParser(() => new HeuristicPolicyParser()),
 };
 
+/**
+ * Envolve qualquer parser com o pré-passo de texto (ocr.ts): texto nativo do
+ * PDF ou OCR local antes do LLM. Os avisos do pré-passo vêm primeiro, na
+ * ordem em que as coisas aconteceram.
+ */
+function comTextoPreparado(parser: PolicyParser): PolicyParser {
+  return {
+    nome: parser.nome,
+    async extract(input) {
+      const preparado = await prepararTexto(input);
+      const resultado = await parser.extract(preparado.input);
+      return { ...resultado, avisos: [...preparado.avisos, ...resultado.avisos] };
+    },
+  };
+}
+
 export function getPolicyParser(): PolicyParser {
   const nome = process.env.POLICY_PROVIDER ?? "heuristico";
   const factory = parsers[nome] ?? parsers.heuristico;
-  return factory();
+  return comTextoPreparado(factory());
 }
