@@ -181,7 +181,8 @@ function modelosOpenRouter(): string[] {
     .split(",")
     .map(item => item.trim())
     .filter(Boolean);
-  return lista.length ? lista : [process.env.POLICY_OPENROUTER_MODEL ?? "openrouter/free"];
+  // A API recusa `models` com mais de 3 itens ("must have 3 items or fewer").
+  return (lista.length ? lista : [process.env.POLICY_OPENROUTER_MODEL ?? "openrouter/free"]).slice(0, 3);
 }
 
 async function chamarOpenRouter(pedido: string, regrasAtuais: RegraExtraida[], apiKey: string) {

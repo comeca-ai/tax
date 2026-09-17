@@ -30,12 +30,15 @@ import { LIMITE_TEXTO_EXTRAIDO_BYTES, truncarUtf8 } from "./texto";
 
 const TIMEOUT_MS = 240_000;
 
+/** A API recusa `models` com mais de 3 itens ("must have 3 items or fewer"). */
+export const MAX_MODELOS_OPENROUTER = 3;
+
 export function modelosPolitica(): string[] {
   const lista = (process.env.POLICY_OPENROUTER_MODELS ?? "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-  return lista.length ? lista : ["openai/gpt-4o-mini"];
+  return (lista.length ? lista : ["openai/gpt-4o-mini"]).slice(0, MAX_MODELOS_OPENROUTER);
 }
 
 function maxTokens(): number {
