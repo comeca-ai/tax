@@ -428,8 +428,8 @@ const parsers: Record<string, () => PolicyParser> = {
   // "llm"/"mistral" mantidos como alias da cascata padrão (POLICY_PROVIDER já em uso)
   llm: cascataPadrao,
   mistral: cascataPadrao,
-  "mistral-ocr": cascataPadrao,
   // seleções explícitas, pulando os elos anteriores
+  "mistral-ocr": () => new MistralOcrAnotadoParser(cascataOpenRouter),
   openrouter: cascataOpenRouter,
   openai: cascataOpenAi,
   // chat da Mistral (fora da cascata desde que o workspace ficou sem cota de chat)
