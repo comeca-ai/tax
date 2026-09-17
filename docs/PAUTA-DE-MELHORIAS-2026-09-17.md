@@ -29,7 +29,7 @@ Sem estas, os blocos 2 e 4 não andam.
 
 | # | Decisão | Sugestão registrada | Origem |
 |---|---|---|---|
-| D-a | Qual `main` recebe o PR: `origin`, `novo-origin` ou `pr` | `origin/main` (proteção e CI verificado) | S-1, LA |
+| D-a | Qual `main` recebe o PR: `origin`, `novo-origin` ou `pr` | `novo-origin/main` (`projeto_tribureembolsa`): a única protegida, CI completo, 0 commits atrás. Verificado na API em 17/09 | S-1, LA |
 | D-b | Crédito em provedor de LLM ou política extraída pelo heurístico e revisada à mão | Crédito pequeno e fixo em um provedor, só para política | S-2, LA |
 | D-c | Aceite do recorte: fiscal externo, modos do painel e precedência fora | Aceitar | S-3, LA |
 | D-d | Identidade: motor tributário vira módulo do reembolsa ou repo próprio | Decidir e ajustar README | S-7 |
@@ -56,7 +56,7 @@ invisíveis por semanas (disco não gravável e provedores sem crédito).
 
 | # | Melhoria | Onde | Esforço | Origem |
 |---|---|---|---|---|
-| 6 | Consolidar em uma `main`: tag nas outras duas, remoção dos remotes redundantes, PR de sincronização dos 4 commits só de `origin/main`; remover as 19 worktrees ligadas (14 em `/root`, 5 em `/tmp`) com `git worktree remove` e `git worktree prune`, nunca só `rm`, senão as branches ficam travadas em `.git/worktrees` | remotes, `docs/MAPA-REPOS.md`, `git worktree list` | 1 h + PR | S-1, LA 6 |
+| 6 | Consolidar em uma `main`: tag nas outras duas, remoção dos remotes redundantes, PR de sincronização do que só existe na `main` de `tax`; remover as 19 worktrees ligadas (14 em `/root`, 5 em `/tmp`) com `git worktree remove` e `git worktree prune`, nunca só `rm`, senão as branches ficam travadas em `.git/worktrees` | remotes, `docs/MAPA-REPOS.md`, `git worktree list` | 1 h + PR | S-1, LA 6 |
 | 7 | Proteção de branch com uma aprovação obrigatória e CI verde | GitHub | 30 min | LA 7 |
 | 8 | Publicação recusa commit sem run verde; manifesto grava o id do run e só então `remoteCiVerified: true` | `Relatorio/publicar-*.py`, `tools/deploy` | 2 h | LA 8 |
 | 9 | Registrar em `DECISOES.md` o recorte aceito (D-c) | `docs/DECISOES.md` | 30 min | LA 9 |

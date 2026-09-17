@@ -47,8 +47,11 @@ quatro seguintes são direção.
 
 ### S-1 · Uma `main` só
 
-Ficar com `origin/main`, que tem proteção de branch e histórico de CI
-verificado em 15/09. Criar tag nas outras duas, remover os remotes
+Ficar com a `main` de `comeca-ai/projeto_tribureembolsa` (remoto `novo-origin`):
+é a única protegida, tem 13 workflows de CI ativos, as deploy keys apontam para
+ela e a branch atual está 0 commits atrás dela. A `main` de `comeca-ai/tax`
+(remoto `origin`) não tem proteção. Verificado na API em 17/09.
+Criar tag nas outras duas, remover os remotes
 redundantes, remover as 19 worktrees ligadas com `git worktree remove` e
 `git worktree prune`. Atualizar
 [MAPA-REPOS.md](MAPA-REPOS.md).
