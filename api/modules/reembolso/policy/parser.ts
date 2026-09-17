@@ -85,8 +85,15 @@ const RE_LINHA_KM =
 async function decodificarTexto(input: ArquivoPolitica): Promise<string | null> {
   // PDF com camada de texto → extrai o texto de verdade (pdf-parse/pdf.js).
   // PDF escaneado (só imagem) retorna texto vazio → null → assistido.
+  //
+  // O mime manda, e o nome só desempata: o pré-passo (ocr.ts) devolve o
+  // documento como text/plain preservando o nome original — "politica.pdf"
+  // com texto dentro. Olhar só a extensão mandava esse texto ao pdf-parse,
+  // que falhava, e a política caía no ramo binário com zero regras.
+  const mime = (input.mimeType || "").toLowerCase();
   const ehPdf =
-    input.mimeType.includes("pdf") || /\.pdf$/i.test(input.arquivoNome);
+    !mime.startsWith("text/") &&
+    (mime.includes("pdf") || /\.pdf$/i.test(input.arquivoNome));
   if (ehPdf) {
     try {
       const dados = await pdfParse(Buffer.from(input.base64, "base64"));

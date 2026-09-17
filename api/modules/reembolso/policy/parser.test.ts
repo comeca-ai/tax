@@ -107,6 +107,23 @@ describe("HeuristicPolicyParser — demais formatos", () => {
     expect(r.regras.aprovacaoAutomaticaAte).toBe(200);
   });
 
+  // Regressão 17/09/2026 (homolog): o pré-passo devolve text/plain mantendo o
+  // nome "*.pdf". Decidindo pela extensão, o heurístico mandava esse texto ao
+  // pdf-parse, falhava e caía no ramo binário — política ativada com 0 regras.
+  it("text/plain com nome .pdf (saída do pré-passo): lê como texto, não como PDF", async () => {
+    const texto =
+      "Política de reembolso\nAlimentação: até R$ 120,00 por dia\n" +
+      "Hospedagem até R$ 450,00 a diária\n";
+    const r = await parser.extract({
+      arquivoNome: "Decreto 47045 - Diárias.pdf",
+      mimeType: "text/plain",
+      base64: Buffer.from(texto, "utf8").toString("base64"),
+    });
+    expect(r.textoExtraido).toContain("Política de reembolso");
+    expect(r.regras.limitesPorCategoria.alimentacao).toBe(120);
+    expect(r.camposPendentes).not.toContain("exigeEvidencia");
+  });
+
   it("binário sem texto (imagem) → baixa confiança e tudo pendente", async () => {
     const r = await parser.extract({
       arquivoNome: "politica.jpeg",
